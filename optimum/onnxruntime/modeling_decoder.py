@@ -207,6 +207,12 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "To export your model, simply set `export=True`."
             )
 
+        if hasattr(self.config, "is_decoder"):
+            self.config.is_decoder = True
+
+        if hasattr(self.config, "is_encoder_decoder"):
+            self.config.is_encoder_decoder = False
+
         self.generation_config = generation_config or GenerationConfig.from_model_config(config)
         if is_transformers_version(">=", "4.44.99"):
             misplaced_generation_parameters = self.config._get_non_default_generation_parameters()

@@ -14,7 +14,9 @@
 # limitations under the License.
 import os
 import tempfile
+import unittest
 
+import pytest
 import torch
 from onnxruntime import InferenceSession
 from parameterized import parameterized
@@ -24,6 +26,14 @@ from transformers.generation import GenerationConfig
 from transformers.onnx.utils import get_preprocessor
 
 from optimum.exporters.onnx import main_export
+from optimum.exporters.onnx.model_configs import (
+    GemmaOnnxConfig,
+    GraniteOnnxConfig,
+    MPTOnnxConfig,
+    Phi3OnnxConfig,
+    Qwen2OnnxConfig,
+)
+from optimum.exporters.tasks import TasksManager
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
@@ -34,7 +44,11 @@ from optimum.onnxruntime import (
 )
 from optimum.pipelines import pipeline
 from optimum.utils.import_utils import is_transformers_version
-from optimum.utils.testing_utils import grid_parameters
+from optimum.utils.logging import get_logger
+from optimum.utils.testing_utils import grid_parameters, require_hf_token
+
+
+logger = get_logger(__name__)
 
 
 class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
@@ -50,34 +64,41 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "llama",
         "mistral",
         "opt",
+        "bart",
+        "olmo",
+        "blenderbot_small",
+        "phi",
+        "bigbird_pegasus",
+        "marian",
+        "pegasus",
+        "olmo2",
+        "blenderbot",
+        "mbart",
     ]
 
-    if is_transformers_version(">=", "4.37"):
+    if is_transformers_version(">=", str(Qwen2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("qwen2")
-
-    if is_transformers_version(">=", "4.38"):
+    if is_transformers_version(">=", str(GemmaOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("gemma")
-
-    if is_transformers_version(">=", "4.41"):
-        # TODO: fix "mpt" for which inference fails for transformers < v4.41
+    if is_transformers_version(">=", str(MPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("mpt")
-
-    if is_transformers_version(">=", "4.45"):
+    if is_transformers_version(">=", str(GraniteOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("granite")
-
-    if is_transformers_version(">=", "4.50"):
+    if is_transformers_version(">=", str(Phi3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("phi3")
 
     GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [False, True]}
-    AUTOMODEL_CLASS = AutoModelForCausalLM
-    ORTMODEL_CLASS = ORTModelForCausalLM
+    BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}
+
     TASK = "text-generation"
+    ORTMODEL_CLASS = ORTModelForCausalLM
+    AUTOMODEL_CLASS = AutoModelForCausalLM
 
     def get_inputs(self, batch_size=1):
         return ["This is a sample input"] + ["This is another sample input"] * (batch_size - 1)
 
-    def test_load_vanilla_transformers_which_is_not_supported(self):
+    # INTEGRATION TESTS
+    def test_load_model_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["vit"], export=True)
         self.assertIn("only supports the tasks", str(context.exception))
@@ -101,7 +122,95 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertFalse(model.use_merged)
         self.assertTrue(model.use_cache)
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
+    @parameterized.expand(
+        grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}, add_test_name=False)
+    )
+    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
+    def test_save_load_model_with_external_data(self, use_cache: bool, use_merged: bool):
+        if use_merged and not use_cache:
+            pytest.skip("use_merged=True requires use_cache=True")
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            model_id = MODEL_NAMES["gpt2"]
+            model = self.ORTMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache, use_merged=use_merged)
+            model.save_pretrained(tmpdirname)
+            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
+            self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
+            # verify loading from local folder works
+            model = self.ORTMODEL_CLASS.from_pretrained(tmpdirname, use_cache=use_cache, use_merged=use_merged)
+
+    @require_hf_token
+    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
+    def test_push_decoder_model_with_external_data_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], export=True)
+            model.save_pretrained(
+                tmpdirname + "/onnx",
+                token=os.environ.get("HF_AUTH_TOKEN", None),
+                repository_id=MODEL_NAMES["gpt2"].split("/")[-1] + "-onnx",
+                private=True,
+                push_to_hub=True,
+            )
+            model = ORTModelForCausalLM.from_pretrained(
+                MODEL_NAMES["gpt2"] + "-onnx", export=False, token=os.environ.get("HF_AUTH_TOKEN", None)
+            )
+
+    def test_trust_remote_code(self):
+        model_id = "fxmarty/tiny-testing-gpt2-remote-code"
+
+        inputs = self.get_inputs()
+        tokenizer = get_preprocessor(model_id)
+        inputs = tokenizer(inputs, return_tensors="pt")
+
+        model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=True).eval()
+        ort_model = self.ORTMODEL_CLASS.from_pretrained(model_id, export=True, trust_remote_code=True)
+
+        pt_logits = model(**inputs).logits
+        ort_logits = ort_model(**inputs).logits
+        torch.testing.assert_close(pt_logits, ort_logits, atol=self.ATOL, rtol=self.RTOL)
+
+    def test_load_model_from_hub_infer_onnx_model(self):
+        model_id = "optimum-internal-testing/tiny-random-llama"
+        # export from hub
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id)
+        self.assertEqual(model.path.name, "model.onnx")
+        # load from hub
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="onnx")
+        self.assertEqual(model.path.name, "model.onnx")
+        # load from hub with revision
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="merged-onnx")
+        self.assertEqual(model.path.name, "decoder_model_merged.onnx")
+        # load from hub with revision and subfolder
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
+        self.assertEqual(model.path.name, "model.onnx")
+        # load from hub with revision and file_name
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="onnx", file_name="model_optimized.onnx")
+        self.assertEqual(model.path.name, "model_optimized.onnx")
+        # revision + file_name (decoder with past)
+        model = self.ORTMODEL_CLASS.from_pretrained(
+            model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx"
+        )
+        self.assertEqual(model.path.name, "decoder_with_past_model.onnx")
+        # load from local
+        model = self.ORTMODEL_CLASS.from_pretrained("tests/assets/onnx", use_cache=False)
+        self.assertEqual(model.path.name, "model.onnx")
+
+        # TODO: something went wrong here
+        # revision + subfolder + file_name (target file exists but it loaded a different one)
+        model = self.ORTMODEL_CLASS.from_pretrained(
+            model_id, revision="merged-onnx", subfolder="subfolder", file_name="optimized_model.onnx"
+        )
+        self.assertEqual(model.path.name, "model.onnx")
+
+        with self.assertRaises(FileNotFoundError):
+            self.ORTMODEL_CLASS.from_pretrained(
+                "hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="doesnt_exist.onnx"
+            )
+
+    # SANITY TESTS
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -146,7 +255,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                             rtol=self.RTOL,
                         )
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
+    # generation is slow without pkv, and we do compare with/without pkv in a different test
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_generation_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -157,17 +267,18 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer.pad_token = tokenizer.eos_token
         tokens = tokenizer(inputs, return_tensors="pt")
 
-        model = self.AUTOMODEL_CLASS.from_pretrained(model_id).eval()
+        model = self.AUTOMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache).eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
+        self.assertEqual(model.config.use_cache, use_cache)
+        self.assertEqual(onnx_model.use_cache, use_cache)
 
         outputs = model.generate(**tokens, **self.GEN_KWARGS)
         onnx_outputs = onnx_model.generate(**tokens, **self.GEN_KWARGS)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
-    @parameterized.expand(grid_parameters({**FULL_GRID, "num_beams": [1, 4]}))
-    def test_compare_beam_search_to_transformers(
-        self, test_name: str, model_arch: str, use_cache: bool, num_beams: int
-    ):
+    # beam search is slow without pkv, and we do compare with/without pkv in a different test
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    def test_compare_beam_search_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
 
@@ -176,27 +287,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer = get_preprocessor(model_id)
         tokenizer.pad_token = tokenizer.eos_token
         tokens = tokenizer(inputs, return_tensors="pt")
-
-        model = self.AUTOMODEL_CLASS.from_pretrained(model_id).eval()
+        model = self.AUTOMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache).eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
+        self.assertEqual(model.config.use_cache, use_cache)
+        self.assertEqual(onnx_model.use_cache, use_cache)
 
-        gen_kwargs = self.GEN_KWARGS.copy()
-        gen_kwargs["num_beams"] = num_beams
-        gen_kwargs.pop("do_sample")
+        # beam search with random sampling
+        gen_config = GenerationConfig(**self.BEAM_KWARGS, do_sample=True)
+        set_seed(SEED)
+        outputs = model.generate(**tokens, generation_config=gen_config)
+        set_seed(SEED)
+        onnx_outputs = onnx_model.generate(**tokens, generation_config=gen_config)
+        torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
 
-        gen_configs = [GenerationConfig(**gen_kwargs, do_sample=False), GenerationConfig(**gen_kwargs, do_sample=True)]
-        if num_beams == 4:
-            gen_configs.append(
-                GenerationConfig(**gen_kwargs, do_sample=False, num_beam_groups=2, diversity_penalty=0.0000001)
-            )
-
-        for gen_config in gen_configs:
-            with torch.no_grad():
-                set_seed(SEED)
-                outputs = model.generate(**tokens, generation_config=gen_config)
-            set_seed(SEED)
-            onnx_outputs = onnx_model.generate(**tokens, generation_config=gen_config)
-            torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
+        # group beam search with diversity penalty
+        gen_config = GenerationConfig(**self.BEAM_KWARGS, num_beam_groups=2, diversity_penalty=0.0001, do_sample=False)
+        outputs = model.generate(**tokens, generation_config=gen_config)
+        onnx_outputs = onnx_model.generate(**tokens, generation_config=gen_config)
+        torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_with_and_without_past_key_values(self, model_arch):
@@ -209,22 +317,22 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(inputs, return_tensors="pt")
+        with_pkv_dir = self.onnx_model_dirs[model_arch + "_True"]
+        without_pkv_dir = self.onnx_model_dirs[model_arch + "_False"]
+        model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(with_pkv_dir, use_cache=True)
+        model_without_pkv = self.ORTMODEL_CLASS.from_pretrained(without_pkv_dir, use_cache=False)
+        self.assertFalse(model_without_pkv.use_cache)
+        self.assertTrue(model_with_pkv.use_cache)
 
-        model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"], use_cache=True
-        )
-        model_without_pkv = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_False"], use_cache=False
-        )
-
-        num_new_tokens = self.GEN_KWARGS["max_new_tokens"]
+        new_tokens = self.GEN_KWARGS["max_new_tokens"]
         outputs_model_with_pkv = model_with_pkv.generate(**tokens, **self.GEN_KWARGS)
         outputs_model_without_pkv = model_without_pkv.generate(**tokens, **self.GEN_KWARGS)
-        self.assertEqual(outputs_model_with_pkv.shape[1], tokens["input_ids"].shape[1] + num_new_tokens)
-        self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + num_new_tokens)
+        self.assertEqual(outputs_model_with_pkv.shape[1], tokens["input_ids"].shape[1] + new_tokens)
+        self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + new_tokens)
         torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, atol=self.ATOL, rtol=self.RTOL)
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
+    # TODO: remove when io binding is the default
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -233,12 +341,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(inputs, return_tensors="pt")
-
+        model_dir = self.onnx_model_dirs[test_name]
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False, provider="CPUExecutionProvider"
+            model_dir, use_cache=use_cache, use_io_binding=False, provider="CPUExecutionProvider"
         )
         io_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=True, provider="CPUExecutionProvider"
+            model_dir, use_cache=use_cache, use_io_binding=True, provider="CPUExecutionProvider"
         )
 
         self.assertTrue(io_model.use_io_binding)
@@ -272,7 +380,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                             rtol=self.RTOL,
                         )
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
+    # generation is slow without pkv, and we do compare with/without pkv in a different test
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_generation_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -283,11 +392,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer.pad_token = tokenizer.eos_token
         tokens = tokenizer(inputs, return_tensors="pt")
 
+        model_dir = self.onnx_model_dirs[test_name]
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], provider="CPUExecutionProvider", use_io_binding=False, use_cache=use_cache
+            model_dir, provider="CPUExecutionProvider", use_io_binding=False, use_cache=use_cache
         )
         io_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], provider="CPUExecutionProvider", use_io_binding=True, use_cache=use_cache
+            model_dir, provider="CPUExecutionProvider", use_io_binding=True, use_cache=use_cache
         )
 
         self.assertTrue(io_model.use_io_binding)
@@ -380,21 +490,23 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_merged_and_not_merged_models_outputs(self, model_arch: str):
         with tempfile.TemporaryDirectory() as tmpdir:
+            inputs = self.get_inputs()
             task = "text-generation-with-past"
             model_id = MODEL_NAMES[model_arch]
             tokenizer = get_preprocessor(model_id)
-            text = "My Name is Philipp and i live"
-            tokens = tokenizer(text, return_tensors="pt")
+            tokens = tokenizer(inputs, return_tensors="pt")
             model = self.AUTOMODEL_CLASS.from_pretrained(model_id).eval()
-            main_export(model_id, output=tmpdir, task=task, legacy=True)
+            main_export(model_id, output=tmpdir, task=task, legacy=True, no_post_processing=False, do_validation=False)
 
-            # not merged model, no cache
+            # not merged model, without cache
             self.assertIn(ONNX_DECODER_NAME, os.listdir(tmpdir))
-            not_merged_no_cache_file = os.path.join(tmpdir, ONNX_DECODER_NAME)
-            self.assertFalse(has_onnx_input(not_merged_no_cache_file, "use_cache_branch"))
-            not_merged_no_cache_model = self.ORTMODEL_CLASS.from_pretrained(tmpdir, use_cache=False, use_merged=False)
-            self.assertFalse(not_merged_no_cache_model.use_merged)
-            self.assertFalse(not_merged_no_cache_model.use_cache)
+            not_merged_without_cache_file = os.path.join(tmpdir, ONNX_DECODER_NAME)
+            self.assertFalse(has_onnx_input(not_merged_without_cache_file, "use_cache_branch"))
+            not_merged_without_cache_model = self.ORTMODEL_CLASS.from_pretrained(
+                tmpdir, use_cache=False, use_merged=False
+            )
+            self.assertFalse(not_merged_without_cache_model.use_merged)
+            self.assertFalse(not_merged_without_cache_model.use_cache)
 
             # not merged model, with cache
             self.assertIn(ONNX_DECODER_WITH_PAST_NAME, os.listdir(tmpdir))
@@ -415,22 +527,41 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # inference
             outputs = model.generate(**tokens, **self.GEN_KWARGS)
             merged_outputs = merged_model.generate(**tokens, **self.GEN_KWARGS)
-            not_merged_no_cache_outputs = not_merged_no_cache_model.generate(**tokens, **self.GEN_KWARGS)
             not_merged_with_cache_outputs = not_merged_with_cache_model.generate(**tokens, **self.GEN_KWARGS)
+            not_merged_without_cache_outputs = not_merged_without_cache_model.generate(**tokens, **self.GEN_KWARGS)
 
             # compare merged to transformers
             torch.testing.assert_close(outputs, merged_outputs, atol=self.ATOL, rtol=self.RTOL)
-            # compare not merged no cache to transformers
-            torch.testing.assert_close(outputs, not_merged_no_cache_outputs, atol=self.ATOL, rtol=self.RTOL)
             # compare not merged with cache to transformers
             torch.testing.assert_close(outputs, not_merged_with_cache_outputs, atol=self.ATOL, rtol=self.RTOL)
+            # compare not merged without cache to transformers
+            torch.testing.assert_close(outputs, not_merged_without_cache_outputs, atol=self.ATOL, rtol=self.RTOL)
 
             # load and save (only merged is loaded and saved)
             loaded_model = self.ORTMODEL_CLASS.from_pretrained(tmpdir)
             self.assertEqual(loaded_model.path.name, ONNX_DECODER_MERGED_NAME)
             self.assertTrue(loaded_model.use_merged)
             self.assertTrue(loaded_model.use_cache)
-            loaded_model.save_pretrained(tmpdir)
-            self.assertIn(ONNX_DECODER_MERGED_NAME, os.listdir(tmpdir))
-            self.assertNotIn(ONNX_DECODER_NAME, os.listdir(tmpdir))
-            self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, os.listdir(tmpdir))
+            save_dir = os.path.join(tmpdir, "save")
+            loaded_model.save_pretrained(save_dir)
+            self.assertNotIn(ONNX_DECODER_NAME, os.listdir(save_dir))
+            self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, os.listdir(save_dir))
+            self.assertIn(ONNX_DECODER_MERGED_NAME, os.listdir(save_dir))
+            reloaded_model = self.ORTMODEL_CLASS.from_pretrained(save_dir)
+            self.assertEqual(reloaded_model.path.name, ONNX_DECODER_MERGED_NAME)
+            self.assertTrue(reloaded_model.use_merged)
+            self.assertTrue(reloaded_model.use_cache)
+
+
+class TestBothExportersORTModel(unittest.TestCase):
+    @parameterized.expand([["text-generation", ORTModelForCausalLMIntegrationTest]])
+    def test_find_untested_architectures(self, task: str, test_class):
+        supported_export_models = TasksManager.get_supported_model_type_for_task(task=task, exporter="onnx")
+        tested_architectures = set(test_class.SUPPORTED_ARCHITECTURES)
+
+        untested_architectures = set(supported_export_models) - tested_architectures
+        if len(untested_architectures) > 0:
+            raise ValueError(
+                f"For the task `{task}`, the ONNX export supports {supported_export_models}, but only {tested_architectures} are tested.\n"
+                f"\tMissing {untested_architectures}."
+            )

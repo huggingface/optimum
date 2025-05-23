@@ -18,7 +18,6 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Type
 
 import numpy as np
 import onnx
@@ -30,7 +29,6 @@ from huggingface_hub import HfApi
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
 from PIL import Image
-from test_decoder import ORTModelForCausalLMIntegrationTest
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import (
     AutoConfig,
@@ -40,7 +38,6 @@ from transformers import (
     AutoModelForAudioClassification,
     AutoModelForAudioFrameClassification,
     AutoModelForAudioXVector,
-    AutoModelForCausalLM,
     AutoModelForCTC,
     AutoModelForImageClassification,
     AutoModelForImageToImage,
@@ -78,7 +75,6 @@ from optimum.onnxruntime import (
     ORTModelForAudioClassification,
     ORTModelForAudioFrameClassification,
     ORTModelForAudioXVector,
-    ORTModelForCausalLM,
     ORTModelForCTC,
     ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
@@ -106,6 +102,9 @@ logger = logging.get_logger()
 
 
 class ORTModelIntegrationTest(unittest.TestCase):
+    ORTMODEL_CLASS = ORTModel
+    AUTOMODEL_CLASS = AutoModel
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.LOCAL_MODEL_PATH = "tests/assets/onnx"
@@ -117,46 +116,45 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.LARGE_ONNX_SEQ2SEQ_MODEL_ID = "facebook/mbart-large-en-ro"
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
 
-    @parameterized.expand((ORTModelForCausalLM, ORTModel))
-    def test_load_model_from_hub_infer_onnx_model(self, model_cls: Type[ORTModel]):
+    def test_load_model_from_hub_infer_onnx_model(self):
         model_id = "optimum-internal-testing/tiny-random-llama"
         file_name = "model_optimized.onnx"
-        model = model_cls.from_pretrained(model_id)
+
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id)
         self.assertEqual(model.path.name, "model.onnx")
 
-        model = model_cls.from_pretrained(model_id, revision="onnx")
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="onnx")
         self.assertEqual(model.path.name, "model.onnx")
 
-        model = model_cls.from_pretrained(model_id, revision="onnx", file_name=file_name)
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="onnx", file_name=file_name)
         self.assertEqual(model.path.name, file_name)
 
-        model = model_cls.from_pretrained(model_id, revision="merged-onnx", file_name=file_name)
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="merged-onnx", file_name=file_name)
         self.assertEqual(model.path.name, file_name)
 
-        if model_cls is ORTModelForCausalLM:
-            model = model_cls.from_pretrained(model_id, revision="merged-onnx")
-            self.assertEqual(model.path.name, "decoder_model_merged.onnx")
-
-            model = model_cls.from_pretrained(self.LOCAL_MODEL_PATH, use_cache=False)
-            self.assertEqual(model.path.name, "model.onnx")
-        else:
-            model = model_cls.from_pretrained(self.LOCAL_MODEL_PATH)
-            self.assertEqual(model.path.name, "model.onnx")
-
-        model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
+        model = self.ORTMODEL_CLASS.from_pretrained(self.LOCAL_MODEL_PATH)
         self.assertEqual(model.path.name, "model.onnx")
 
-        model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name)
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
+        self.assertEqual(model.path.name, "model.onnx")
+
+        model = self.ORTMODEL_CLASS.from_pretrained(
+            model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name
+        )
         self.assertEqual(model.path.name, file_name)
 
-        model = model_cls.from_pretrained(model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx")
+        model = self.ORTMODEL_CLASS.from_pretrained(
+            model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx"
+        )
         self.assertEqual(model.path.name, "decoder_with_past_model.onnx")
 
-        model = model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM")
+        model = self.ORTMODEL_CLASS.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM")
         self.assertEqual(model.path.name, "model.onnx")
 
         with self.assertRaises(FileNotFoundError):
-            model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx")
+            self.ORTMODEL_CLASS.from_pretrained(
+                "hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx"
+            )
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
@@ -776,26 +774,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     @parameterized.expand([(False,), (True,)])
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForCausalLM.from_pretrained(
-                MODEL_NAMES["gpt2"], export=True, use_merged=False, use_cache=use_cache, use_io_binding=use_cache
-            )
-            model.save_pretrained(tmpdirname)
-
-            # verify external data is exported
-            folder_contents = os.listdir(tmpdirname)
-            self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
-            self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
-
-            # verify loading from local folder works
-            model = ORTModelForCausalLM.from_pretrained(
-                tmpdirname, export=False, use_merged=False, use_cache=use_cache, use_io_binding=use_cache
-            )
-            remove_directory(tmpdirname)
-
-    @parameterized.expand([(False,), (True,)])
-    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
     def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = ORTModelForSeq2SeqLM.from_pretrained(
@@ -887,27 +865,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @require_hf_token
-    def test_push_decoder_model_with_external_data_to_hub(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], export=True)
-            model.save_pretrained(
-                tmpdirname + "/onnx",
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-                repository_id=MODEL_NAMES["gpt2"].split("/")[-1] + "-onnx",
-                private=True,
-                push_to_hub=True,
-            )
-
-            # verify loading from hub works
-            model = ORTModelForCausalLM.from_pretrained(
-                MODEL_NAMES["gpt2"] + "-onnx",
-                export=False,
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-            )
-            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
-
-    @require_hf_token
     def test_push_seq2seq_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
@@ -927,27 +884,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
-
-    def test_trust_remote_code(self):
-        model_id = "fxmarty/tiny-testing-gpt2-remote-code"
-        ort_model = ORTModelForCausalLM.from_pretrained(model_id, export=True, trust_remote_code=True)
-        pt_model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
-
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-        inputs = tokenizer("My name is", return_tensors="pt")
-
-        input_shape = inputs["input_ids"].shape
-        inputs["position_ids"] = (
-            torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
-        )
-
-        with torch.inference_mode():
-            pt_logits = pt_model(**inputs).logits
-
-        ort_logits = ort_model(**inputs).logits
-
-        torch.testing.assert_close(pt_logits, ort_logits, atol=1e-4, rtol=1e-4)
 
     @parameterized.expand(("", "onnx"))
     def test_loading_with_config_not_from_subfolder(self, subfolder):
@@ -5048,7 +4984,6 @@ class TestBothExportersORTModel(unittest.TestCase):
             ["token-classification", ORTModelForTokenClassificationIntegrationTest],
             ["feature-extraction", ORTModelForFeatureExtractionIntegrationTest],
             ["multiple-choice", ORTModelForMultipleChoiceIntegrationTest],
-            ["text-generation", ORTModelForCausalLMIntegrationTest],
             ["image-classification", ORTModelForImageClassificationIntegrationTest],
             ["semantic-segmentation", ORTModelForSemanticSegmentationIntegrationTest],
             ["text2text-generation", ORTModelForSeq2SeqLMIntegrationTest],

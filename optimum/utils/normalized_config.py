@@ -269,6 +269,8 @@ class NormalizedConfigManager:
         "mt5": T5LikeNormalizedTextConfig,
         "m2m-100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,
+        "olmo": NormalizedTextConfig,
+        "olmo2": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
         "pix2struct": Pix2StructNormalizedTextConfig,
