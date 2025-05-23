@@ -226,6 +226,22 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     setattr(self.generation_config, param_name, param_value)
                     setattr(self.config, param_name, None)
 
+        if self.config.model_type == "gemma":
+            self.embed_size_per_head = self.normalized_config.head_dim
+        else:
+            self.embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
+
+        if self.config.model_type in {"gemma", "mistral", "llama", "qwen2", "granite"}:
+            self.num_key_value_heads = self.normalized_config.num_key_value_heads
+        elif self.config.model_type == "falcon":
+            self.num_key_value_heads = (
+                self.config.num_kv_heads
+                if (self.config.new_decoder_architecture or not self.config.multi_query)
+                else 1
+            )
+        else:
+            self.num_key_value_heads = self.normalized_config.num_attention_heads
+
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
         + TEXT_GENERATION_EXAMPLE.format(
@@ -356,18 +372,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # Generate dummy past for the first forward if uses a merged decoder
         if past_key_values is None:
             batch_size = input_ids.shape[0]
-            embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
-            if self.config.model_type == "gemma":
-                num_attention_heads = self.normalized_config.num_key_value_heads
-                embed_size_per_head = self.normalized_config.head_dim
-            elif self.config.model_type in {"mistral", "llama", "qwen2", "granite"}:
-                num_attention_heads = self.normalized_config.num_key_value_heads
-            else:
-                num_attention_heads = self.normalized_config.num_attention_heads
 
             if self.config.model_type == "gpt_bigcode":
                 # GPT BigCode uses muti-query attention, and has the specificity of putting both key and value in the same cache tensor.
-                key_and_value = constructor.zeros(batch_size, 0, embed_size_per_head * 2, dtype=float_dtype)
+                key_and_value = constructor.zeros(batch_size, 0, self.embed_size_per_head * 2, dtype=float_dtype)
                 if use_torch:
                     key_and_value = key_and_value.to(self.device)
 
@@ -379,11 +387,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     pkv_output_shape[name] = shape
 
             else:
-                num_key_value_heads = (
-                    self.num_key_value_heads if self.config.model_type == "falcon" else num_attention_heads
-                )
                 key_or_value = constructor.zeros(
-                    batch_size, num_key_value_heads, 0, embed_size_per_head, dtype=float_dtype
+                    batch_size, self.num_key_value_heads, 0, self.embed_size_per_head, dtype=float_dtype
                 )
                 if use_torch:
                     key_or_value = key_or_value.to(self.device)
@@ -611,19 +616,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             sess_options=session_options,
         )
 
-        if config.model_type == "falcon":
-            init_cls = ORTFalconForCausalLM
-        elif config.model_type == "mpt":
-            init_cls = ORTMPTForCausalLM
-        # if model was exported with position_ids it means the model was exported with transformers >= v4.46
-        elif config.model_type == "opt" and "position_ids" not in input_dims:
-            init_cls = ORTOPTForCausalLM
-        elif config.model_type == "gpt_bigcode":
-            init_cls = ORTGPTBigCodeForCausalLM
-        else:
-            init_cls = ORTModelForCausalLM
-
-        return init_cls(
+        return cls(
             config=config,
             session=session,
             use_io_binding=use_io_binding,
@@ -692,13 +685,21 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
+            if self.config.model_type == "gpt_bigcode":
+                if self.config.multi_query:
+                    past_length = past_key_values[0].shape[1]
+                else:
+                    past_length = past_key_values[0].shape[2]
+            else:
+                past_length = past_key_values[0][0].shape[2]
+
             # Some generation methods already pass only the last input ID
             if input_ids.shape[1] > past_length:
                 remove_prefix_length = past_length
             else:
                 # Default to old behavior: keep only final ID
                 remove_prefix_length = input_ids.shape[1] - 1
+
             input_ids = input_ids[:, remove_prefix_length:]
 
         # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
@@ -721,13 +722,25 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "attention_mask": attention_mask,
         }
 
-    # Copied from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel._reorder_cache
+    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel._reorder_cache
     @staticmethod
-    def _reorder_cache(past: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor) -> Tuple[Tuple[torch.Tensor]]:
-        return tuple(
-            tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
-            for layer_past in past
-        )
+    def _reorder_cache(
+        past_key_values: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor
+    ) -> Tuple[Tuple[torch.Tensor]]:
+        if isinstance(past_key_values, tuple) and isinstance(past_key_values[0], tuple):
+            # GPT2 style
+            return tuple(
+                tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
+                for layer_past in past_key_values
+            )
+        elif isinstance(past_key_values, tuple) and isinstance(past_key_values[0], torch.Tensor):
+            # GPT BigCode style
+            return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
+        else:
+            raise ValueError(
+                f"Unexpected past_key_values: {past_key_values}. "
+                "Expected tuple of tuples (GPT2 style) or tuple of tensors (GPT BigCode style)."
+            )
 
     def _save_config(self, save_directory):
         """
@@ -739,173 +752,3 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         """
         self.config.save_pretrained(save_directory)
         self.generation_config.save_pretrained(save_directory)
-
-
-class ORTGPTBigCodeForCausalLM(ORTModelForCausalLM):
-    # Adapted from transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeForCausalLM.prepare_inputs_for_generation
-    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
-        # Omit tokens covered by past_key_values
-        if past_key_values:
-            if self.config.multi_query:
-                past_length = past_key_values[0].shape[1]
-            else:
-                past_length = past_key_values[0].shape[2]
-
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-
-            input_ids = input_ids[:, remove_prefix_length:]
-
-        attention_mask = kwargs.get("attention_mask", None)
-        position_ids = kwargs.get("position_ids", None)
-
-        if attention_mask is not None and position_ids is None:
-            # create position_ids on the fly for batch generation
-            position_ids = attention_mask.long().cumsum(-1) - 1
-            position_ids.masked_fill_(attention_mask == 0, 1)
-            if past_key_values:
-                position_ids = position_ids[:, -input_ids.shape[1] :]
-        else:
-            position_ids = None
-
-        model_inputs = {"input_ids": input_ids}
-        model_inputs.update(
-            {
-                "past_key_values": past_key_values,
-                "use_cache": kwargs.get("use_cache"),
-                "position_ids": position_ids,
-                "attention_mask": attention_mask,
-            }
-        )
-        return model_inputs
-
-    # Copied from transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeForCausalLM._reorder_cache
-    @staticmethod
-    def _reorder_cache(
-        past_key_values: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor
-    ) -> Tuple[Tuple[torch.Tensor]]:
-        return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
-
-
-class ORTOPTForCausalLM(ORTModelForCausalLM):
-    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
-    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
-        if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
-
-        attention_mask = kwargs.get("attention_mask", None)
-        use_cache = kwargs.get("use_cache", None)
-        return {
-            "input_ids": input_ids,
-            "past_key_values": past_key_values,
-            "use_cache": use_cache,
-            "position_ids": None,
-            "attention_mask": attention_mask,
-        }
-
-
-class ORTMPTForCausalLM(ORTModelForCausalLM):
-    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
-    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
-        if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
-
-        attention_mask = kwargs.get("attention_mask", None)
-        use_cache = kwargs.get("use_cache", None)
-
-        return {
-            "input_ids": input_ids,
-            "past_key_values": past_key_values,
-            "use_cache": use_cache,
-            "position_ids": None,
-            "attention_mask": attention_mask,
-        }
-
-
-class ORTFalconForCausalLM(ORTModelForCausalLM):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.num_key_value_heads = (
-            self.config.num_kv_heads if (self.config.new_decoder_architecture or not self.config.multi_query) else 1
-        )
-
-    # Copied from transformers.models.falcon.modeling_falcon.FalconForCausalLM._reorder_cache
-    def _reorder_cache(
-        self, past: Tuple[Tuple[torch.Tensor, torch.Tensor], ...], beam_idx: torch.LongTensor
-    ) -> Tuple[Tuple[torch.Tensor, torch.Tensor], ...]:
-        """
-        This function is used to re-order the `past_key_values` cache if [`~PreTrainedModel.beam_search`] or
-        [`~PreTrainedModel.beam_sample`] is called. This is required to match `past_key_values` with the correct
-        beam_idx at every generation step.
-
-        Output shares the same memory storage as `past`.
-        """
-
-        # Get a copy of `beam_idx` on all the devices where we need those indices.
-        device_to_beam_idx = {
-            past_state.device: beam_idx.to(past_state.device) for layer_past in past for past_state in layer_past
-        }
-        reordered_past = tuple(
-            (
-                layer_past[0].index_select(0, device_to_beam_idx[layer_past[0].device]),
-                layer_past[1].index_select(0, device_to_beam_idx[layer_past[0].device]),
-            )
-            for layer_past in past
-        )
-        return reordered_past
-
-    # Adapted from transformers.models.falcon.modeling_falcon.FalconForCausalLM.prepare_inputs_for_generation
-    def prepare_inputs_for_generation(
-        self,
-        input_ids: torch.LongTensor,
-        past_key_values: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.Tensor] = None,
-        **kwargs,
-    ) -> dict:
-        if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-
-            input_ids = input_ids[:, remove_prefix_length:]
-
-        # Note: versions of Falcon with alibi do not use position_ids. It is used with RoPE.
-        if not self.config.alibi and attention_mask is not None and position_ids is None:
-            # create position_ids on the fly for batch generation
-            position_ids = attention_mask.long().cumsum(-1) - 1
-            position_ids.masked_fill_(attention_mask == 0, 1)
-            if past_key_values:
-                position_ids = position_ids[:, -input_ids.shape[1] :]
-
-        return {
-            "input_ids": input_ids,
-            "position_ids": position_ids,
-            "past_key_values": past_key_values,
-            "use_cache": kwargs.get("use_cache"),
-            "attention_mask": attention_mask,
-        }

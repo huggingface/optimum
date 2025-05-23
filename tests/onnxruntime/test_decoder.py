@@ -33,6 +33,7 @@ from optimum.exporters.onnx.model_configs import (
     MPTOnnxConfig,
     Olmo2OnnxConfig,
     OlmoOnnxConfig,
+    OPTOnnxConfig,
     Phi3OnnxConfig,
     PhiOnnxConfig,
     Qwen2OnnxConfig,
@@ -66,7 +67,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gptj",
         "llama",
         "mistral",
-        "opt",
         "bart",
         "blenderbot_small",
         "phi",
@@ -77,6 +77,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "mbart",
     ]
 
+    if is_transformers_version(">=", str(OPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("opt")
     if is_transformers_version(">=", str(PhiOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("phi")
     if is_transformers_version(">=", str(BloomOnnxConfig.MIN_TRANSFORMERS_VERSION)):
