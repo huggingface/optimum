@@ -257,11 +257,22 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         # Create position_ids on the fly for batch generation
-        if "position_ids" in self.input_names and position_ids is None and attention_mask is not None:
-            position_ids = attention_mask.long().cumsum(-1) - 1
-            position_ids.masked_fill_(attention_mask == 0, 1)
-            if past_key_values:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
+        if "position_ids" in self.input_names and position_ids is None:
+            if input_ids.shape[0] == 1:
+                position_ids = torch.arange(
+                    input_ids.shape[1], dtype=input_ids.dtype, device=input_ids.device
+                ).unsqueeze(0)
+            elif attention_mask is not None:
+                position_ids = attention_mask.long().cumsum(-1) - 1
+                position_ids.masked_fill_(attention_mask == 0, 1)
+                if past_key_values:
+                    position_ids = position_ids[:, -1].unsqueeze(-1)
+            else:
+                raise ValueError(
+                    "The model requires `position_ids` for bartched inference, "
+                    "but neither `position_ids` nor `attention_mask` (from which "
+                    "`position_ids` can be computed) were provided."
+                )
 
         model_inputs = {
             "input_ids": input_ids,
