@@ -336,18 +336,10 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-# OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
-if is_transformers_version(">=", "4.45.99"):
-
-    class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
-        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-else:
-
-    class OPTOnnxConfig(TextDecoderOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
-        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")  # cache position refactorization
 
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
