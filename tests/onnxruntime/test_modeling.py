@@ -4424,7 +4424,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged
         )
-
         # Speech recogition generation
         pipe = pipeline(
             "automatic-speech-recognition",
@@ -4765,7 +4764,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         pipe = pipeline(
             "image-to-image",
             model=onnx_model,
-            feature_extractor=image_processor,
+            image_processor=image_processor,
         )
         data = self._get_sample_image()
         outputs = pipe(data)
