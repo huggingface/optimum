@@ -112,7 +112,7 @@ MODEL_NAMES = {
     "sew_d": "asapp/sew-d-tiny-100k-ft-ls100h",
     "siglip": "hf-internal-testing/tiny-random-SiglipModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
-    "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
+    "speech_to_text": "optimum-internal-testing/tiny-random-Speech2TextModel",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-3": "optimum-internal-testing/tiny-random-stable-diffusion-3",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
