@@ -22,6 +22,7 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 
 from ..utils import is_diffusers_version, is_tf_available, is_torch_available, is_transformers_version
+from ..utils.save_utils import maybe_load_preprocessors
 from .normalized_config import (
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
@@ -1614,10 +1615,8 @@ class Dinov2DummyInputGenerator(DummyVisionInputGenerator):
             height=height,
             **kwargs,
         )
+        preprocessor = maybe_load_preprocessors(normalized_config._name_or_path)[-1]
 
-        from transformers.onnx.utils import get_preprocessor
-
-        preprocessor = get_preprocessor(normalized_config._name_or_path)
         if preprocessor is not None and hasattr(preprocessor, "crop_size"):
             self.height = preprocessor.crop_size.get("height", self.height)
             self.width = preprocessor.crop_size.get("width", self.width)
@@ -1644,9 +1643,7 @@ class DummyVisionStaticInputGenerator(DummyVisionInputGenerator):
             **kwargs,
         )
 
-        from transformers.onnx.utils import get_preprocessor
-
-        preprocessor = get_preprocessor(normalized_config._name_or_path)
+        preprocessor = maybe_load_preprocessors(normalized_config._name_or_path)[-1]
         if preprocessor is not None and hasattr(preprocessor, "size"):
             self.height = preprocessor.size.get("height", self.height)
             self.width = preprocessor.size.get("width", self.width)
