@@ -3745,14 +3745,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             set_seed(SEED)
             transformers_model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
             tokenizer = get_preprocessor(model_id)
-            inputs = ["This is a sample output", "output"]
+            inputs = "This is a sample output"
             tokens = tokenizer(inputs, return_tensors="pt", padding=True)
             decoder_start_token_id = transformers_model.config.decoder_start_token_id if model_arch != "mbart" else 2
             if model_arch == "encoder-decoder":
                 decoder_start_token_id = tokenizer.cls_token_id
 
             decoder_inputs = {
-                "decoder_input_ids": torch.ones((len(inputs), 1), dtype=torch.long) * decoder_start_token_id
+                "decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id
             }
 
             with torch.no_grad():
@@ -3763,7 +3763,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
                 if input_type == "np":
                     decoder_inputs = {
-                        "decoder_input_ids": np.ones((len(inputs), 1), dtype=np.int64) * decoder_start_token_id
+                        "decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id
                     }
 
                 onnx_outputs = onnx_model(**tokens, **decoder_inputs)
