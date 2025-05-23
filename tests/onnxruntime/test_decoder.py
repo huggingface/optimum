@@ -27,10 +27,14 @@ from transformers.onnx.utils import get_preprocessor
 
 from optimum.exporters.onnx import main_export
 from optimum.exporters.onnx.model_configs import (
+    BloomOnnxConfig,
     GemmaOnnxConfig,
     GraniteOnnxConfig,
     MPTOnnxConfig,
+    Olmo2OnnxConfig,
+    OlmoOnnxConfig,
     Phi3OnnxConfig,
+    PhiOnnxConfig,
     Qwen2OnnxConfig,
 )
 from optimum.exporters.tasks import TasksManager
@@ -53,7 +57,6 @@ logger = get_logger(__name__)
 
 class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
-        "bloom",
         "codegen",
         "falcon",
         "gpt2",
@@ -65,17 +68,23 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "mistral",
         "opt",
         "bart",
-        "olmo",
         "blenderbot_small",
         "phi",
         "bigbird_pegasus",
         "marian",
         "pegasus",
-        "olmo2",
         "blenderbot",
         "mbart",
     ]
 
+    if is_transformers_version(">=", str(PhiOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("phi")
+    if is_transformers_version(">=", str(BloomOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("bloom")
+    if is_transformers_version(">=", str(OlmoOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("olmo")
+    if is_transformers_version(">=", str(Olmo2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("olmo2")
     if is_transformers_version(">=", str(Qwen2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("qwen2")
     if is_transformers_version(">=", str(GemmaOnnxConfig.MIN_TRANSFORMERS_VERSION)):

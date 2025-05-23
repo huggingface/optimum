@@ -365,26 +365,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             else:
                 num_attention_heads = self.normalized_config.num_attention_heads
 
-            # TODO: find a way to better handle this controlflow, this is EXTREMELY UGLY.
-            if self.__class__.__name__ == "ORTBloomForCausalLM":
-                key = constructor.zeros(batch_size * num_attention_heads, 0, embed_size_per_head, dtype=float_dtype)
-                value = constructor.zeros(batch_size * num_attention_heads, embed_size_per_head, 0, dtype=float_dtype)
-
-                if use_torch:
-                    key = key.to(self.device)
-                    value = value.to(self.device)
-
-                past_key_values = tuple(
-                    key_or_value for _ in range(len(self.key_value_input_names) // 2) for key_or_value in [key, value]
-                )
-
-                for name, value in zip(self.key_value_output_names, past_key_values):
-                    shape = [*value.shape]
-                    index = 1 if "value" in name else 2
-                    shape[index] += sequence_length
-                    pkv_output_shape[name] = shape
-
-            elif self.config.model_type == "gpt_bigcode":
+            if self.config.model_type == "gpt_bigcode":
                 # GPT BigCode uses muti-query attention, and has the specificity of putting both key and value in the same cache tensor.
                 key_and_value = constructor.zeros(batch_size, 0, embed_size_per_head * 2, dtype=float_dtype)
                 if use_torch:
@@ -602,18 +583,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 size_threshold=0,
             )
 
-        # Since transformers 4.44, the bloom model has been updated to use the standard cache format
-        use_old_bloom_modeling = is_transformers_version("<", "4.44")
-        for input_name in input_dims.keys():
-            if input_dims[input_name][0] == "batch_size x num_heads":
-                use_old_bloom_modeling = True
-
-        if use_old_bloom_modeling:
-            logger.warning(
-                "You are using an old transformers version (<4.44) or an old export of the bloom model. "
-                "We recommend updating to the latest version of transformers and re-exporting the model."
-            )
-
         del onnx_model
 
         if generation_config is None:
@@ -642,9 +611,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             sess_options=session_options,
         )
 
-        if config.model_type == "bloom" and use_old_bloom_modeling:
-            init_cls = ORTBloomForCausalLM
-        elif config.model_type == "falcon":
+        if config.model_type == "falcon":
             init_cls = ORTFalconForCausalLM
         elif config.model_type == "mpt":
             init_cls = ORTMPTForCausalLM
@@ -822,94 +789,6 @@ class ORTGPTBigCodeForCausalLM(ORTModelForCausalLM):
         past_key_values: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor
     ) -> Tuple[Tuple[torch.Tensor]]:
         return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
-
-
-class ORTBloomForCausalLM(ORTModelForCausalLM):
-    # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM.prepare_inputs_for_generation
-    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
-        if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
-
-        attention_mask = kwargs.get("attention_mask", None)
-        use_cache = kwargs.get("use_cache", None)
-
-        # only last token for input_ids if past is not None
-        if past_key_values:
-            # the cache may be in the stardard format (e.g. in contrastive search), convert to bloom's format if needed
-            if past_key_values[0][0].shape[0] == input_ids.shape[0]:
-                past_key_values = ORTBloomForCausalLM._bloom_convert_to_bloom_cache(past_key_values)
-
-        return {
-            "input_ids": input_ids,
-            "past_key_values": past_key_values,
-            "use_cache": use_cache,
-            "position_ids": None,
-            "attention_mask": attention_mask,
-        }
-
-    # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM._reorder_cache
-    @staticmethod
-    def _reorder_cache(past: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor) -> Tuple[Tuple[torch.Tensor]]:
-        standardized_past = ORTBloomForCausalLM._bloom_convert_to_standard_cache(past, batch_size=len(beam_idx))
-
-        # Get a copy of `beam_idx` on all the devices where we need those indices.
-        device_to_beam_idx = {
-            past_state.device: beam_idx.to(past_state.device) for layer_past in past for past_state in layer_past
-        }
-        reordered_past = tuple(
-            (
-                layer_past[0].index_select(0, device_to_beam_idx[layer_past[0].device]),
-                layer_past[1].index_select(0, device_to_beam_idx[layer_past[0].device]),
-            )
-            for layer_past in standardized_past
-        )
-        return ORTBloomForCausalLM._bloom_convert_to_bloom_cache(reordered_past)
-
-    @staticmethod
-    def _bloom_convert_to_bloom_cache(
-        past_key_value: Tuple[Tuple["torch.Tensor", "torch.Tensor"]],
-    ) -> Tuple[Tuple["torch.Tensor", "torch.Tensor"]]:
-        """
-        Converts the cache to the format expected by Bloom, i.e. to tuple(tuple([batch_size * num_heads, ...]))
-        """
-        batch_size, num_heads, head_dim, seq_length = past_key_value[0][0].shape
-        batch_size_times_num_heads = batch_size * num_heads
-        # key:  [batch_size, num_heads, head_dim, seq_length] -> [batch_size * num_heads, head_dim, seq_length]
-        # value: [batch_size, num_heads, seq_length, head_dim] -> [batch_size * num_heads, seq_length, head_dim]
-        return tuple(
-            (
-                layer_past[0].view(batch_size_times_num_heads, head_dim, seq_length),
-                layer_past[1].view(batch_size_times_num_heads, seq_length, head_dim),
-            )
-            for layer_past in past_key_value
-        )
-
-    @staticmethod
-    def _bloom_convert_to_standard_cache(
-        past_key_value: Tuple[Tuple["torch.Tensor", "torch.Tensor"]], batch_size: int
-    ) -> Tuple[Tuple["torch.Tensor", "torch.Tensor"]]:
-        """
-        Standardizes the format of the cache so as to match most implementations, i.e. to tuple(tuple([batch_size,
-        num_heads, ...]))
-        """
-        batch_size_times_num_heads, head_dim, seq_length = past_key_value[0][0].shape
-        num_heads = batch_size_times_num_heads // batch_size
-        # key: [batch_size * num_heads, head_dim, seq_length] -> [batch_size, num_heads, head_dim, seq_length]
-        # value: [batch_size * num_heads, seq_length, head_dim] -> [batch_size, num_heads, seq_length, head_dim]
-        return tuple(
-            (
-                layer_past[0].view(batch_size, num_heads, head_dim, seq_length),
-                layer_past[1].view(batch_size, num_heads, seq_length, head_dim),
-            )
-            for layer_past in past_key_value
-        )
 
 
 class ORTOPTForCausalLM(ORTModelForCausalLM):
