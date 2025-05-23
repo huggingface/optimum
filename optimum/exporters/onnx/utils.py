@@ -89,7 +89,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
 }
 
 
-if is_transformers_version(">=", "4.45.99"):
+if is_transformers_version(">=", "4.46.0"):
     MODEL_TYPES_REQUIRING_POSITION_IDS.add("opt")
 
 

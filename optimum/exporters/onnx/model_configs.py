@@ -336,18 +336,10 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-# OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
-if is_transformers_version(">=", "4.45.99"):
-
-    class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
-        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-else:
-
-    class OPTOnnxConfig(TextDecoderOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
-        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")  # cache position refactorization
 
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -385,7 +377,7 @@ class GraniteOnnxConfig(LlamaOnnxConfig):
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.42.0")  # cache position refactorization
 
 
 class Phi3OnnxConfig(PhiOnnxConfig):
@@ -430,33 +422,12 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+
+    DEFAULT_ONNX_OPSET = 14  # Bloom uses F.scaled_dot_product_attention
+    # reent refactorizations of transformers unified modeling code of bloom
+    MIN_TRANSFORMERS_VERSION = version.parse("4.44.0")
     DUMMY_PKV_GENERATOR_CLASS = BloomDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
-    DEFAULT_ONNX_OPSET = 14  # Bloom uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
-
-    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
-        if is_transformers_version(">=", "4.44"):
-            super().add_past_key_values(inputs_or_outputs, direction)
-        else:
-            if direction not in ["inputs", "outputs"]:
-                raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-            if direction == "inputs":
-                decoder_sequence_name = "past_sequence_length"
-                name = "past_key_values"
-            else:
-                decoder_sequence_name = "past_sequence_length + 1"
-                name = "present"
-
-            for i in range(self._normalized_config.num_layers):
-                inputs_or_outputs[f"{name}.{i}.key"] = {
-                    0: "batch_size x num_heads",
-                    2: decoder_sequence_name,
-                }
-                inputs_or_outputs[f"{name}.{i}.value"] = {
-                    0: "batch_size x num_heads",
-                    1: decoder_sequence_name,
-                }
 
 
 class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
