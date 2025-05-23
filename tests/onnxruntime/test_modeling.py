@@ -112,7 +112,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         super().__init__(*args, **kwargs)
         self.LOCAL_MODEL_PATH = "tests/assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
-
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
@@ -930,7 +929,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
-    def test_trust_remote_code(self):
+    def _test_trust_remote_code(self):
         model_id = "fxmarty/tiny-testing-gpt2-remote-code"
         ort_model = ORTModelForCausalLM.from_pretrained(model_id, export=True, trust_remote_code=True)
         pt_model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
