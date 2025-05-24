@@ -20,7 +20,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
-import numpy as np
 import onnx
 import torch
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -138,7 +137,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_io_binding: Optional[bool] = None,
         generation_config: Optional["GenerationConfig"] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        use_cache: Optional[bool] = None,
         **kwargs,
     ):
         # DEPRECATED BEHAVIOR
@@ -160,7 +158,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if len(args) > 5:
                 generation_config = args[5]
             if len(args) > 6:
-                use_cache = args[6]
+                _ = args[6]
 
         if kwargs.get("model", None) is not None:
             logger.warning(
@@ -182,55 +180,36 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "The parameter session is required. Please pass a session or use the from_pretrained method."
             )
         ## END OF DEPRECATED BEHAVIOR
-
         super().__init__(config=config, session=session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
+
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
+        self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
+        self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
+        self.can_use_cache = len(self.key_value_input_names) > 0 and len(self.key_value_output_names) > 0
+        self.is_merged = "use_cache_branch" in self.input_names
+        self.generation_config = generation_config
 
         # Reference: https://github.com/huggingface/optimum/pull/1381
         model_type = self.config.model_type.replace("_", "-")
         if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
             logger.warning(
-                f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. "
-                "We strongly encourage to re-export the model with optimum>=1.14 for position_ids and batched inference support."
+                f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although the model type {model_type} "
+                "requires it. for correct batched generation. We strongly encourage to re-export the model with "
+                "a newer version of Optimum for better performance and more reliable generation. "
             )
 
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
-        self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
-        self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
-        self.use_merged = "use_cache_branch" in self.input_names
-        self.use_cache = len(self.key_value_input_names) > 0
-
-        if use_cache ^ self.use_cache:
-            raise ValueError(
-                f"`use_cache` was set to `{use_cache}` but the loaded model only supports `use_cache={self.use_cache}`. "
-                f"Please load your current model with `use_cache={self.use_cache}` or export the original model "
-                f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
-                "To export your model, simply set `export=True`."
+        if not self.can_use_cache and self.generation_config.use_cache:
+            logger.warning(
+                "`model.generation_config.use_cache=True` but the loaded model does not support using the past key values cache."
+                "Please re-export the original model once again with `use_cache=True` to be able to use it during generation. "
+                "Or set `model.generation_config.use_cache=False` to avoid errors from attempting to use the cache. "
+                "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
             )
-
-        if hasattr(self.config, "is_decoder"):
-            self.config.is_decoder = True
-
-        if hasattr(self.config, "is_encoder_decoder"):
-            self.config.is_encoder_decoder = False
-
-        self.generation_config = generation_config or GenerationConfig.from_model_config(config)
-        if is_transformers_version(">=", "4.44.99"):
-            misplaced_generation_parameters = self.config._get_non_default_generation_parameters()
-            if len(misplaced_generation_parameters) > 0:
-                logger.warning(
-                    "Moving the following attributes in the config to the generation config: "
-                    f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
-                    "generation parameters in the model config, as opposed to in the generation config.",
-                )
-                for param_name, param_value in misplaced_generation_parameters.items():
-                    setattr(self.generation_config, param_name, param_value)
-                    setattr(self.config, param_name, None)
 
         if self.config.model_type == "gemma":
             self.embed_size_per_head = self.normalized_config.head_dim
         else:
             self.embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
-
         if self.config.model_type in {"gemma", "mistral", "llama", "qwen2", "granite"}:
             self.num_key_value_heads = self.normalized_config.num_key_value_heads
         elif self.config.model_type == "falcon":
@@ -241,6 +220,23 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
         else:
             self.num_key_value_heads = self.normalized_config.num_attention_heads
+
+    @property
+    def use_cache(self):
+        logger.warning(
+            "The `ORTModelForCausalLM.use_cache` property is deprecated and will be removed in a future version. "
+            "Please rather use `ORTModelForCausalLM.can_use_cache` to check if a model supports using cache during generation. "
+            "And use `ORTModelForCausalLM.generation_config.use_cache` to check if the model is configured to use cache during generation."
+        )
+        return self.can_use_cache
+
+    @property
+    def use_merged(self):
+        logger.warning(
+            "The `ORTModelForCausalLM.use_merged` property is deprecated and will be removed in a future version. "
+            "Please rather use `ORTModelForCausalLM.is_merged` to check if the underlying model is merged or not."
+        )
+        return self.is_merged
 
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
@@ -253,48 +249,55 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     def forward(
         self,
         input_ids: torch.LongTensor,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        use_cache_branch: bool = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        use_cache: Optional[bool] = None,
         **kwargs,
     ) -> CausalLMOutputWithPast:
-        # adding use_cache_branch in the signature here is just a hack for IO Binding
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
 
-        known_output_shapes = {}
-
-        if self.use_cache:
-            if past_key_values is not None:
-                # Flatten the past_key_values (gpt_bigcode has fused key/value cache, so no need to flatten it)
-                if self.config.model_type != "gpt_bigcode":
-                    past_key_values = tuple(
-                        past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
-                    )
-
-            # Create dummy past_key_values for decoder first generation step if none given
-            use_cache_branch, past_key_values, known_output_shapes = self.prepare_past_key_values(
-                input_ids, past_key_values, use_torch
+        if use_cache and not self.can_use_cache:
+            raise ValueError(
+                f"`use_cache={use_cache}` was passed to the model but the loaded model only supports `use_cache={self.can_use_cache}`. "
+                f"Please load your current model with `use_cache={self.can_use_cache}` or export the original model "
+                f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
+                "To re-export your model, simply set `export=True` in the `from_pretrained` method."
             )
 
-        # Create position_ids on the fly for batch generation
+        if past_key_values is not None and isinstance(past_key_values[0], tuple):
+            # Flattens the past_key_values to a single tuple
+            past_key_values = sum(past_key_values, ())
+
         if "position_ids" in self.input_names and position_ids is None:
-            if input_ids.shape[0] == 1:
-                position_ids = torch.arange(
-                    input_ids.shape[1], dtype=input_ids.dtype, device=input_ids.device
-                ).unsqueeze(0)
-            elif attention_mask is not None:
-                position_ids = attention_mask.long().cumsum(-1) - 1
+            if attention_mask is not None:
+                # Create position_ids from attention_mask
+                position_ids = attention_mask.cumsum(-1) - 1
                 position_ids.masked_fill_(attention_mask == 0, 1)
-                if past_key_values:
+                if past_key_values is not None:
                     position_ids = position_ids[:, -1].unsqueeze(-1)
             else:
                 raise ValueError(
-                    "The model requires `position_ids` for bartched inference, "
-                    "but neither `position_ids` nor `attention_mask` (from which "
-                    "`position_ids` can be computed) were provided."
+                    "The model requires position_ids for batched generation but none were provided. "
+                    "Please provide position_ids or attention_mask (from which position_ids can be inferred)."
                 )
+
+        use_cache_branch = None
+        if self.is_merged:
+            # Uses cache branch of merged decoders depending on whether real past key values are passed
+            use_cache_branch = torch.full((1,), past_key_values is not None, dtype=torch.bool, device=self.device)
+
+        if past_key_values is None and len(self.key_value_input_names) > 0:
+            # Generates the input pkv for the first forward of the model (merged or with past)
+            batch_size, seq_len = input_ids.shape
+            if self.config.model_type == "gpt_bigcode":
+                shape = (batch_size, 0, self.embed_size_per_head * 2)
+            else:
+                shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
+            tesnor = torch.empty(shape, dtype=self.dtype, device=self.device)
+            past_key_values = tuple(tesnor for _ in range(len(self.key_value_input_names)))
 
         model_inputs = {
             "input_ids": input_ids,
@@ -302,15 +305,30 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "attention_mask": attention_mask,
             "use_cache_branch": use_cache_branch,
         }
+        if len(self.key_value_input_names) > 0:
+            model_inputs.update(zip(self.key_value_input_names, past_key_values))
 
-        if past_key_values is not None:
-            model_inputs.update(
-                zip(self.key_value_input_names, past_key_values),
-            )
+        known_output_shapes = None
+        outputs_to_not_bind = None
+        if use_cache:
+            # Infers the shape of the output pkv
+            batch_size, seq_len = input_ids.shape
+            if self.config.model_type == "gpt_bigcode":
+                pkv_seq_len, embed_size_per_head_2 = past_key_values[0].shape[1:]
+                pkv_output_shape = (batch_size, pkv_seq_len + seq_len, embed_size_per_head_2)
+            else:
+                num_key_value_heads, pkv_seq_len, embed_size_per_head = past_key_values[0].shape[1:]
+                pkv_output_shape = (batch_size, num_key_value_heads, pkv_seq_len + seq_len, embed_size_per_head)
+            known_output_shapes = dict.fromkeys(self.key_value_output_names, pkv_output_shape)
+        else:
+            # Don't bind the output pkv if not used/returned
+            outputs_to_not_bind = self.key_value_output_names
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(
-                model_inputs, known_output_shapes=known_output_shapes
+                model_inputs,
+                outputs_to_not_bind=outputs_to_not_bind,
+                known_output_shapes=known_output_shapes,
             )
 
             if self.device.type == "cpu":
@@ -323,84 +341,93 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             loss = output_buffers.get("loss", None)
             logits = output_buffers["logits"].view(output_shapes["logits"])
 
-            if self.use_cache:
-                # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2 for the self-attention)
+            if use_cache:
                 past_key_values = tuple(
-                    output_buffers[name].view(output_shapes[name]) for name in self.key_value_output_names
+                    output_buffers.pop(name).view(output_shapes[name]) for name in self.key_value_output_names
                 )
-
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            loss = model_outputs.get("loss", None)
-            logits = model_outputs["logits"]
+            loss = model_outputs.pop("loss", None)
+            logits = model_outputs.pop("logits")
 
-            if self.use_cache:
-                # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)
-                past_key_values = tuple(model_outputs[output_name] for output_name in self.key_value_output_names)
+            if use_cache:
+                past_key_values = tuple(model_outputs.pop(name) for name in self.key_value_output_names)
 
-        if self.use_cache and self.config.model_type != "gpt_bigcode":
+        if use_cache and self.config.model_type != "gpt_bigcode":
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and per decoder layer
             past_key_values = tuple(past_key_values[i : i + 2] for i in range(0, len(past_key_values), 2))
 
         return CausalLMOutputWithPast(loss=loss, logits=logits, past_key_values=past_key_values)
 
-    def prepare_past_key_values(
-        self,
-        input_ids: Union[None, torch.LongTensor, np.ndarray],
-        past_key_values: Union[None, Tuple[torch.FloatTensor], Tuple[np.ndarray]],
-        use_torch: bool,
-    ):
-        sequence_length = input_ids.shape[1]
-
-        constructor = torch if use_torch else np
-        float_dtype = getattr(constructor, str(self.dtype).split(".")[-1])
-
-        if self.use_merged:
-            # Uses without/with branch of a merged decoder depending on whether real past key values are passed
-            use_cache_branch = constructor.full((1,), past_key_values is not None)
+    def prepare_inputs_for_generation(self, *args, **kwargs):
+        if is_transformers_version("<", "4.46.0"):
+            return self._prepare_inputs_for_generation_legacy(*args, **kwargs)
         else:
-            # Uses separate decoders
-            use_cache_branch = None
+            return super().prepare_inputs_for_generation(*args, **kwargs)
 
-        if use_torch and use_cache_branch is not None:
-            use_cache_branch = use_cache_branch.to(self.device)
-
-        pkv_output_shape = {}
-        # Generate dummy past for the first forward if uses a merged decoder
-        if past_key_values is None:
-            batch_size = input_ids.shape[0]
-
+    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
+    def _prepare_inputs_for_generation_legacy(
+        self,
+        input_ids,
+        attention_mask=None,
+        past_key_values=None,
+        token_type_ids=None,
+        position_ids=None,
+        use_cache=None,
+        **kwargs,
+    ):
+        if past_key_values is not None:
             if self.config.model_type == "gpt_bigcode":
-                # GPT BigCode uses muti-query attention, and has the specificity of putting both key and value in the same cache tensor.
-                key_and_value = constructor.zeros(batch_size, 0, self.embed_size_per_head * 2, dtype=float_dtype)
-                if use_torch:
-                    key_and_value = key_and_value.to(self.device)
-
-                past_key_values = tuple(key_and_value for _ in range(len(self.key_value_input_names)))
-
-                for name, value in zip(self.key_value_output_names, past_key_values):
-                    shape = [*value.shape]
-                    shape[1] += sequence_length
-                    pkv_output_shape[name] = shape
-
+                if self.config.multi_query:
+                    past_length = past_key_values[0].shape[1]
+                else:
+                    past_length = past_key_values[0].shape[2]
             else:
-                key_or_value = constructor.zeros(
-                    batch_size, self.num_key_value_heads, 0, self.embed_size_per_head, dtype=float_dtype
-                )
-                if use_torch:
-                    key_or_value = key_or_value.to(self.device)
+                past_length = past_key_values[0][0].shape[2]
 
-                past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
 
-                for name, value in zip(self.key_value_output_names, past_key_values):
-                    shape = [*value.shape]
-                    shape[2] += sequence_length
-                    pkv_output_shape[name] = shape
+        # if attention_mask is not None and position_ids is None:
+        #     # create position_ids on the fly for batch generation
+        #     position_ids = attention_mask.long().cumsum(-1) - 1
+        #     position_ids.masked_fill_(attention_mask == 0, 1)
+        #     if past_key_values is not None:
+        #         position_ids = position_ids[:, -1].unsqueeze(-1)
 
-        return use_cache_branch, past_key_values, pkv_output_shape
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "past_key_values": past_key_values,
+            "token_type_ids": token_type_ids,
+            "position_ids": position_ids,
+            "use_cache": use_cache,
+        }
+
+    @staticmethod
+    def _reorder_cache(
+        past_key_values: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor
+    ) -> Tuple[Tuple[torch.Tensor]]:
+        if isinstance(past_key_values, tuple) and isinstance(past_key_values[0], tuple):
+            # GPT2 style
+            return tuple(
+                tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
+                for layer_past in past_key_values
+            )
+        elif isinstance(past_key_values, tuple) and isinstance(past_key_values[0], torch.Tensor):
+            # GPT BigCode style
+            return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
+        else:
+            raise ValueError(
+                f"Unexpected past_key_values: {past_key_values}. "
+                "Expected tuple of tuples (GPT2 style) or tuple of tensors (GPT BigCode style)."
+            )
 
     @classmethod
     def _from_pretrained(
@@ -430,15 +457,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ) -> "ORTModelForCausalLM":
-        # We do not implement the logic for use_cache=False, use_merged=True
-        if use_cache is False:
-            if use_merged is True:
-                raise ValueError(
-                    "The parameters combination use_cache=False, use_merged=True is not supported."
-                    " To use a merged decoder, past key values must be used."
-                )
-            use_merged = False
-
         onnx_files = find_files_matching_pattern(
             model_id,
             ONNX_FILE_PATTERN,
@@ -514,7 +532,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             force_download=force_download,
             local_files_only=local_files_only,
         )
-        new_model_save_dir = Path(model_cache_path).parent
+
+        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
+        # instead of the path only.
+        if model_save_dir is None:
+            model_save_dir = Path(model_cache_path).parent
 
         try:
             cached_file(
@@ -532,17 +554,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # If the external data file is not found, we assume that the model is not using external data.
             pass
 
-        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
-        # instead of the path only.
-        if model_save_dir is None:
-            model_save_dir = new_model_save_dir
-
+        # This should be removed at some point
         onnx_model = onnx.load(str(model_cache_path), load_external_data=False)
         model_uses_external_data = check_model_uses_external_data(onnx_model)
-
         if model_uses_external_data:
             onnx_model = onnx.load(str(model_cache_path), load_external_data=True)
-
         input_dims = {
             node.name: [dim.dim_value or dim.dim_param for dim in node.type.tensor_type.shape.dim]
             for node in onnx_model.graph.input
@@ -551,23 +567,19 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             node.name: [dim.dim_value or dim.dim_param for dim in node.type.tensor_type.shape.dim]
             for node in onnx_model.graph.output
         }
-
         override_dims = False
-
         # Since v1.7.0 decoder with past models have fixed sequence length of 1
         # To keep these models compatible we set this dimension to dynamic
         if input_dims["input_ids"][1] == 1:
             input_dims["input_ids"][1] = "sequence_length"
             output_dims["logits"][1] = "sequence_length"
             override_dims = True
-
         # Since https://github.com/huggingface/optimum/pull/871/
         # changed axis notation/naming during export, we need to update the dims
         for input_name in input_dims.keys():
             if "past" in input_name and input_dims[input_name][2] == "past_sequence_length + sequence_length":
                 input_dims[input_name][2] = "past_sequence_length"
                 override_dims = True
-
         if override_dims:
             # this is kinda dangerous, warning the user is the least we can do
             logger.warning(
@@ -587,24 +599,45 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 convert_attribute=True,
                 size_threshold=0,
             )
-
         del onnx_model
+
+        # Important: for encoder-decoder models used with CausalLM, we need to set the is_decoder flag to True
+        # and the is_encoder_decoder flag to False. This is needed for the model to work correctly with generation logic.
+        if hasattr(config, "is_decoder"):
+            config.is_decoder = True
+        if hasattr(config, "is_encoder_decoder"):
+            config.is_encoder_decoder = False
 
         if generation_config is None:
             try:
                 generation_config = GenerationConfig.from_pretrained(
                     model_id,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    local_files_only=local_files_only,
                     token=token,
                     revision=revision,
                     subfolder=subfolder,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
                 )
             except OSError:
-                logger.info(
-                    "Generation config file not found, using a generation config created from the model config."
+                logger.info("Generation config file not found, creating a new one from model config.")
+                generation_config = GenerationConfig.from_model_config(config)
+
+        # TODO: not sure if setting config.use_cache is needed for older versions of transformers
+        generation_config.use_cache = use_cache
+        config.use_cache = use_cache
+
+        if is_transformers_version(">=", "4.45.0"):
+            misplaced_generation_parameters = config._get_non_default_generation_parameters()
+            if len(misplaced_generation_parameters) > 0:
+                logger.warning(
+                    "Moving the following attributes in the config to the generation config: "
+                    f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
+                    "generation parameters in the model config, as opposed to in the generation config.",
                 )
+                for param_name, param_value in misplaced_generation_parameters.items():
+                    setattr(generation_config, param_name, param_value)
+                    setattr(config, param_name, None)
 
         providers, provider_options = prepare_providers_and_provider_options(
             provider=provider, providers=providers, provider_options=provider_options
@@ -622,7 +655,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             use_io_binding=use_io_binding,
             generation_config=generation_config,
             model_save_dir=model_save_dir,
-            use_cache=use_cache,
         )
 
     @classmethod
@@ -681,66 +713,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             model_save_dir=save_dir,
             **kwargs,
         )
-
-    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
-    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
-        if past_key_values is not None:
-            if self.config.model_type == "gpt_bigcode":
-                if self.config.multi_query:
-                    past_length = past_key_values[0].shape[1]
-                else:
-                    past_length = past_key_values[0].shape[2]
-            else:
-                past_length = past_key_values[0][0].shape[2]
-
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-
-            input_ids = input_ids[:, remove_prefix_length:]
-
-        # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
-        attention_mask = kwargs.get("attention_mask", None)
-        use_cache = kwargs.get("use_cache", None)
-
-        position_ids = kwargs.get("position_ids", None)
-        if attention_mask is not None and position_ids is None:
-            # create position_ids on the fly for batch generation
-            position_ids = attention_mask.long().cumsum(-1) - 1
-            position_ids.masked_fill_(attention_mask == 0, 1)
-            if past_key_values:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
-
-        return {
-            "input_ids": input_ids,
-            "past_key_values": past_key_values,
-            "use_cache": use_cache,
-            "position_ids": position_ids,
-            "attention_mask": attention_mask,
-        }
-
-    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel._reorder_cache
-    @staticmethod
-    def _reorder_cache(
-        past_key_values: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor
-    ) -> Tuple[Tuple[torch.Tensor]]:
-        if isinstance(past_key_values, tuple) and isinstance(past_key_values[0], tuple):
-            # GPT2 style
-            return tuple(
-                tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
-                for layer_past in past_key_values
-            )
-        elif isinstance(past_key_values, tuple) and isinstance(past_key_values[0], torch.Tensor):
-            # GPT BigCode style
-            return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
-        else:
-            raise ValueError(
-                f"Unexpected past_key_values: {past_key_values}. "
-                "Expected tuple of tuples (GPT2 style) or tuple of tensors (GPT BigCode style)."
-            )
 
     def _save_config(self, save_directory):
         """
