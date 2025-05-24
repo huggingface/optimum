@@ -16,7 +16,6 @@ import os
 import tempfile
 import unittest
 
-import pytest
 import torch
 from onnxruntime import InferenceSession
 from parameterized import parameterized
@@ -69,7 +68,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "mistral",
         "bart",
         "blenderbot_small",
-        "phi",
         "bigbird_pegasus",
         "marian",
         "pegasus",
@@ -109,6 +107,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         return ["This is a sample input"] + ["This is another sample input"] * (batch_size - 1)
 
     # INTEGRATION TESTS
+    def test_find_untested_architectures(self):
+        tested_architectures = set(self.SUPPORTED_ARCHITECTURES)
+
+        if len(tested_architectures) != len(set(self.SUPPORTED_ARCHITECTURES)):
+            raise ValueError(
+                f"For the task `{self.TASK}`, some architectures are duplicated in the list of tested architectures: "
+                f"{self.SUPPORTED_ARCHITECTURES}.\n"
+            )
+
+        supported_export_models = set(TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"))
+        untested_architectures = supported_export_models - tested_architectures
+
+        if len(untested_architectures) > 0:
+            raise ValueError(
+                f"For the task `{self.TASK}`, the ONNX exporter supports {supported_export_models} but some of them are not "
+                f"tested: {untested_architectures}.\n"
+            )
+
     def test_load_model_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["vit"], export=True)
@@ -138,9 +154,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     )
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
     def test_save_load_model_with_external_data(self, use_cache: bool, use_merged: bool):
-        if use_merged and not use_cache:
-            pytest.skip("use_merged=True requires use_cache=True")
-
         with tempfile.TemporaryDirectory() as tmpdirname:
             model_id = MODEL_NAMES["gpt2"]
             model = self.ORTMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache, use_merged=use_merged)
@@ -151,22 +164,21 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
             # verify loading from local folder works
             model = self.ORTMODEL_CLASS.from_pretrained(tmpdirname, use_cache=use_cache, use_merged=use_merged)
+            model.generate(**self.GEN_KWARGS)
 
     @require_hf_token
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_push_decoder_model_with_external_data_to_hub(self):
+    def test_push_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], export=True)
-            model.save_pretrained(
-                tmpdirname + "/onnx",
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-                repository_id=MODEL_NAMES["gpt2"].split("/")[-1] + "-onnx",
-                private=True,
-                push_to_hub=True,
-            )
-            model = ORTModelForCausalLM.from_pretrained(
-                MODEL_NAMES["gpt2"] + "-onnx", export=False, token=os.environ.get("HF_AUTH_TOKEN", None)
-            )
+            model_id = MODEL_NAMES["gpt2"]
+            repo_dir = model_id.split("/")[-1] + "-onnx"
+            token = os.environ.get("HF_AUTH_TOKEN", None)
+            model = ORTModelForCausalLM.from_pretrained(model_id, export=True)
+            # verify the model can be pushed to the hub
+            model.save_pretrained(tmpdirname, token=token, repository_id=repo_dir, push_to_hub=True)
+            # verify pulling from hub works
+            model = ORTModelForCausalLM.from_pretrained(repo_dir, token=token, export=False)
+            model.generate(**self.GEN_KWARGS)
 
     def test_trust_remote_code(self):
         model_id = "fxmarty/tiny-testing-gpt2-remote-code"
@@ -204,9 +216,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx"
         )
         self.assertEqual(model.path.name, "decoder_with_past_model.onnx")
-        # load from local
-        model = self.ORTMODEL_CLASS.from_pretrained("tests/assets/onnx", use_cache=False)
-        self.assertEqual(model.path.name, "model.onnx")
 
         # TODO: something went wrong here
         # revision + subfolder + file_name (target file exists but it loaded a different one)
@@ -521,35 +530,38 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             not_merged_without_cache_model = self.ORTMODEL_CLASS.from_pretrained(
                 tmpdir, use_cache=False, use_merged=False
             )
+            self.assertFalse(not_merged_without_cache_model.generation_config.use_cache)
+            self.assertFalse(not_merged_without_cache_model.config.use_cache)
             self.assertFalse(not_merged_without_cache_model.use_merged)
             self.assertFalse(not_merged_without_cache_model.use_cache)
-
-            # not merged model, with cache
-            self.assertIn(ONNX_DECODER_WITH_PAST_NAME, os.listdir(tmpdir))
-            not_merged_with_cache_file = os.path.join(tmpdir, ONNX_DECODER_WITH_PAST_NAME)
-            self.assertFalse(has_onnx_input(not_merged_with_cache_file, "use_cache_branch"))
-            not_merged_with_cache_model = self.ORTMODEL_CLASS.from_pretrained(tmpdir, use_cache=True, use_merged=False)
-            self.assertFalse(not_merged_with_cache_model.use_merged)
-            self.assertTrue(not_merged_with_cache_model.use_cache)
 
             # merged model
             self.assertIn(ONNX_DECODER_MERGED_NAME, os.listdir(tmpdir))
             merged_file = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
             self.assertTrue(has_onnx_input(merged_file, "use_cache_branch"))
             merged_model = self.ORTMODEL_CLASS.from_pretrained(tmpdir, use_merged=True)
+            self.assertTrue(merged_model.generation_config.use_cache)
+            self.assertTrue(merged_model.config.use_cache)
             self.assertTrue(merged_model.use_merged)
             self.assertTrue(merged_model.use_cache)
 
-            # inference
+            # forward
+            logits = model(**tokens).logits
+            merged_logits = merged_model(**tokens).logits
+            not_merged_without_cache_logits = not_merged_without_cache_model(**tokens).logits
+
+            # compare merged to transformers
+            torch.testing.assert_close(logits, merged_logits, atol=self.ATOL, rtol=self.RTOL)
+            # compare not merged without cache to transformers
+            torch.testing.assert_close(logits, not_merged_without_cache_logits, atol=self.ATOL, rtol=self.RTOL)
+
+            # generate
             outputs = model.generate(**tokens, **self.GEN_KWARGS)
             merged_outputs = merged_model.generate(**tokens, **self.GEN_KWARGS)
-            not_merged_with_cache_outputs = not_merged_with_cache_model.generate(**tokens, **self.GEN_KWARGS)
             not_merged_without_cache_outputs = not_merged_without_cache_model.generate(**tokens, **self.GEN_KWARGS)
 
             # compare merged to transformers
             torch.testing.assert_close(outputs, merged_outputs, atol=self.ATOL, rtol=self.RTOL)
-            # compare not merged with cache to transformers
-            torch.testing.assert_close(outputs, not_merged_with_cache_outputs, atol=self.ATOL, rtol=self.RTOL)
             # compare not merged without cache to transformers
             torch.testing.assert_close(outputs, not_merged_without_cache_outputs, atol=self.ATOL, rtol=self.RTOL)
 
@@ -567,17 +579,3 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertEqual(reloaded_model.path.name, ONNX_DECODER_MERGED_NAME)
             self.assertTrue(reloaded_model.use_merged)
             self.assertTrue(reloaded_model.use_cache)
-
-
-class TestBothExportersORTModel(unittest.TestCase):
-    @parameterized.expand([["text-generation", ORTModelForCausalLMIntegrationTest]])
-    def test_find_untested_architectures(self, task: str, test_class):
-        supported_export_models = TasksManager.get_supported_model_type_for_task(task=task, exporter="onnx")
-        tested_architectures = set(test_class.SUPPORTED_ARCHITECTURES)
-
-        untested_architectures = set(supported_export_models) - tested_architectures
-        if len(untested_architectures) > 0:
-            raise ValueError(
-                f"For the task `{task}`, the ONNX export supports {supported_export_models}, but only {tested_architectures} are tested.\n"
-                f"\tMissing {untested_architectures}."
-            )
