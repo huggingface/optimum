@@ -336,15 +336,22 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")  # cache position refactorization
+# OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
+if is_transformers_version(">=", "4.46.0"):
+
+    class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+else:
+
+    class OPTOnnxConfig(TextDecoderOnnxConfig):
+        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Llama now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
-
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
@@ -377,7 +384,7 @@ class GraniteOnnxConfig(LlamaOnnxConfig):
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    MIN_TRANSFORMERS_VERSION = version.parse("4.42.0")  # cache position refactorization
+    MIN_TRANSFORMERS_VERSION = version.parse("4.42.0")
 
 
 class Phi3OnnxConfig(PhiOnnxConfig):
@@ -424,7 +431,6 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
 
     DEFAULT_ONNX_OPSET = 14  # Bloom uses F.scaled_dot_product_attention
-    # reent refactorizations of transformers unified modeling code of bloom
     MIN_TRANSFORMERS_VERSION = version.parse("4.44.0")
     DUMMY_PKV_GENERATOR_CLASS = BloomDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
