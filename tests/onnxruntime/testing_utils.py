@@ -22,6 +22,8 @@ import numpy as np
 import torch
 from transformers import set_seed
 
+from optimum.exporters.tasks import TasksManager
+
 
 SEED = 42
 
@@ -172,7 +174,7 @@ class ORTModelTestMixin(unittest.TestCase):
         else:
             model_ids = [model_ids]
 
-        task = self.TASK
+        task = TasksManager.infer_task_from_model(model_ids[0])
         if model_args.get("use_cache", False):
             task = task + "-with-past"
 
@@ -181,7 +183,7 @@ class ORTModelTestMixin(unittest.TestCase):
 
         self.onnx_model_dirs[model_arch_and_params] = {}
         for model_id in model_ids:
-            if isinstance(model_ids, dict) and task not in MODEL_NAMES[model_arch][model_id]:
+            if isinstance(MODEL_NAMES[model_arch], dict) and task not in MODEL_NAMES[model_arch][model_id]:
                 # The model with use_cache=True is not supported for bert as a decoder")
                 continue
 
