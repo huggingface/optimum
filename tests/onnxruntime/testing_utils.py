@@ -97,7 +97,7 @@ MODEL_NAMES = {
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
-        "hf-internal-testing/tiny-random-language_perceiver": ["text-generation"],
+        "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
     "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
