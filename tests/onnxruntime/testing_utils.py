@@ -22,8 +22,6 @@ import numpy as np
 import torch
 from transformers import set_seed
 
-from optimum.exporters.tasks import TasksManager
-
 
 SEED = 42
 
@@ -174,7 +172,7 @@ class ORTModelTestMixin(unittest.TestCase):
         else:
             model_ids = [model_ids]
 
-        task = TasksManager.infer_task_from_model(model_ids[0])
+        task = self.TASK
         if model_args.get("use_cache", False):
             task = task + "-with-past"
 
