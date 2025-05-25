@@ -105,7 +105,7 @@ MODEL_NAMES = {
     "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
     "qwen3": "snake7gun/tiny-random-qwen3",
-    "qwen3-moe": "snake7gun/tiny-random-qwen3moe",
+    "qwen3_moe": "snake7gun/tiny-random-qwen3moe",
     "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",

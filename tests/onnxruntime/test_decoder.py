@@ -100,7 +100,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     if is_transformers_version(">=", str(Qwen3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("qwen3")
     if is_transformers_version(">=", str(Qwen3MoeOnnxConfig.MIN_TRANSFORMERS_VERSION)):
-        SUPPORTED_ARCHITECTURES.append("qwen3-moe")
+        SUPPORTED_ARCHITECTURES.append("qwen3_moe")
 
     GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}
     BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}
