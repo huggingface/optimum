@@ -292,6 +292,7 @@ class NormalizedConfigManager:
         "yolos": NormalizedVisionConfig,
         "qwen2": NormalizedTextConfig,
         "qwen3": NormalizedTextConfig,
+        "qwen3-moe": NormalizedTextConfig,
         "granite": NormalizedTextConfigWithGQA,
     }
 

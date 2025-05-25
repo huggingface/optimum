@@ -36,6 +36,7 @@ from optimum.exporters.onnx.model_configs import (
     Phi3OnnxConfig,
     PhiOnnxConfig,
     Qwen2OnnxConfig,
+    Qwen3MoeOnnxConfig,
     Qwen3OnnxConfig,
 )
 from optimum.exporters.tasks import TasksManager
@@ -98,6 +99,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("phi3")
     if is_transformers_version(">=", str(Qwen3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("qwen3")
+    if is_transformers_version(">=", str(Qwen3MoeOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("qwen3-moe")
 
     GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}
     BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}

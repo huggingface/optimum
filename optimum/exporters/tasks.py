@@ -1005,6 +1005,15 @@ class TasksManager:
             "text-classification",
             onnx="Qwen3OnnxConfig",
         ),
+        "qwen3-moe": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            "token-classification",
+            onnx="Qwen3MoeOnnxConfig",
+        ),
         "llama": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",

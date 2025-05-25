@@ -86,6 +86,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "phi3",
     "qwen2",
     "qwen3",
+    "qwen3-moe",
     "granite",
 }
 
