@@ -33,7 +33,7 @@ MODEL_NAMES = {
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bart": "hf-internal-testing/tiny-random-bart",
-    "big_bird": "hf-internal-testing/tiny-random-BigBirdModel",
+    "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
     "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot_small": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
@@ -66,9 +66,9 @@ MODEL_NAMES = {
     "flux": "optimum-internal-testing/tiny-random-flux",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
-    "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
-    "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
-    "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
+    "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
+    "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
+    "gpt-neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJForCausalLM",
     "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
@@ -81,7 +81,7 @@ MODEL_NAMES = {
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
     "llama": "optimum-internal-testing/tiny-random-llama",
-    "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
+    "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "echarlaix/tiny-random-marian",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mgp-str": "hf-internal-testing/tiny-random-MgpstrForSceneTextRecognition",
@@ -109,10 +109,10 @@ MODEL_NAMES = {
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "sew": "hf-internal-testing/tiny-random-SEWModel",
-    "sew_d": "asapp/sew-d-tiny-100k-ft-ls100h",
+    "sew-d": "asapp/sew-d-tiny-100k-ft-ls100h",
     "siglip": "hf-internal-testing/tiny-random-SiglipModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
-    "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
+    "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-3": "optimum-internal-testing/tiny-random-stable-diffusion-3",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
@@ -132,8 +132,8 @@ MODEL_NAMES = {
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": "hf-internal-testing/tiny-random-WavlmModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
-    "xlm_qa": "hf-internal-testing/tiny-random-XLMForQuestionAnsweringSimple",
-    "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
+    "xlm-qa": "hf-internal-testing/tiny-random-XLMForQuestionAnsweringSimple",
+    "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
 }
 
@@ -178,7 +178,7 @@ class ORTModelTestMixin(unittest.TestCase):
         library_name = TasksManager.infer_library_from_model(model_ids[0])
 
         if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx", library_name=library_name
+            model_arch, exporter="onnx", library_name=library_name
         ):
             self.skipTest("Unsupported export case")
 

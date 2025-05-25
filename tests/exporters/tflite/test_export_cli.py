@@ -41,7 +41,6 @@ def _get_models_to_test(export_models_dict: Dict):
     models_to_test = []
     if is_tf_available():
         for model_type, model_names_tasks in export_models_dict.items():
-            model_type = model_type.replace("_", "-")
             try:
                 task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "tflite")
             except KeyError:

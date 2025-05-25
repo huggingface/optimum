@@ -1445,7 +1445,6 @@ class TasksManager:
         else:
             supported_model_type_for_library = TasksManager._LIBRARY_TO_SUPPORTED_MODEL_TYPES[library_name]
 
-        model_type = model_type.lower().replace("_", "-")
         model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
 
         default_model_type = None
@@ -1476,7 +1475,7 @@ class TasksManager:
         Returns the list of supported architectures by the exporter for a given task. Transformers-specific.
         """
         return [
-            model_type.replace("-", "_")
+            model_type
             for model_type in TasksManager._SUPPORTED_MODEL_TYPE
             if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
         ]
@@ -1580,11 +1579,7 @@ class TasksManager:
                         else:
                             for autoclass_name in tasks_to_model_loader[task]:
                                 module = getattr(loaded_library, autoclass_name)
-                                # TODO: we must really get rid of this - and _ mess
-                                if (
-                                    model_type in module._model_mapping._model_mapping
-                                    or model_type.replace("-", "_") in module._model_mapping._model_mapping
-                                ):
+                                if model_type in module._model_mapping._model_mapping:
                                     model_class_name = autoclass_name
                                     break
 
@@ -2250,11 +2245,7 @@ class TasksManager:
 
         if library_name == "transformers":
             config = AutoConfig.from_pretrained(model_name_or_path, **kwargs)
-            model_type = config.model_type.replace("_", "-")
-            # TODO: if automatic-speech-recognition is passed as task, it may map to several
-            # different auto class (AutoModelForSpeechSeq2Seq or AutoModelForCTC),
-            # depending on the model type
-            # if original_task in ["auto", "automatic-speech-recognition"]:
+            model_type = config.model_type
             if original_task == "automatic-speech-recognition" or task == "automatic-speech-recognition":
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
@@ -2395,7 +2386,6 @@ class TasksManager:
             if model_type is None:
                 raise ValueError("Model type cannot be inferred. Please provide the model_type for the model!")
 
-            model_type = model_type.replace("_", "-")
             model_name = getattr(model, "name", model_name)
 
         model_tasks = TasksManager.get_supported_tasks_for_model_type(

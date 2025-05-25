@@ -968,13 +968,13 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "albert",
         "bart",
         "bert",
-        "big_bird",
-        "bigbird_pegasus",
+        "big-bird",
+        "bigbird-pegasus",
         "camembert",
         "convbert",
-        "data2vec_text",
+        "data2vec-text",
         "deberta",
-        "deberta_v2",
+        "deberta-v2",
         "distilbert",
         "electra",
         # "flaubert", # currently fails for some reason (squad multiprocessing),
@@ -990,8 +990,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "roberta",
         "roformer",
         "squeezebert",
-        "xlm_qa",
-        "xlm_roberta",
+        "xlm-qa",
+        "xlm-roberta",
         "rembert",
     ]
 
@@ -1176,24 +1176,24 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        "big_bird",
+        "big-bird",
         "camembert",
         "convbert",
-        "data2vec_text",
+        "data2vec-text",
         "deberta",
-        "deberta_v2",
+        "deberta-v2",
         "distilbert",
         "electra",
         "flaubert",
         "ibert",
         "mobilebert",
         "mpnet",
-        "perceiver_text",
+        "perceiver-text",
         "roberta",
         "roformer",
         "squeezebert",
         "xlm",
-        "xlm_roberta",
+        "xlm-roberta",
         "rembert",
     ]
 
@@ -1353,14 +1353,14 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "albert",
         "bart",
         "bert",
-        "big_bird",
+        "big-bird",
         "bigbird_pegasus",
         "bloom",
         "camembert",
         "convbert",
         "data2vec_text",
         "deberta",
-        "deberta_v2",
+        "deberta-v2",
         "distilbert",
         "electra",
         "flaubert",
@@ -1374,12 +1374,12 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "mbart",
         "mobilebert",
         "nystromformer",
-        "perceiver_text",
+        "perceiver-text",
         "roberta",
         "roformer",
         "squeezebert",
         "xlm",
-        "xlm_roberta",
+        "xlm-roberta",
         "rembert",
     ]
 
@@ -1566,13 +1566,13 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        "big_bird",
+        "big-bird",
         "bloom",
         "camembert",
         "convbert",
-        "data2vec_text",
+        "data2vec-text",
         "deberta",
-        "deberta_v2",
+        "deberta-v2",
         "distilbert",
         "electra",
         "flaubert",
@@ -1586,7 +1586,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         "roformer",
         "squeezebert",
         "xlm",
-        "xlm_roberta",
+        "xlm-roberta",
         "rembert",
     ]
 
@@ -2073,11 +2073,11 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        "big_bird",
+        "big-bird",
         "camembert",
         "convbert",
-        "data2vec_text",
-        "deberta_v2",
+        "data2vec-text",
+        "deberta-v2",
         "distilbert",
         "electra",
         "flaubert",
@@ -2185,9 +2185,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "codegen",
         "falcon",
         "gpt2",
-        "gpt_bigcode",
-        "gpt_neo",
-        "gpt_neox",
+        "gpt-bigcode",
+        "gpt-neo",
+        "gpt-neox",
         "gptj",
         "llama",
         "mistral",
@@ -2267,7 +2267,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         task = "text-generation-with-past"
 
         if task not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx", library_name="transformers"
+            model_arch, exporter="onnx", library_name="transformers"
         ):
             self.skipTest("Unsupported export case")
 
@@ -2319,7 +2319,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample input", return_tensors="pt")
         position_ids = None
-        if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+        if model_arch in MODEL_TYPES_REQUIRING_POSITION_IDS:
             input_shape = tokens["input_ids"].shape
             position_ids = torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
         onnx_outputs = onnx_model(**tokens, position_ids=position_ids)
@@ -2651,7 +2651,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
 
         position_ids = None
-        if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+        if model_arch in MODEL_TYPES_REQUIRING_POSITION_IDS:
             input_shape = tokens["input_ids"].shape
             position_ids = (
                 torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).expand(2, input_shape[-1]).to("cuda")
@@ -3637,7 +3637,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
         if "text2text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx", library_name="transformers"
+            model_arch, exporter="onnx", library_name="transformers"
         ):
             self.skipTest("Unsupported -with-past export case")
 
@@ -3666,7 +3666,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     def test_merge_from_onnx_and_save(self, model_arch):
         task = "text2text-generation-with-past"
 
-        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
+        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch, exporter="onnx"):
             self.skipTest("Unsupported export case", library_name="transformers")
 
         model_ids = self._get_model_ids(model_arch)
@@ -4247,7 +4247,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
         if "automatic-speech-recognition-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx", library_name="transformers"
+            model_arch, exporter="onnx", library_name="transformers"
         ):
             self.skipTest("Unsupported -with-past export case")
 
@@ -4268,7 +4268,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         task = "automatic-speech-recognition-with-past"
 
-        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
+        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch, exporter="onnx"):
             self.skipTest("Unsupported export case", library_name="transformers")
 
         with tempfile.TemporaryDirectory() as tmpdir:

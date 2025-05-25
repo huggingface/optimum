@@ -123,7 +123,7 @@ TEXT_GENERATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForCausalLM(ORTModel, GenerationMixin):
     """
-    ONNX model with a causal language modeling head for ONNX Runtime inference. This class officially supports bloom, codegen, falcon, gpt2, gpt_bigcode, gpt_neo, gpt_neox, gptj, llama.
+    ONNX model with a causal language modeling head for ONNX Runtime inference. This class officially supports bloom, codegen, falcon, gpt2, gpt-bigcode, gpt_neo, gpt_neox, gptj, llama.
     """
 
     auto_model_class = AutoModelForCausalLM
@@ -186,7 +186,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         super().__init__(config=config, session=session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
 
         # Reference: https://github.com/huggingface/optimum/pull/1381
-        model_type = self.config.model_type.replace("_", "-")
+        model_type = self.config.model_type
         if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
             logger.warning(
                 f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. "
@@ -245,8 +245,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         if self.use_cache:
             if past_key_values is not None:
-                # Flatten the past_key_values (gpt_bigcode has fused key/value cache, so no need to flatten it)
-                if self.config.model_type != "gpt_bigcode":
+                # Flatten the past_key_values (gpt-bigcode has fused key/value cache, so no need to flatten it)
+                if self.config.model_type != "gpt-bigcode":
                     past_key_values = tuple(
                         past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
                     )
@@ -308,7 +308,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)
                 past_key_values = tuple(model_outputs[output_name] for output_name in self.key_value_output_names)
 
-        if self.use_cache and self.config.model_type != "gpt_bigcode":
+        if self.use_cache and self.config.model_type != "gpt-bigcode":
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and per decoder layer
             past_key_values = tuple(past_key_values[i : i + 2] for i in range(0, len(past_key_values), 2))
 
@@ -367,7 +367,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     shape[index] += sequence_length
                     pkv_output_shape[name] = shape
 
-            elif self.config.model_type == "gpt_bigcode":
+            elif self.config.model_type == "gpt-bigcode":
                 # GPT BigCode uses muti-query attention, and has the specificity of putting both key and value in the same cache tensor.
                 key_and_value = constructor.zeros(batch_size, 0, embed_size_per_head * 2, dtype=float_dtype)
                 if use_torch:
@@ -634,7 +634,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # if model was exported with position_ids it means the model was exported with transformers >= v4.46
         elif config.model_type == "opt" and "position_ids" not in input_dims:
             init_cls = ORTOPTForCausalLM
-        elif config.model_type == "gpt_bigcode":
+        elif config.model_type == "gpt-bigcode":
             init_cls = ORTGPTBigCodeForCausalLM
         else:
             init_cls = ORTModelForCausalLM
