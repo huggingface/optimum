@@ -96,10 +96,8 @@ MODEL_NAMES = {
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
-    "perceiver": {
-        "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
-        "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
-    },
+    "perceiver_text": "hf-internal-testing/tiny-random-language_perceiver",
+    "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",
     "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
