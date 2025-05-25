@@ -251,7 +251,7 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "bart",
         "blenderbot",
-        "blenderbot_small",
+        "blenderbot-small",
         "longt5",
         "m2m_100",
         "marian",

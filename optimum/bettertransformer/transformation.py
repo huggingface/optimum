@@ -217,7 +217,7 @@ class BetterTransformer(object):
         )
 
         hf_config = model.config
-        if hf_config.model_type in ["falcon", "gpt-bigcode", "llama", "whisper"]:
+        if hf_config.model_type in ["falcon", "gpt_bigcode", "llama", "whisper"]:
             raise ValueError(
                 f"Transformers now supports natively BetterTransformer optimizations (torch.nn.functional.scaled_dot_product_attention) for the model type {hf_config.model_type}. "
                 "As such, there is no need to use `model.to_bettertransformers()` or `BetterTransformer.transform(model)` from the Optimum library. "

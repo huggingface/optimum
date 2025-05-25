@@ -1475,7 +1475,7 @@ AUDIO_CLASSIFICATION_EXAMPLE = r"""
 class ORTModelForAudioClassification(ORTModel):
     """
     ONNX Model for audio-classification, with a sequence classification head on top (a linear layer over the pooled output) for tasks like
-    SUPERB Keyword Spotting. This class officially supports audio_spectrogram_transformer, data2vec_audio, hubert, sew, sew_d, unispeech, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
+    SUPERB Keyword Spotting. This class officially supports audio_spectrogram_transformer, data2vec_audio, hubert, sew, sew-d, unispeech, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
     """
 
     auto_model_class = AutoModelForAudioClassification
@@ -1573,7 +1573,7 @@ CTC_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForCTC(ORTModel):
     """
-    ONNX Model with a language modeling head on top for Connectionist Temporal Classification (CTC). This class officially supports data2vec_audio, hubert, sew, sew_d, unispeech, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
+    ONNX Model with a language modeling head on top for Connectionist Temporal Classification (CTC). This class officially supports data2vec_audio, hubert, sew, sew-d, unispeech, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
     """
 
     auto_model_class = AutoModelForCTC

@@ -450,7 +450,7 @@ class TasksManager:
             "question-answering",
             onnx="RemBertOnnxConfig",
         ),
-        "big-bird": supported_tasks_mapping(
+        "big_bird": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
             "text-classification",
@@ -459,7 +459,7 @@ class TasksManager:
             "question-answering",
             onnx="BigBirdOnnxConfig",
         ),
-        "bigbird-pegasus": supported_tasks_mapping(
+        "bigbird_pegasus": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
@@ -709,7 +709,7 @@ class TasksManager:
             "token-classification",
             onnx="GPT2OnnxConfig",
         ),
-        "gpt-bigcode": supported_tasks_mapping(
+        "gpt_bigcode": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
@@ -727,7 +727,7 @@ class TasksManager:
             "text-classification",
             onnx="GPTJOnnxConfig",
         ),
-        "gpt-neo": supported_tasks_mapping(
+        "gpt_neo": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
@@ -735,7 +735,7 @@ class TasksManager:
             "text-classification",
             onnx="GPTNeoOnnxConfig",
         ),
-        "gpt-neox": supported_tasks_mapping(
+        "gpt_neox": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
@@ -892,12 +892,12 @@ class TasksManager:
             "image-segmentation",
             onnx="MobileViTOnnxConfig",
         ),
-        "mobilenet-v1": supported_tasks_mapping(
+        "mobilenet_v1": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
             onnx="MobileNetV1OnnxConfig",
         ),
-        "mobilenet-v2": supported_tasks_mapping(
+        "mobilenet_v2": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
             onnx="MobileNetV2OnnxConfig",
@@ -943,7 +943,7 @@ class TasksManager:
             "text-to-audio",  # "variant" handles the "-with-past". We should generalize that.
             onnx="MusicgenOnnxConfig",
         ),
-        "m2m-100": supported_tasks_mapping(
+        "m2m_100": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text2text-generation",
@@ -1158,7 +1158,7 @@ class TasksManager:
             "feature-extraction",
             onnx="SiglipVisionModelOnnxConfig",
         ),
-        "speech-to-text": supported_tasks_mapping(
+        "speech_to_text": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "automatic-speech-recognition",
