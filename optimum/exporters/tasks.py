@@ -514,7 +514,7 @@ class TasksManager:
             "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
         ),
-        "clip-vision-model": supported_tasks_mapping(
+        "clip_vision_model": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPVisionModelOnnxConfig",
         ),
@@ -589,7 +589,7 @@ class TasksManager:
             onnx="DebertaV2OnnxConfig",
             tflite="DebertaV2TFLiteConfig",
         ),
-        "decision-transformer": supported_tasks_mapping(
+        "decision_transformer": supported_tasks_mapping(
             "feature-extraction",
             "reinforcement-learning",
             onnx="DecisionTransformerOnnxConfig",
@@ -1110,11 +1110,11 @@ class TasksManager:
             onnx="RoFormerOnnxConfig",
             tflite="RoFormerTFLiteConfig",
         ),
-        "rt-detr": supported_tasks_mapping(
+        "rt_detr": supported_tasks_mapping(
             "object-detection",
             onnx="RTDetrOnnxConfig",
         ),
-        "rt-detr-v2": supported_tasks_mapping(
+        "rt_detr_v2": supported_tasks_mapping(
             "object-detection",
             onnx="RTDetrV2OnnxConfig",
         ),
@@ -1154,7 +1154,7 @@ class TasksManager:
             "feature-extraction",
             onnx="SiglipTextWithProjectionOnnxConfig",
         ),
-        "siglip-vision-model": supported_tasks_mapping(
+        "siglip_vision_model": supported_tasks_mapping(
             "feature-extraction",
             onnx="SiglipVisionModelOnnxConfig",
         ),
@@ -1247,11 +1247,11 @@ class TasksManager:
             "masked-im",
             onnx="ViTOnnxConfig",
         ),
-        "vit-mae": supported_tasks_mapping(
+        "vit_mae": supported_tasks_mapping(
             "feature-extraction",
             onnx="VitMAEOnnxConfig",
         ),
-        "vit-msn": supported_tasks_mapping(
+        "vit_msn": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
             onnx="VitMSNOnnxConfig",
