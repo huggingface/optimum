@@ -36,6 +36,7 @@ from optimum.exporters.onnx.model_configs import (
     Phi3OnnxConfig,
     PhiOnnxConfig,
     Qwen2OnnxConfig,
+    Qwen3OnnxConfig,
 )
 from optimum.exporters.tasks import TasksManager
 from optimum.onnx.utils import has_onnx_input
@@ -95,6 +96,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("granite")
     if is_transformers_version(">=", str(Phi3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("phi3")
+    if is_transformers_version(">=", str(Qwen3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("qwen3")
 
     GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}
     BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}
@@ -321,7 +324,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
 
         # group beam search with diversity penalty
-        gen_config = GenerationConfig(**self.BEAM_KWARGS, num_beam_groups=2, diversity_penalty=0.0001, do_sample=False)
+        model.generation_config.do_sample = False  # some models have hardcoded generation configs
+        onnx_model.generation_config.do_sample = False  # some models have hardcoded generation configs
+        gen_config = GenerationConfig(
+            **self.BEAM_KWARGS,
+            diversity_penalty=0.0001,
+            num_beam_groups=2,
+            do_sample=False,
+        )
         outputs = model.generate(**tokens, generation_config=gen_config)
         onnx_outputs = onnx_model.generate(**tokens, generation_config=gen_config)
         torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
