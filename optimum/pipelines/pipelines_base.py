@@ -50,6 +50,8 @@ from transformers.pipelines import (
     IMAGE_PROCESSOR_MAPPING,
     TOKENIZER_MAPPING,
     infer_framework_load_model,
+    get_default_model_and_revision,
+    check_task,
 )
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 
@@ -78,97 +80,97 @@ if is_onnxruntime_available():
         "feature-extraction": {
             "impl": FeatureExtractionPipeline,
             "class": (ORTModelForFeatureExtraction,),
-            "default": "distilbert-base-cased",
+            # "default": "distilbert-base-cased",
             "type": "text",  # feature extraction is only supported for text at the moment
         },
         "fill-mask": {
             "impl": FillMaskPipeline,
             "class": (ORTModelForMaskedLM,),
-            "default": "bert-base-cased",
+            # "default": "bert-base-cased",
             "type": "text",
         },
         "image-classification": {
             "impl": ImageClassificationPipeline,
             "class": (ORTModelForImageClassification,),
-            "default": "google/vit-base-patch16-224",
+            # "default": "google/vit-base-patch16-224",
             "type": "image",
         },
         "image-segmentation": {
             "impl": ImageSegmentationPipeline,
-            "class": (ORTModelForSemanticSegmentation,) if is_onnxruntime_available() else (),
-            "default": "nvidia/segformer-b0-finetuned-ade-512-512",
+            "class": (ORTModelForSemanticSegmentation,),
+            # "default": "nvidia/segformer-b0-finetuned-ade-512-512",
             "type": "image",
         },
         "question-answering": {
             "impl": QuestionAnsweringPipeline,
             "class": (ORTModelForQuestionAnswering,),
-            "default": "distilbert-base-cased-distilled-squad",
+            # "default": "distilbert-base-cased-distilled-squad",
             "type": "text",
         },
         "text-classification": {
             "impl": TextClassificationPipeline,
             "class": (ORTModelForSequenceClassification,),
-            "default": "distilbert-base-uncased-finetuned-sst-2-english",
+            # "default": "distilbert-base-uncased-finetuned-sst-2-english",
             "type": "text",
         },
         "text-generation": {
             "impl": TextGenerationPipeline,
             "class": (ORTModelForCausalLM,),
-            "default": "distilgpt2",
+            # "default": "distilgpt2",
             "type": "text",
         },
         "token-classification": {
             "impl": TokenClassificationPipeline,
             "class": (ORTModelForTokenClassification,),
-            "default": "dbmdz/bert-large-cased-finetuned-conll03-english",
+            # "default": "dbmdz/bert-large-cased-finetuned-conll03-english",
             "type": "text",
         },
         "zero-shot-classification": {
             "impl": ZeroShotClassificationPipeline,
             "class": (ORTModelForSequenceClassification,),
-            "default": "facebook/bart-large-mnli",
+            # "default": "facebook/bart-large-mnli",
             "type": "text",
         },
         "summarization": {
             "impl": SummarizationPipeline,
             "class": (ORTModelForSeq2SeqLM,),
-            "default": "t5-base",
+            # "default": "t5-base",
             "type": "text",
         },
         "translation": {
             "impl": TranslationPipeline,
             "class": (ORTModelForSeq2SeqLM,),
-            "default": "t5-small",
+            # "default": "t5-small",
             "type": "text",
         },
         "text2text-generation": {
             "impl": Text2TextGenerationPipeline,
             "class": (ORTModelForSeq2SeqLM,),
-            "default": "t5-small",
+            # "default": "t5-small",
             "type": "text",
         },
         "automatic-speech-recognition": {
             "impl": AutomaticSpeechRecognitionPipeline,
             "class": (ORTModelForSpeechSeq2Seq,),
-            "default": "openai/whisper-tiny.en",
+            # "default": "openai/whisper-tiny.en",
             "type": "multimodal",
         },
         "image-to-text": {
             "impl": ImageToTextPipeline,
             "class": (ORTModelForVision2Seq,),
-            "default": "nlpconnect/vit-gpt2-image-captioning",
+            # "default": "nlpconnect/vit-gpt2-image-captioning",
             "type": "multimodal",
         },
         "audio-classification": {
             "impl": AudioClassificationPipeline,
             "class": (ORTModelForAudioClassification,),
-            "default": "superb/hubert-base-superb-ks",
+            # "default": "superb/hubert-base-superb-ks",
             "type": "audio",
         },
         "image-to-image": {
             "impl": ImageToImagePipeline,
             "class": (ORTModelForImageToImage,),
-            "default": "caidas/swin2SR-classical-sr-x2-64",
+            # "default": "caidas/swin2SR-classical-sr-x2-64",
             "type": "image",
         },
     }
@@ -204,9 +206,7 @@ def load_bettertransformer(
         else:
             model_kwargs = {}
 
-    if model is None:
-        model_id = SUPPORTED_TASKS[targeted_task]["default"]
-    elif isinstance(model, str):
+    if isinstance(model, str):
         model_id = model
     else:
         model_id = None
@@ -252,10 +252,7 @@ def load_ort_pipeline(
     if model_kwargs is None:
         model_kwargs = {}
 
-    if model is None:
-        model_id = SUPPORTED_TASKS[targeted_task]["default"]
-        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, export=True)
-    elif isinstance(model, str):
+    if isinstance(model, str):
         model_id = model
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(
             model, revision=revision, subfolder=subfolder, token=token, **model_kwargs
@@ -333,7 +330,11 @@ def pipeline(
             f'Accelerator {accelerator} is not supported. Supported accelerators are "ort" and "bettertransformer".'
         )
 
-    # copied from transformers.pipelines.__init__.py
+    if model is None:
+        _, target_task, task_options = check_task(task)
+        model, default_revision = get_default_model_and_revision(target_task, "pt", task_options)
+        revision = revision or default_revision
+
     hub_kwargs = {
         "revision": revision,
         "token": token,
@@ -346,12 +347,11 @@ def pipeline(
         config = AutoConfig.from_pretrained(model, _from_pipeline=task, **hub_kwargs, **kwargs)
         hub_kwargs["_commit_hash"] = config._commit_hash
 
-    supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
 
     no_feature_extractor_tasks = set()
     no_tokenizer_tasks = set()
     no_image_processor_tasks = set()
-    for _task, values in supported_tasks.items():
+    for _task, values in TRANSFORMERS_SUPPORTED_TASKS.items():
         if values["type"] == "text":
             no_feature_extractor_tasks.add(_task)
             no_image_processor_tasks.add(_task)
@@ -363,7 +363,7 @@ def pipeline(
         elif values["type"] not in ["multimodal", "audio", "video"]:
             raise ValueError(f"SUPPORTED_TASK {_task} contains invalid type {values['type']}")
 
-    model_config = model.config
+    model_config = config or model.config
     load_tokenizer = type(model_config) in TOKENIZER_MAPPING or model_config.tokenizer_class is not None
     load_feature_extractor = type(model_config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
     load_image_processor = type(model_config) in IMAGE_PROCESSOR_MAPPING or image_processor is not None
@@ -384,6 +384,8 @@ def pipeline(
 
     if load_image_processor and load_feature_extractor:
         load_feature_extractor = False
+
+    supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
 
     model, model_id, tokenizer, feature_extractor, image_processor = MAPPING_LOADING_FUNC[accelerator](
         model,
