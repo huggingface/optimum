@@ -329,7 +329,7 @@ def pipeline(
         raise ValueError(
             f'Accelerator {accelerator} is not supported. Supported accelerators are "ort" and "bettertransformer".'
         )
-    
+
     supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
 
     if model is None:
