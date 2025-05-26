@@ -4419,7 +4419,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        processor = get_preprocessor(model_id)
+        tokenizer, _, feature_extractor = maybe_load_preprocessors(model_id)
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged
         )
@@ -4427,8 +4427,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         pipe = pipeline(
             "automatic-speech-recognition",
             model=onnx_model,
-            tokenizer=processor.tokenizer,
-            feature_extractor=processor.feature_extractor,
+            tokenizer=tokenizer,
+            feature_extractor=feature_extractor,
         )
 
         data = self._generate_random_audio_data()

@@ -45,8 +45,13 @@ from transformers import (
 from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
 from transformers.image_processing_utils import BaseImageProcessor
+from transformers.pipelines import (
+    FEATURE_EXTRACTOR_MAPPING,
+    IMAGE_PROCESSOR_MAPPING,
+    TOKENIZER_MAPPING,
+    infer_framework_load_model,
+)
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
-from transformers.pipelines import infer_framework_load_model
 
 from ..utils import is_onnxruntime_available, is_transformers_version
 
@@ -358,6 +363,11 @@ def pipeline(
         elif values["type"] not in ["multimodal", "audio", "video"]:
             raise ValueError(f"SUPPORTED_TASK {_task} contains invalid type {values['type']}")
 
+    model_config = model.config
+    load_tokenizer = type(model_config) in TOKENIZER_MAPPING or model_config.tokenizer_class is not None
+    load_feature_extractor = type(model_config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
+    load_image_processor = type(model_config) in IMAGE_PROCESSOR_MAPPING or image_processor is not None
+
     # copied from transformers.pipelines.__init__.py l.609
     if targeted_task in no_tokenizer_tasks:
         # These will never require a tokenizer.
@@ -365,18 +375,12 @@ def pipeline(
         # the files could be missing from the hub, instead of failing
         # on such repos, we just force to not load it.
         load_tokenizer = False
-    else:
-        load_tokenizer = True
 
     if targeted_task in no_feature_extractor_tasks:
         load_feature_extractor = False
-    else:
-        load_feature_extractor = True
 
     if targeted_task in no_image_processor_tasks:
         load_image_processor = False
-    else:
-        load_image_processor = True
 
     if load_image_processor and load_feature_extractor:
         load_feature_extractor = False
