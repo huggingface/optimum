@@ -1263,7 +1263,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
     @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         pipe = pipeline("fill-mask")
-        text = "The capital of France is [MASK]."
+        text = f"The capital of France is {pipe.tokenizer.mask_token}."
         outputs = pipe(text)
 
         # compare model output class
