@@ -80,97 +80,97 @@ if is_onnxruntime_available():
         "feature-extraction": {
             "impl": FeatureExtractionPipeline,
             "class": (ORTModelForFeatureExtraction,),
-            # "default": "distilbert-base-cased",
+            "default": "distilbert-base-cased",
             "type": "text",  # feature extraction is only supported for text at the moment
         },
         "fill-mask": {
             "impl": FillMaskPipeline,
             "class": (ORTModelForMaskedLM,),
-            # "default": "bert-base-cased",
+            "default": "bert-base-cased",
             "type": "text",
         },
         "image-classification": {
             "impl": ImageClassificationPipeline,
             "class": (ORTModelForImageClassification,),
-            # "default": "google/vit-base-patch16-224",
+            "default": "google/vit-base-patch16-224",
             "type": "image",
         },
         "image-segmentation": {
             "impl": ImageSegmentationPipeline,
             "class": (ORTModelForSemanticSegmentation,),
-            # "default": "nvidia/segformer-b0-finetuned-ade-512-512",
+            "default": "nvidia/segformer-b0-finetuned-ade-512-512",
             "type": "image",
         },
         "question-answering": {
             "impl": QuestionAnsweringPipeline,
             "class": (ORTModelForQuestionAnswering,),
-            # "default": "distilbert-base-cased-distilled-squad",
+            "default": "distilbert-base-cased-distilled-squad",
             "type": "text",
         },
         "text-classification": {
             "impl": TextClassificationPipeline,
             "class": (ORTModelForSequenceClassification,),
-            # "default": "distilbert-base-uncased-finetuned-sst-2-english",
+            "default": "distilbert-base-uncased-finetuned-sst-2-english",
             "type": "text",
         },
         "text-generation": {
             "impl": TextGenerationPipeline,
             "class": (ORTModelForCausalLM,),
-            # "default": "distilgpt2",
+            "default": "distilgpt2",
             "type": "text",
         },
         "token-classification": {
             "impl": TokenClassificationPipeline,
             "class": (ORTModelForTokenClassification,),
-            # "default": "dbmdz/bert-large-cased-finetuned-conll03-english",
+            "default": "dbmdz/bert-large-cased-finetuned-conll03-english",
             "type": "text",
         },
         "zero-shot-classification": {
             "impl": ZeroShotClassificationPipeline,
             "class": (ORTModelForSequenceClassification,),
-            # "default": "facebook/bart-large-mnli",
+            "default": "facebook/bart-large-mnli",
             "type": "text",
         },
         "summarization": {
             "impl": SummarizationPipeline,
             "class": (ORTModelForSeq2SeqLM,),
-            # "default": "t5-base",
+            "default": "t5-base",
             "type": "text",
         },
         "translation": {
             "impl": TranslationPipeline,
             "class": (ORTModelForSeq2SeqLM,),
-            # "default": "t5-small",
+            "default": "t5-small",
             "type": "text",
         },
         "text2text-generation": {
             "impl": Text2TextGenerationPipeline,
             "class": (ORTModelForSeq2SeqLM,),
-            # "default": "t5-small",
+            "default": "t5-small",
             "type": "text",
         },
         "automatic-speech-recognition": {
             "impl": AutomaticSpeechRecognitionPipeline,
             "class": (ORTModelForSpeechSeq2Seq,),
-            # "default": "openai/whisper-tiny.en",
+            "default": "openai/whisper-tiny.en",
             "type": "multimodal",
         },
         "image-to-text": {
             "impl": ImageToTextPipeline,
             "class": (ORTModelForVision2Seq,),
-            # "default": "nlpconnect/vit-gpt2-image-captioning",
+            "default": "nlpconnect/vit-gpt2-image-captioning",
             "type": "multimodal",
         },
         "audio-classification": {
             "impl": AudioClassificationPipeline,
             "class": (ORTModelForAudioClassification,),
-            # "default": "superb/hubert-base-superb-ks",
+            "default": "superb/hubert-base-superb-ks",
             "type": "audio",
         },
         "image-to-image": {
             "impl": ImageToImagePipeline,
             "class": (ORTModelForImageToImage,),
-            # "default": "caidas/swin2SR-classical-sr-x2-64",
+            "default": "caidas/swin2SR-classical-sr-x2-64",
             "type": "image",
         },
     }
@@ -329,11 +329,16 @@ def pipeline(
         raise ValueError(
             f'Accelerator {accelerator} is not supported. Supported accelerators are "ort" and "bettertransformer".'
         )
+    
+    supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
 
     if model is None:
-        _, target_task, task_options = check_task(task)
-        model, default_revision = get_default_model_and_revision(target_task, "pt", task_options)
-        revision = revision or default_revision
+        if accelerator != "ort":
+            _, target_task, task_options = check_task(task)
+            model, default_revision = get_default_model_and_revision(target_task, "pt", task_options)
+            revision = revision or default_revision
+        else:
+            model = supported_tasks[targeted_task]["default"]
 
     hub_kwargs = {
         "revision": revision,
@@ -350,7 +355,7 @@ def pipeline(
     no_feature_extractor_tasks = set()
     no_tokenizer_tasks = set()
     no_image_processor_tasks = set()
-    for _task, values in TRANSFORMERS_SUPPORTED_TASKS.items():
+    for _task, values in supported_tasks.items():
         if values["type"] == "text":
             no_feature_extractor_tasks.add(_task)
             no_image_processor_tasks.add(_task)
@@ -383,8 +388,6 @@ def pipeline(
 
     if load_image_processor and load_feature_extractor:
         load_feature_extractor = False
-
-    supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
 
     model, model_id, tokenizer, feature_extractor, image_processor = MAPPING_LOADING_FUNC[accelerator](
         model,
