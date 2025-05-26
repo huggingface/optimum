@@ -929,7 +929,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
-    @pytest.mark.run_in_series
     def test_trust_remote_code(self):
         model_id = "optimum-internal-testing/tiny-testing-gpt2-remote-code"
         ort_model = ORTModelForCausalLM.from_pretrained(model_id, export=True, trust_remote_code=True)
