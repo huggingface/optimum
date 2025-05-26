@@ -49,9 +49,9 @@ from transformers.pipelines import (
     FEATURE_EXTRACTOR_MAPPING,
     IMAGE_PROCESSOR_MAPPING,
     TOKENIZER_MAPPING,
-    infer_framework_load_model,
-    get_default_model_and_revision,
     check_task,
+    get_default_model_and_revision,
+    infer_framework_load_model,
 )
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 
@@ -346,7 +346,6 @@ def pipeline(
     if config is None and isinstance(model, str):
         config = AutoConfig.from_pretrained(model, _from_pipeline=task, **hub_kwargs, **kwargs)
         hub_kwargs["_commit_hash"] = config._commit_hash
-
 
     no_feature_extractor_tasks = set()
     no_tokenizer_tasks = set()
