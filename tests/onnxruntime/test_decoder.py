@@ -190,7 +190,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             model.generate(**self.GEN_KWARGS)
 
     def test_trust_remote_code(self):
-        model_id = "fxmarty/tiny-testing-gpt2-remote-code"
+        model_id = "optimum-internal-testing/tiny-testing-gpt2-remote-code"
 
         inputs = self.get_inputs()
         tokenizer = get_preprocessor(model_id)
