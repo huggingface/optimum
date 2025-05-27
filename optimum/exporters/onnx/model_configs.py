@@ -2705,4 +2705,4 @@ class RTDetrV2OnnxConfig(RTDetrOnnxConfig):
 
 
 class DFineOnnxConfig(RTDetrOnnxConfig):
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
