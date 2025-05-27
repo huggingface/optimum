@@ -165,7 +165,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_save_load_model_with_external_data(self, use_cache: bool, use_merged: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model_id = MODEL_NAMES["gpt2"]
-            model = self.ORTMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache, use_merged=use_merged)
+            # bevcause there's a folder with onnx model in hf-internal-testing/tiny-random-GPT2LMHeadModel
+            model = self.ORTMODEL_CLASS.from_pretrained(
+                model_id, use_cache=use_cache, use_merged=use_merged, export=True
+            )
             model.save_pretrained(tmpdirname)
             # verify external data is exported
             folder_contents = os.listdir(tmpdirname)
