@@ -397,6 +397,9 @@ class TasksManager:
         ),
     }
 
+    # Refere to official transformers model types in (we use the name as is, no changing of separators):
+    # https://github.com/huggingface/transformers/blob/main/src/transformers/models/auto/modeling_auto.py
+
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     # TODO: remove `-with-past` tasks and rather rely on `variant`.
