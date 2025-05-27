@@ -1170,10 +1170,8 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
 
             if use_merged is True:
                 decoder_path = new_model_save_dir / paths["last_decoder_merged_name"]
-                decoder_merged_path = new_model_save_dir / paths["last_decoder_merged_name"]
             else:
                 decoder_path = new_model_save_dir / paths["last_decoder_model_name"]
-                decoder_without_past_path = new_model_save_dir / paths["last_decoder_model_name"]
 
                 if use_cache is True:
                     decoder_with_past_path = new_model_save_dir / paths["last_decoder_with_past_model_name"]
