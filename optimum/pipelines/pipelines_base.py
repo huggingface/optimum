@@ -408,13 +408,11 @@ def pipeline(
 
     use_fast = kwargs.get(use_fast, "True")
     if tokenizer is None and load_tokenizer:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=use_fast, _from_pipeline=task, **hub_kwargs)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=use_fast, **hub_kwargs)
     if feature_extractor is None and load_feature_extractor:
-        feature_extractor = AutoFeatureExtractor.from_pretrained(
-            model_id, use_fast=use_fast, _from_pipeline=task, **hub_kwargs
-        )
+        feature_extractor = AutoFeatureExtractor.from_pretrained(model_id, use_fast=use_fast, **hub_kwargs)
     if image_processor is None and load_image_processor:
-        image_processor = AutoImageProcessor.from_pretrained(model_id, _from_pipeline=task, **hub_kwargs)
+        image_processor = AutoImageProcessor.from_pretrained(model_id, **hub_kwargs)
 
     return transformers_pipeline(
         task,
