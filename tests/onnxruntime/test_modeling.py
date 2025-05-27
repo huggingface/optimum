@@ -212,6 +212,12 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertFalse(model.use_merged)
         self.assertTrue("subfolder" in str(model.model_save_dir))
 
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            model.save_pretrained(tmpdirname)
+            self.assertTrue(set(file_names.values()).issubset(set(os.listdir(tmpdirname))))
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname)
+
+
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
