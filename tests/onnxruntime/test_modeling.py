@@ -95,6 +95,7 @@ from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
+from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
 
 
@@ -109,7 +110,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         super().__init__(*args, **kwargs)
         self.LOCAL_MODEL_PATH = "tests/assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
-
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
@@ -155,6 +155,64 @@ class ORTModelIntegrationTest(unittest.TestCase):
             self.ORTMODEL_CLASS.from_pretrained(
                 "hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx"
             )
+
+    def test_load_model_seq2seq_from_hub_infer_onnx_model(self):
+        model_id = "hf-internal-testing/tiny-random-T5Model"
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id)
+        model_parts = {part.model_path.name for part in model.parts}
+        self.assertEqual(model_parts, {"encoder_model.onnx", "decoder_model_merged.onnx"})
+        self.assertTrue(model.use_merged)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, use_merged=False)
+        model_parts = {part.model_path.name for part in model.parts}
+        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx", "decoder_with_past_model.onnx"}
+        self.assertTrue(model.use_cache)
+        self.assertFalse(model.use_merged)
+        self.assertEqual(model_parts, expected_model_parts)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, use_merged=False, use_cache=False)
+        model_parts = {part.model_path.name for part in model.parts}
+        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx"}
+        self.assertFalse(model.use_cache)
+        self.assertFalse(model.use_merged)
+        self.assertEqual(model_parts, expected_model_parts)
+
+        model_id = "optimum-internal-testing/tiny-random-T5Model"
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id)
+        model_parts = {part.model_path.name for part in model.parts}
+        self.assertEqual(model_parts, {"encoder_model.onnx", "decoder_model_merged.onnx"})
+        self.assertTrue(model.use_cache)
+        self.assertTrue(model.use_merged)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, revision="onnx-legacy")
+        model_parts = {part.model_path.name for part in model.parts}
+        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx", "decoder_with_past_model.onnx"}
+        self.assertEqual(model_parts, expected_model_parts)
+        self.assertTrue(model.use_cache)
+        self.assertFalse(model.use_merged)
+
+        file_names = {
+            "encoder_file_name": "encoder_model_quantized.onnx",
+            "decoder_file_name": "decoder_model_quantized.onnx",
+            "decoder_with_past_file_name": "decoder_with_past_model_quantized.onnx",
+        }
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, revision="optimized", subfolder="onnx", **file_names)
+        self.assertEqual({part.model_path.name for part in model.parts}, set(file_names.values()))
+        self.assertTrue(model.use_cache)
+        self.assertFalse(model.use_merged)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            model_id, revision="optimized", subfolder="subfolder", **file_names
+        )
+        self.assertEqual({part.model_path.name for part in model.parts}, set(file_names.values()))
+        self.assertTrue(model.use_cache)
+        self.assertFalse(model.use_merged)
+        self.assertTrue("subfolder" in str(model.model_save_dir))
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            model.save_pretrained(tmpdirname)
+            self.assertTrue(set(file_names.values()).issubset(set(os.listdir(tmpdirname))))
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname)
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
@@ -1198,7 +1256,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
     @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         pipe = pipeline("fill-mask")
-        text = "The capital of France is [MASK]."
+        text = f"The capital of France is {pipe.tokenizer.mask_token}."
         outputs = pipe(text)
 
         # compare model output class
@@ -2173,7 +2231,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         trfs_model = AutoModelForImageClassification.from_pretrained(model_id)
-        preprocessor = get_preprocessor(model_id)
+        preprocessor = maybe_load_preprocessors(model_id)[-1]
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
         inputs = preprocessor(images=image, return_tensors="pt")
@@ -2203,8 +2261,8 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
-        preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
+        preprocessor = maybe_load_preprocessors(model_id)[-1]
+        pipe = pipeline("image-classification", model=onnx_model, image_processor=preprocessor)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
 
@@ -2379,8 +2437,8 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(self.onnx_model_dirs[model_arch])
-        preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("image-segmentation", model=onnx_model, feature_extractor=preprocessor)
+        preprocessor = maybe_load_preprocessors(model_id)[-1]
+        pipe = pipeline("image-segmentation", model=onnx_model, image_processor=preprocessor)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
 
@@ -3155,7 +3213,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             set_seed(SEED)
             transformers_model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
             tokenizer = get_preprocessor(model_id)
-            tokens = tokenizer("This is a sample output", return_tensors="pt")
+            inputs = "This is a sample output"
+            tokens = tokenizer(inputs, return_tensors="pt", padding=True)
             decoder_start_token_id = transformers_model.config.decoder_start_token_id if model_arch != "mbart" else 2
             if model_arch == "encoder-decoder":
                 decoder_start_token_id = tokenizer.cls_token_id
@@ -3166,7 +3225,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 transformers_outputs = transformers_model(**tokens, **decoder_inputs)
 
             for input_type in ["pt", "np"]:
-                tokens = tokenizer("This is a sample output", return_tensors=input_type)
+                tokens = tokenizer(inputs, return_tensors=input_type, padding=True)
 
                 if input_type == "np":
                     decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
@@ -3219,21 +3278,21 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             # Text2Text generation
             pipe = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
             text = "This is a test"
-            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id)
+            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id, min_new_tokens=10, max_new_tokens=10)
             self.assertEqual(pipe.device, onnx_model.device)
             self.assertIsInstance(outputs[0]["generated_text"], str)
 
             # Summarization
             pipe = pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
             text = "This is a test"
-            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id)
+            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id, min_new_tokens=10, max_new_tokens=10)
             self.assertEqual(pipe.device, onnx_model.device)
             self.assertIsInstance(outputs[0]["summary_text"], str)
 
             # Translation
             pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
             text = "This is a test"
-            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id)
+            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id, min_new_tokens=10, max_new_tokens=10)
             self.assertEqual(pipe.device, onnx_model.device)
             self.assertIsInstance(outputs[0]["translation_text"], str)
 
@@ -3247,7 +3306,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                         model_kwargs=model_kwargs,
                         accelerator="ort",
                     )
-                    outputs_local_model = pipe(text)
+                    outputs_local_model = pipe(text, min_new_tokens=10, max_new_tokens=10)
                     self.assertEqual(outputs[0]["translation_text"], outputs_local_model[0]["translation_text"])
 
         gc.collect()
@@ -3828,17 +3887,16 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        processor = get_preprocessor(model_id)
+        tokenizer, _, feature_extractor = maybe_load_preprocessors(model_id)
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged
         )
-
         # Speech recogition generation
         pipe = pipeline(
             "automatic-speech-recognition",
             model=onnx_model,
-            tokenizer=processor.tokenizer,
-            feature_extractor=processor.feature_extractor,
+            tokenizer=tokenizer,
+            feature_extractor=feature_extractor,
         )
 
         data = self._generate_random_audio_data()
@@ -4173,7 +4231,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         pipe = pipeline(
             "image-to-image",
             model=onnx_model,
-            feature_extractor=image_processor,
+            image_processor=image_processor,
         )
         data = self._get_sample_image()
         outputs = pipe(data)
@@ -4194,7 +4252,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         pipe = pipeline(
             "image-to-image",
             model=onnx_model,
-            feature_extractor=image_processor,
+            image_processor=image_processor,
             device=0,
         )
 
@@ -4217,7 +4275,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         pipe = pipeline(
             "image-to-image",
             model=onnx_model,
-            feature_extractor=image_processor,
+            image_processor=image_processor,
             device=0,
         )
 
@@ -4270,10 +4328,10 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
-        features = feature_extractor(data, return_tensors="pt")
+        features = image_processor(data, return_tensors="pt")
 
         outputs = model.generate(inputs=features["pixel_values"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
@@ -4374,17 +4432,17 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
 
         # Speech recogition generation
         pipe = pipeline(
             "image-to-text",
             model=onnx_model,
             tokenizer=tokenizer,
-            feature_extractor=feature_extractor,
+            image_processor=image_processor,
         )
         data = self._get_sample_image()
-        outputs = pipe(data)
+        outputs = pipe(data, max_new_tokens=10)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["generated_text"], str)
 
@@ -4405,12 +4463,12 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
         )
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
         pipe = pipeline(
             "image-to-text",
             model=onnx_model,
             tokenizer=tokenizer,
-            feature_extractor=feature_extractor,
+            image_processor=image_processor,
             device=0,
         )
 
@@ -4438,12 +4496,12 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
         )
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
         pipe = pipeline(
             "image-to-text",
             model=onnx_model,
             tokenizer=tokenizer,
-            feature_extractor=feature_extractor,
+            image_processor=image_processor,
             device=0,
         )
 
@@ -4463,10 +4521,10 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, _ = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
-        features = feature_extractor(data, return_tensors="pt")
+        features = image_processor(data, return_tensors="pt")
 
         model_with_pkv = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
@@ -4520,8 +4578,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(io_model.use_io_binding)
 
         data = self._get_sample_image()
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
-        pixel_values = feature_extractor([data] * 2, return_tensors="pt").pixel_values.to("cuda")
+        image_processor, _ = self._get_preprocessors(model_id)
+        pixel_values = image_processor([data] * 2, return_tensors="pt").pixel_values.to("cuda")
         decoder_start_token_id = onnx_model.config.decoder.bos_token_id
         decoder_input_ids = torch.full((2, 1), decoder_start_token_id, dtype=torch.long).to("cuda")
 
@@ -4571,8 +4629,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(io_model.use_io_binding)
 
         data = self._get_sample_image()
-        feature_extractor, _ = self._get_preprocessors(model_id)
-        features = feature_extractor(data, return_tensors="pt").to("cuda")
+        image_processor, _ = self._get_preprocessors(model_id)
+        features = image_processor(data, return_tensors="pt").to("cuda")
 
         onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
         io_outputs = io_model.generate(**features, num_beams=num_beams)

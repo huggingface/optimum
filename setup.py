@@ -51,14 +51,14 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "protobuf>=3.20.1",
         "onnxruntime>=1.11.0",
-        "transformers>=4.36,<4.52.0",
+        "transformers>=4.36,<4.53.0",
     ],
     "onnxruntime-gpu": [
         "onnx",
         "datasets>=1.2.1",
         "protobuf>=3.20.1",
         "onnxruntime-gpu>=1.11.0",
-        "transformers>=4.36,<4.52.0",
+        "transformers>=4.36,<4.53.0",
     ],
     "onnxruntime-training": [
         "evaluate",
@@ -66,7 +66,7 @@ EXTRAS_REQUIRE = {
         "accelerate",
         "datasets>=1.2.1",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.52.0",
+        "transformers>=4.36,<4.53.0",
         "onnxruntime-training>=1.11.0",
     ],
     "exporters": [
@@ -74,14 +74,14 @@ EXTRAS_REQUIRE = {
         "timm",
         "onnxruntime",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.52.0",
+        "transformers>=4.36,<4.53.0",
     ],
     "exporters-gpu": [
         "onnx",
         "timm",
         "onnxruntime-gpu",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.52.0",
+        "transformers>=4.36,<4.53.0",
     ],
     "exporters-tf": [
         "onnx",
