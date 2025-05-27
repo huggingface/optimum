@@ -1092,11 +1092,8 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         if len(onnx_files) == 0:
             raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
 
-        decoder_merged_path = None
         decoder_path = None
         decoder_with_past_path = None
-
-        model_files = []
         # Check first for merged models and then for decoder / decoder_with_past models
         if use_merged is not False:
             model_files = [p for p in onnx_files if re.search(DECODER_MERGED_ONNX_FILE_PATTERN, str(p))]
@@ -1114,7 +1111,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
                 decoder_path = [file for file in model_files if file.name == decoder_file_name]
                 decoder_path = decoder_path[0] if decoder_path else model_files[0]
         else:
-            decoder_merged_path = model_files[0]
+            decoder_path = model_files[0]
 
         model_files = [p for p in onnx_files if re.search(ENCODER_ONNX_FILE_PATTERN, str(p))]
         encoder_path = [file for file in model_files if file.name == encoder_file_name]
@@ -1125,11 +1122,9 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         else:
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_path,
-                "last_decoder_model_name": decoder_path if use_merged is False else None,
-                "last_decoder_with_past_model_name": (
-                    decoder_with_past_path if (use_merged is False and use_cache is True) else None
-                ),
-                "last_decoder_merged_name": decoder_merged_path if use_merged is True else None,
+                "last_decoder_model_name": decoder_path if not use_merged else None,
+                "last_decoder_with_past_model_name": decoder_with_past_path if not use_merged and use_cache else None,
+                "last_decoder_merged_name": decoder_path if use_merged else None,
             }
             paths = {}
             for attr_name, filename in attribute_name_to_filename.items():
@@ -1138,7 +1133,6 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
 
                 subfolder = filename.parent.as_posix()
                 filename = filename.name
-
                 model_cache_path = cached_file(
                     model_id,
                     filename=filename,
@@ -1168,12 +1162,12 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
 
             new_model_save_dir = Path(model_cache_path).parent
 
-            if use_merged is True:
+            if use_merged:
                 decoder_path = new_model_save_dir / paths["last_decoder_merged_name"]
             else:
                 decoder_path = new_model_save_dir / paths["last_decoder_model_name"]
 
-                if use_cache is True:
+                if use_cache:
                     decoder_with_past_path = new_model_save_dir / paths["last_decoder_with_past_model_name"]
 
             encoder_path = new_model_save_dir / paths["last_encoder_model_name"]
