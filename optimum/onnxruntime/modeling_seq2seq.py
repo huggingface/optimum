@@ -1093,7 +1093,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
             raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
 
         decoder_merged_path = None
-        decoder_without_past_path = None
+        decoder_path = None
         decoder_with_past_path = None
 
         model_files = []
@@ -1105,17 +1105,14 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         if use_merged is False:
             pattern = DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN
             model_files = [p for p in onnx_files if re.search(pattern, str(p))]
+
             if use_cache:
                 decoder_with_past_path = [file for file in model_files if file.name == decoder_with_past_file_name]
                 decoder_with_past_path = decoder_with_past_path[0] if decoder_with_past_path else model_files[0]
-                decoder_without_past_path = decoder_without_past_path.parent / decoder_without_past_path.name.replace(
-                    "_with_past", ""
-                )
+                decoder_path = decoder_with_past_path.parent / decoder_with_past_path.name.replace("_with_past", "")
             else:
-                decoder_without_past_path = [file for file in model_files if file.name == decoder_file_name]
-                decoder_without_past_path = (
-                    decoder_without_past_path[0] if decoder_without_past_path else model_files[0]
-                )
+                decoder_path = [file for file in model_files if file.name == decoder_file_name]
+                decoder_path = decoder_path[0] if decoder_path else model_files[0]
         else:
             decoder_merged_path = model_files[0]
 

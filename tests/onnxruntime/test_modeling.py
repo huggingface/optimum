@@ -159,6 +159,30 @@ class ORTModelIntegrationTest(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx")
 
+    def test_load_model_seq2seq_from_hub_infer_onnx_model(self):
+
+        model_id = "hf-internal-testing/tiny-random-T5Model"
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id)
+        model_parts = set([part.model_path.name for part in model.parts])
+        self.assertEqual(model_parts, {"encoder_model.onnx", "decoder_model_merged.onnx"})
+        self.assertTrue(model.use_merged)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, use_merged=False)
+        model_parts = set([part.model_path.name for part in model.parts])
+        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx", "decoder_with_past_model.onnx"}
+        self.assertTrue(model.use_cache)
+        self.assertFalse(model.use_merged)
+        self.assertEqual(model_parts, expected_model_parts)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, use_merged=False, use_cache=False)
+        model_parts = set([part.model_path.name for part in model.parts])
+        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx"}
+        self.assertFalse(model.use_cache)
+        self.assertFalse(model.use_merged)
+        self.assertEqual(model_parts, expected_model_parts)
+
+
+
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
