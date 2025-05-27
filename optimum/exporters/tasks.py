@@ -1149,7 +1149,7 @@ class TasksManager:
             "zero-shot-image-classification",
             onnx="SiglipOnnxConfig",
         ),
-        "siglip-text-model": supported_tasks_mapping(
+        "siglip-text": supported_tasks_mapping(
             "feature-extraction",
             onnx="SiglipTextOnnxConfig",
         ),
