@@ -22,6 +22,7 @@ from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import AutoModelForCausalLM, set_seed
 from transformers.generation import GenerationConfig
+from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from transformers.onnx.utils import get_preprocessor
 
 from optimum.exporters.onnx import main_export
@@ -114,21 +115,23 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     # INTEGRATION TESTS
     def test_find_untested_architectures(self):
-        tested_architectures = set(self.SUPPORTED_ARCHITECTURES)
+        tested_models = set(self.SUPPORTED_ARCHITECTURES)
 
-        if len(tested_architectures) != len(set(self.SUPPORTED_ARCHITECTURES)):
+        if len(tested_models) != len(set(self.SUPPORTED_ARCHITECTURES)):
             raise ValueError(
                 f"For the task `{self.TASK}`, some architectures are duplicated in the list of tested architectures: "
                 f"{self.SUPPORTED_ARCHITECTURES}.\n"
             )
 
+        supported_transformers_models = set(CONFIG_MAPPING_NAMES.keys())
         supported_export_models = set(TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"))
-        untested_architectures = supported_export_models - tested_architectures
+        supported_export_models = supported_export_models & supported_transformers_models
+        untested_models = supported_export_models - tested_models
 
-        if len(untested_architectures) > 0:
+        if len(untested_models) > 0:
             raise ValueError(
                 f"For the task `{self.TASK}`, the ONNX exporter supports {supported_export_models} but some of them are not "
-                f"tested: {untested_architectures}.\n"
+                f"tested: {untested_models}.\n"
             )
 
     def test_load_model_which_is_not_supported(self):

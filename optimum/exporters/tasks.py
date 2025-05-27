@@ -29,7 +29,7 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent, logging
 
-from ..utils.import_utils import is_diffusers_available, is_onnx_available, is_transformers_version
+from ..utils.import_utils import is_diffusers_available, is_onnx_available
 
 
 if TYPE_CHECKING:
@@ -1497,14 +1497,6 @@ class TasksManager:
             model_type.replace("-", "_")
             for model_type in TasksManager._SUPPORTED_MODEL_TYPE
             if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
-            and is_transformers_version(
-                ">=",
-                str(
-                    TasksManager.get_exporter_config_constructor(
-                        exporter, task=task, model_type=model_type
-                    ).func.MIN_TRANSFORMERS_VERSION
-                ),
-            )
         ]
 
         return supported_model_types
