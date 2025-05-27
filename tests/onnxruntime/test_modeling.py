@@ -4805,7 +4805,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         pipe = pipeline(
             "image-to-image",
             model=onnx_model,
-            feature_extractor=image_processor,
+            image_processor=image_processor,
             device=0,
         )
 
@@ -4828,7 +4828,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         pipe = pipeline(
             "image-to-image",
             model=onnx_model,
-            feature_extractor=image_processor,
+            image_processor=image_processor,
             device=0,
         )
 
@@ -4881,10 +4881,10 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
-        features = feature_extractor(data, return_tensors="pt")
+        features = image_processor(data, return_tensors="pt")
 
         outputs = model.generate(inputs=features["pixel_values"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
@@ -4985,14 +4985,14 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
 
         # Speech recogition generation
         pipe = pipeline(
             "image-to-text",
             model=onnx_model,
             tokenizer=tokenizer,
-            image_processor=feature_extractor,
+            image_processor=image_processor,
         )
         data = self._get_sample_image()
         outputs = pipe(data, max_new_tokens=10)
@@ -5016,12 +5016,12 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
         )
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
         pipe = pipeline(
             "image-to-text",
             model=onnx_model,
             tokenizer=tokenizer,
-            feature_extractor=feature_extractor,
+            image_processor=image_processor,
             device=0,
         )
 
@@ -5049,12 +5049,12 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
         )
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
         pipe = pipeline(
             "image-to-text",
             model=onnx_model,
             tokenizer=tokenizer,
-            feature_extractor=feature_extractor,
+            image_processor=image_processor,
             device=0,
         )
 
@@ -5074,10 +5074,10 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        image_processor, _ = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
-        features = feature_extractor(data, return_tensors="pt")
+        features = image_processor(data, return_tensors="pt")
 
         model_with_pkv = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
@@ -5131,8 +5131,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(io_model.use_io_binding)
 
         data = self._get_sample_image()
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
-        pixel_values = feature_extractor([data] * 2, return_tensors="pt").pixel_values.to("cuda")
+        image_processor, _ = self._get_preprocessors(model_id)
+        pixel_values = image_processor([data] * 2, return_tensors="pt").pixel_values.to("cuda")
         decoder_start_token_id = onnx_model.config.decoder.bos_token_id
         decoder_input_ids = torch.full((2, 1), decoder_start_token_id, dtype=torch.long).to("cuda")
 
@@ -5182,8 +5182,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(io_model.use_io_binding)
 
         data = self._get_sample_image()
-        feature_extractor, _ = self._get_preprocessors(model_id)
-        features = feature_extractor(data, return_tensors="pt").to("cuda")
+        image_processor, _ = self._get_preprocessors(model_id)
+        features = image_processor(data, return_tensors="pt").to("cuda")
 
         onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
         io_outputs = io_model.generate(**features, num_beams=num_beams)
