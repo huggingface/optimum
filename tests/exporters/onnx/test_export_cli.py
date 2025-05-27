@@ -40,6 +40,7 @@ from ..utils import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_EXPORT_MODELS_TINY_SLIM,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_TIMM_MODEL,
     PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
@@ -181,6 +182,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         variant: str = "default",
         no_dynamic_axes: bool = False,
         model_kwargs: Optional[Dict] = None,
+        slim: bool = False,
     ):
         # We need to set this to some value to be able to test the outputs values for batch size > 1.
         if task == "text-classification":
@@ -203,6 +205,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     no_dynamic_axes=no_dynamic_axes,
                     pad_token_id=pad_token_id,
                     model_kwargs=model_kwargs,
+                    slim=slim,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
@@ -730,3 +733,24 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model.save_pretrained(tmpdir_in)
 
             main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY_SLIM, library_name="transformers"))
+    def test_exporters_cli_pytorch_with_slim(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        self._onnx_export(
+            model_name,
+            task,
+            monolith,
+            no_post_process,
+            slim=True,
+            device="cpu",
+            variant=variant,
+        )

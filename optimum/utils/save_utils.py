@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 from typing import List, Union
 
-from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
+from transformers import AutoFeatureExtractor, AutoImageProcessor, AutoProcessor, AutoTokenizer
 
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,15 @@ def maybe_load_preprocessors(
     try:
         preprocessors.append(
             AutoFeatureExtractor.from_pretrained(
+                src_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
+            )
+        )
+    except Exception:
+        pass
+
+    try:
+        preprocessors.append(
+            AutoImageProcessor.from_pretrained(
                 src_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
             )
         )

@@ -367,3 +367,7 @@ PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES = {
         "timm/ese_vovnet19b_dw.ra_in1k": ["image-classification"],
     }
 }
+
+PYTORCH_EXPORT_MODELS_TINY_SLIM = {
+    k: v for k, v in PYTORCH_EXPORT_MODELS_TINY.items() if k in ["modernbert", "llama", "t5", "whisper"]
+}

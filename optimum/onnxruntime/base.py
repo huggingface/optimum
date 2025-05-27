@@ -11,453 +11,640 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-"""Defines the base classes that are used to perform inference with ONNX Runtime of Transformers models."""
+"""Defines the base classes that are used to perform inference with ONNX Runtime sessions."""
 
-from abc import abstractmethod
-from typing import Dict, Optional, Set, Tuple, Union
+import os
+import shutil
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
-from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
-from onnxruntime import InferenceSession
+from onnxruntime import InferenceSession, IOBinding
+from onnxruntime.transformers.io_binding_helper import TypeHelper
 
-from ..utils import NormalizedConfigManager
-from ..utils.logging import warn_once
-from .io_binding import TypeHelper
-from .modeling_ort import ORTModel
-from .utils import logging
+from ..onnx.utils import _get_model_external_data_paths
+from ..utils.logging import get_logger
+from .utils import (
+    get_device_for_provider,
+    get_dtype_from_session,
+    get_provider_for_device,
+    parse_device,
+    validate_provider_availability,
+)
 
 
-logger = logging.get_logger(__name__)
+logger = get_logger(__name__)
+
+NON_EMPTY_TENSOR = torch.tensor(0)
 
 
-class ORTModelPart:
+class ORTSessionMixin:
     """
-    For multi-file ONNX models, such as encoder-decoder models, represents a part of the model.
-    It has its own `onnxruntime.InferenceSession`, and can perform a forward pass.
+    Mixin class that provides common functionalities for an ONNX Runtime session.
+    This class is used to manage the session, the execution provider, and the IO binding.
+    It also provides methods to prepare the inputs and outputs for ONNX Runtime.
     """
 
-    # should be in an ORTMixin
-    _prepare_io_binding = ORTModel._prepare_io_binding
-    _prepare_output_buffer = ORTModel._prepare_output_buffer
-    _output_shape_inference = ORTModel._output_shape_inference
+    def initialize_ort_attributes(self, session: InferenceSession, use_io_binding: Optional[bool] = None):
+        """
+        Initializes the ORTSessionMixin class.
+        Args:
+            session (`onnxruntime.InferenceSession`):
+                The ONNX Runtime session to use for inference.
+            use_io_binding (`Optional[bool]`, defaults to `None`):
+                Whether to use IO Binding or not. If `None`, it will be set to `True` for CUDAExecutionProvider and `False`
+                for other providers.
+        """
 
-    _prepare_onnx_inputs = ORTModel._prepare_onnx_inputs
-    _prepare_onnx_outputs = ORTModel._prepare_onnx_outputs
-
-    def __init__(self, session: InferenceSession, parent_model: "ORTModel"):
         self.session = session
-        self.parent_model = parent_model
-        self.main_input_name = self.parent_model.main_input_name
+        self.path = Path(session._model_path)
 
-        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        if use_io_binding is None:
+            if self.provider == "CUDAExecutionProvider":
+                logger.info(
+                    "`use_io_binding` was not set, but CUDAExecutionProvider supports IO Binding. "
+                    "Setting `use_io_binding=True` to leverage IO Binding and improve performance. "
+                    "You can disable it by setting `model.use_io_binding=False`."
+                )
+                use_io_binding = True
+            else:
+                use_io_binding = False
 
-        self.input_dtypes = {input_key.name: input_key.type for input_key in session.get_inputs()}
-        self.output_dtypes = {output_key.name: output_key.type for output_key in session.get_outputs()}
+        self._use_io_binding = use_io_binding
+        self._io_binding = IOBinding(session)
+        self._dtype = get_dtype_from_session(session)
+        self._device = get_device_for_provider(self.provider, self.provider_option)
 
-        self.input_shapes = {input_key.name: input_key.shape for input_key in session.get_inputs()}
-        self.output_shapes = {output_key.name: output_key.shape for output_key in session.get_outputs()}
+        self.input_names = {input.name: idx for idx, input in enumerate(session.get_inputs())}
+        self.output_names = {output.name: idx for idx, output in enumerate(session.get_outputs())}
+        self.input_shapes = {input.name: input.shape for input in session.get_inputs()}
+        self.output_shapes = {output.name: output.shape for output in session.get_outputs()}
+        self.input_dtypes = {input.name: input.type for input in session.get_inputs()}
+        self.output_dtypes = {output.name: output.type for output in session.get_outputs()}
 
     @property
-    def device(self):
-        return self.parent_model.device
+    def model_path(self) -> str:
+        """
+        Returns the path of the onnx file from which the session was created.
+        """
+        logger.warning(
+            "The `ORTSessionMixin.model_path` property is deprecated and will be removed in a future version. "
+            "Please use `ORTSessionMixin.path` instead (`ORTSessionMixin.path` is a proper Path object)."
+        )
+        return self.path
 
     @property
-    def dtype(self):
-        for dtype in self.input_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
+    def model_name(self) -> str:
+        """
+        Returns the name of the onnx file from which the session was created.
+        """
+        logger.warning(
+            "The `ORTSessionMixin.model_name` property is deprecated and will be removed in a future version. "
+            "Please use `ORTSessionMixin.path.name` instead (`ORTSessionMixin.path` is a proper Path object)."
+        )
+        return self.path.name
 
-        for dtype in self.output_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
+    @property
+    def providers(self) -> List[str]:
+        """
+        Returns a list of Execution Providers registered with the session.
+        """
+        return self.session.get_providers()
 
-        return None
+    @property
+    def provider(self) -> str:
+        """
+        Returns the main Execution Provider registered with the session.
+        """
+        return self.providers[0]
 
-    def to(self, *args, device: Optional[Union[torch.device, str, int]] = None, dtype: Optional[torch.dtype] = None):
+    @property
+    def provider_options(self) -> Dict[str, Any]:
+        """
+        Returns a dictionary of Execution Providers configurations/options.
+        """
+        return self.session.get_provider_options()
+
+    @property
+    def provider_option(self) -> Dict[str, Any]:
+        """
+        Returns the configuration/options of the main Execution Provider.
+        """
+        return self.provider_options[self.provider]
+
+    @property
+    def device(self) -> torch.device:
+        """
+        Returns the `torch.device` associated with the ONNX Runtime session.
+        This device is inferred from the provider and provider options.
+        """
+        return self._device
+
+    @device.setter
+    def device(self, *args, **kwargs):
+        raise AttributeError(
+            "The device attribute is read-only, please use the `.to(device)` "
+            "method to change both the device and the execution provider accordingly."
+        )
+
+    @property
+    def dtype(self) -> torch.dtype:
+        """
+        Returns the `torch.dtype` associated with the ONNX Runtime session.
+        This dtype is inferred from the input/output dtypes of the session.
+        If no floating point type is found, it defaults to `torch.float32`.
+        """
+        return self._dtype
+
+    @property
+    def use_io_binding(self) -> Optional[bool]:
+        """
+        Returns whether IO Binding is used or not.
+        """
+        return self._use_io_binding
+
+    @use_io_binding.setter
+    def use_io_binding(self, value: bool):
+        """
+        Sets the IO Binding usage.
+        """
+        if not isinstance(value, bool):
+            raise ValueError("`use_io_binding` should be a boolean value.")
+
+        self._use_io_binding = value
+
+    def to(self, *args, **kwargs):
+        """
+        Moves the session to the specified device by updating the execution provider and its options.
+        Args:
+            device (`str`, `int`, `torch.device`):
+                The device to move the session to. It can be a string (e.g., "cuda", "cpu"), an integer (e.g., 0 for GPU 0),
+                or a `torch.device` object.
+        Returns:
+            `ORTSessionMixin`: The updated session.
+        Raises:
+            ValueError: If the device is not supported or if the provider is not available.
+        """
+
+        dtype = None
+        device = None
+
         for arg in args:
-            if isinstance(arg, torch.device):
+            if isinstance(arg, (str, torch.device)):
+                device = arg
+            elif isinstance(arg, int):
+                device = torch.device(arg)
+            elif isinstance(arg, torch.device):
                 device = arg
             elif isinstance(arg, torch.dtype):
                 dtype = arg
 
-        if device is not None and device != self.device:
+        for key, value in kwargs.items():
+            if key == "device":
+                device = value
+            elif key == "dtype":
+                dtype = value
+
+        if dtype is not None:
+            # we don't support changing the dtype of the model
+            return self
+
+        if device is None:
+            # no device was provided, we don't change the device
+            return self
+
+        device, provider_option = parse_device(device)
+        provider = get_provider_for_device(device)
+        validate_provider_availability(provider)
+
+        if device == self.device:
+            return self
+
+        self.session.set_providers([provider], provider_options=[provider_option])
+
+        if self.use_io_binding is None:
+            if self.provider == "CUDAExecutionProvider":
+                logger.info(
+                    "`use_io_binding` was set to `None` before the provider was changed to CUDAExecutionProvider. "
+                    "Setting `use_io_binding=True` to leverage IO Binding and improve performance. "
+                    "You can disable it by setting `model.use_io_binding=False`."
+                )
+                self.use_io_binding = True
+
+        self._device = device
+
+        return self
+
+    def raise_on_numpy_input_io_binding(self, use_torch: bool):
+        """
+        Raises an error if IO Binding is requested although the tensor used are numpy arrays.
+
+        Args:
+            use_torch (`bool`):
+                Whether the tensor used during inference are of type torch.Tensor or not.
+        """
+        if use_torch is False and self.use_io_binding is True:
             raise ValueError(
-                "Cannot change the device of a model part without changing the device of the parent model. "
-                "Please use the `to` method of the parent model to change the device."
+                "IO Binding can not be used when passing numpy inputs. Please disable IO Binding"
+                " with `model.use_io_binding=False`, or pass `torch.Tensor` inputs instead."
             )
 
-        if dtype is not None and dtype != self.dtype:
-            raise NotImplementedError(
-                f"Cannot change the dtype of the model from {self.dtype} to {dtype}. "
-                f"Please export the model with the desired dtype."
+    def _prepare_onnx_inputs(
+        self, use_torch: bool, model_inputs: Dict[str, Union[torch.Tensor, np.ndarray]]
+    ) -> Dict[str, np.ndarray]:
+        """
+        Prepares the inputs for ONNX Runtime by converting them to numpy arrays with the expected dtype.
+
+        Args:
+            use_torch (`bool`):
+                Whether the inputs are torch.Tensor or not.
+            inputs (`Dict[str, Union[torch.Tensor, np.ndarray]]`):
+                The inputs to prepare for ONNX Runtime.
+
+        Returns:
+            `Dict[str, np.ndarray]`: The inputs prepared for ONNX Runtime.
+        """
+
+        onnx_inputs = {}
+
+        for input_name in self.input_names.keys():
+            if model_inputs.get(input_name, None) is None:
+                raise ValueError(f"Input {input_name} is required by model but not provided.")
+
+            if use_torch:
+                onnx_inputs[input_name] = model_inputs[input_name].numpy(force=True)
+            else:
+                onnx_inputs[input_name] = model_inputs[input_name]
+
+            expected_dtype = TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name])
+
+            if onnx_inputs[input_name].dtype != expected_dtype:
+                onnx_inputs[input_name] = onnx_inputs[input_name].astype(expected_dtype)
+
+        return onnx_inputs
+
+    def _prepare_onnx_outputs(
+        self, use_torch: bool, onnx_outputs: List[np.ndarray]
+    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+        """
+        Prepares the outputs from ONNX Runtime by converting them to torch.Tensor if requested.
+
+        Args:
+            use_torch (`bool`):
+                Whether the outputs should be torch.Tensor or not.
+            onnx_outputs (`List[np.ndarray]`):
+                The outputs from ONNX Runtime.
+
+        Returns:
+            `Dict[str, Union[torch.Tensor, np.ndarray]]`: The outputs prepared for the user.
+        """
+
+        model_outputs = {}
+
+        for output_name, idx in self.output_names.items():
+            model_outputs[output_name] = onnx_outputs[idx]
+
+            if use_torch:
+                model_outputs[output_name] = torch.from_numpy(model_outputs[output_name]).to(self.device)
+
+        return model_outputs
+
+    def _prepare_output_buffer(self, output_name: str, output_shape: Tuple[int]) -> torch.Tensor:
+        """
+        Prepares an output buffer for ONNX Runtime IO Binding.
+
+        Args:
+            output_name (`str`):
+                The name of the output for which to prepare the buffer.
+            output_shape (`Tuple[int]`):
+                The shape of the output buffer.
+
+        Returns:
+            `torch.Tensor`: The output buffer.
+
+        """
+        if len(output_shape) == 0:
+            raise ValueError("`output_shape` should not be empty")
+        elif not all(isinstance(dim, int) for dim in output_shape):
+            raise ValueError(f"`output_shape` should only contain integers but got {output_shape}.")
+        elif not all(dim > 0 for dim in output_shape):
+            raise ValueError(f"`output_shape` should only contain positive integers but got {output_shape}.")
+
+        output_dtype = TypeHelper.ort_type_to_torch_type(self.output_dtypes[output_name])
+
+        if len(output_shape) > 0:
+            output_buffer = torch.empty(np.prod(output_shape), dtype=output_dtype, device=self.device)
+        else:
+            output_buffer = torch.tensor(0, dtype=output_dtype, device=self.device)
+
+        return output_buffer
+
+    def _output_shape_inference(self, output_name: str, known_axes_values: Dict[str, int]) -> List[int]:
+        """
+        Infers the shape of a given output by using the `known_axes_values` mapping.
+
+        Args:
+            output_name (`str`):
+                The name of the output for which to infer the shape.
+            known_axes_values (`Dict[str, int]`):
+                A mapping of the axis names to their values.
+
+        Returns:
+            `List[int]`: The inferred shape of the output.
+        """
+
+        output_shape = list(self.output_shapes[output_name])
+
+        for idx, axis_name in enumerate(output_shape):
+            if isinstance(axis_name, str):
+                output_shape[idx] = self._dynamic_axis_inference(axis_name, known_axes_values)
+
+        return output_shape
+
+    def _dynamic_axis_inference(self, axis_name: Union[str], known_axes_values: Dict[str, int]) -> int:
+        """
+        Infers the value of a given dynamic axis by using the `known_axes_values` mapping.
+
+        For instance, for the following inputs:
+            axis_name = "sequence_length + past_sequence_length"
+            known_axes_values = {"batch_size": 2, "sequence_length": 3, "past_sequence_length": 7}
+
+        The inferred value will be:
+            3 + 7 = 10
+        """
+
+        if axis_name in known_axes_values:
+            # simple case, the axis value is known
+            return known_axes_values[axis_name]
+
+        tokens = axis_name.split(" ")
+        for idx, token in enumerate(tokens):
+            if token in known_axes_values:
+                tokens[idx] = str(known_axes_values[token])
+
+        return int(eval(" ".join(tokens)))
+
+    def _prepare_io_binding(
+        self,
+        model_inputs: Dict[str, torch.Tensor],
+        outputs_to_not_bind: Optional[Set[str]] = None,
+        known_output_buffers: Optional[Dict[str, str]] = None,
+        known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
+    ) -> Tuple[Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
+        """
+        Prepares IO binding for ONNX Runtime.
+
+        Args:
+            model_inputs (`Dict[str, torch.Tensor]`):
+                The inputs to bind to the model.
+            outputs_to_not_bind (`Optional[Set[str]]`, defaults to `None`):
+                The names of the outputs that should not be bound.
+            known_output_buffers (`Optional[Dict[str, str]]`, defaults to `None`):
+                Sometimes we can reuse the same input buffer for the output. This is the case for the output sample
+                in a diffusion pipeline. It is possible to explicitely pass the buffer via this argument.
+            known_output_shapes (`Optional[Dict[str, Tuple[int]]]`, defaults to `None`):
+                It can be hard to infer all the output shapes from the inputs only. For instance for the past key /
+                values. It is possible to explicitely pass the shape via this argument.
+
+        Returns:
+            `TupleDict[str, Tuple[int]], Dict[str, torch.Tensor]`: A dictionary of the output shapes and a dictionary of
+            the output buffers.
+        """
+
+        known_axes_values = {}
+
+        for input_name in self.input_names.keys():
+            input_shape = model_inputs[input_name].shape
+
+            if not model_inputs[input_name].is_contiguous():
+                model_inputs[input_name] = model_inputs[input_name].contiguous()
+
+            tensor_dtype = model_inputs[input_name].dtype
+            expected_dtype = TypeHelper.ort_type_to_torch_type(self.input_dtypes[input_name])
+            if tensor_dtype != expected_dtype:
+                model_inputs[input_name] = model_inputs[input_name].to(expected_dtype)
+
+            data_ptr = model_inputs[input_name].data_ptr()
+            if data_ptr == 0:
+                # During first generation, sequence_length can be 0 when use_cache=True, which results in data_ptr to also be 0.
+                # To keep compatibility with IO binding, we pass the data pointer of a non-empty tensor.
+                # No impact because past_key_values will not be used during the first generation.
+                data_ptr = NON_EMPTY_TENSOR.data_ptr()
+
+            self._io_binding.bind_input(
+                input_name,
+                self.device.type,
+                self.device.index or 0,
+                TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name]),
+                input_shape,
+                data_ptr,
             )
 
-    @abstractmethod
+            for idx, axis_name in enumerate(self.input_shapes[input_name]):
+                if isinstance(axis_name, str):
+                    known_axes_values[axis_name] = input_shape[idx]
+
+        output_shapes = {}
+        output_buffers = {}
+        known_output_shapes = known_output_shapes or {}
+        known_output_buffers = known_output_buffers or {}
+        outputs_to_not_bind = outputs_to_not_bind or set()
+
+        for output_name in self.output_names.keys():
+            if output_name in outputs_to_not_bind:
+                continue
+
+            if output_name in known_output_shapes:
+                output_shape = known_output_shapes[output_name]
+            else:
+                output_shape = self._output_shape_inference(output_name, known_axes_values)
+
+            if output_name in known_output_buffers:
+                output_buffer = known_output_buffers[output_name]
+            else:
+                output_buffer = self._prepare_output_buffer(output_name, output_shape)
+
+            data_ptr = output_buffer.data_ptr()
+
+            self._io_binding.bind_output(
+                output_name,
+                self.device.type,
+                self.device.index or 0,
+                TypeHelper.ort_type_to_numpy_type(self.output_dtypes[output_name]),
+                output_shape,
+                data_ptr,
+            )
+
+            output_buffers[output_name] = output_buffer
+            output_shapes[output_name] = output_shape
+
+        return output_shapes, output_buffers
+
     def forward(self, *args, **kwargs):
-        pass
+        raise NotImplementedError(
+            "The `forward` method should be implemented in the derived class. "
+            "Please refer to the documentation for more details."
+        )
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
+    def save_session(self, save_directory: Union[str, Path]):
+        """
+        Saves the ONNX Runtime session to the specified directory.
 
-class ORTEncoder(ORTModelPart):
+        Args:
+            save_directory (`Union[str, Path]`):
+                The directory where to save the ONNX Runtime session.
+        """
+
+        os.makedirs(save_directory, exist_ok=True)
+
+        model_path = Path(self.session._model_path)
+        model_save_path = Path(save_directory) / model_path.name
+        external_data_paths = _get_model_external_data_paths(model_path)
+        external_data_save_paths = [
+            Path(save_directory) / external_data_path.name for external_data_path in external_data_paths
+        ]
+
+        shutil.copy(model_path, model_save_path)
+        for src_path, dst_path in zip(external_data_paths, external_data_save_paths):
+            shutil.copy(src_path, dst_path)
+
+
+class ORTParentMixin:
     """
-    Encoder part of the encoder-decoder model for ONNX Runtime inference.
-    """
-
-    def __init__(self, session: InferenceSession, parent_model: "ORTModel"):
-        super().__init__(session, parent_model)
-
-        config = (
-            self.parent_model.config.encoder
-            if hasattr(self.parent_model.config, "encoder")
-            else self.parent_model.config
-        )
-
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
-
-    def forward(self, input_ids: torch.LongTensor, attention_mask: torch.LongTensor, **kwargs) -> BaseModelOutput:
-        use_torch = isinstance(input_ids, torch.Tensor)
-        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
-
-        model_inputs = {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-        }
-
-        if self.parent_model.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
-
-            if self.device.type == "cpu":
-                self.session.run_with_iobinding(io_binding)
-            else:
-                io_binding.synchronize_inputs()
-                self.session.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
-
-            last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
-        else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.session.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
-
-            last_hidden_state = model_outputs["last_hidden_state"]
-
-        return BaseModelOutput(last_hidden_state=last_hidden_state)
-
-
-class ORTDecoderForSeq2Seq(ORTModelPart):
-    """
-    Decoder model with a language modeling head on top for ONNX Runtime inference.
+    Wrapper class for multiple ORTSessionMixin instances. This class allows to combine multiple parts into
+    a single wrapper. It is useful for pipelines/models that require multiple parts to work together, such
+    as diffusion pipelines or encoder-decoder models, as it provides a unified interface for inference.
     """
 
-    def __init__(
-        self,
-        session: InferenceSession,
-        parent_model: "ORTModel",
-    ):
-        super().__init__(session, parent_model)
+    def initialize_ort_attributes(self, parts: List[ORTSessionMixin]):
+        """
+        Initializes the ORTParentMixin class.
+        Args:
+            parts (`List[ORTSessionMixin]`):
+                List of ORTSessionMixin instances to wrap.
+        """
 
-        config = (
-            self.parent_model.config.decoder
-            if hasattr(self.parent_model.config, "decoder")
-            else self.parent_model.config
-        )
+        if len(parts) < 1:
+            raise ValueError("ORTParentMixin should be initialized with at least one part.")
 
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
+        if any(not isinstance(model, ORTSessionMixin) for model in parts):
+            raise ValueError("All parts passed to ORTParentMixin should be ORTSessionMixin instances.")
 
-        # TODO: make this less hacky.
-        self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
-        self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
+        self.parts = parts
 
-        # To handle the old case when past_key_values were following the format: past_key_values_{idx}
-        if len(self.key_value_input_names) == 0:
-            self.key_value_input_names = [key for key in self.input_names if "key_values" in key]
-        if len(self.key_value_output_names) == 0:
-            self.key_value_output_names = [key for key in self.output_names if "key_values" in key]
-
-        if self.parent_model.use_cache is True and len(self.key_value_output_names) == 0:
-            raise RuntimeError("Could not find the past key values in the provided model.")
-
-        self.use_past_in_outputs = len(self.key_value_output_names) > 0
-        self.use_past_in_inputs = len(self.key_value_input_names) > 0
-        self.use_fp16 = self.dtype == torch.float16
-
-        # We may use ORTDecoderForSeq2Seq for vision-encoder-decoder models, where models as gpt2
-        # can be used but do not support KV caching for the cross-attention key/values, see:
-        # https://github.com/huggingface/transformers/blob/v4.31.0/src/transformers/models/gpt2/modeling_gpt2.py#L302-L311
-        # This attribute is used to avoid returning cross-attention KV-cache in this case.
-        self.no_cross_attention_cache = getattr(self.parent_model, "no_cross_attention_cache", False)
-
-        if (not self.parent_model.use_merged and self.use_past_in_inputs) or self.no_cross_attention_cache:
-            self.num_pkv = 2
-        else:
-            # When using a merged model, we always have the same number of output whether we use past key values or not,
-            # and in the case past key values are used, empty tensors are given as cross-attention past key values as they
-            # are constants
-            self.num_pkv = 4
-
-        self.past_key_values_cross_attention_output_names = set()
-        for output_name in self.output_names:
-            if output_name.startswith("present") and "encoder" in output_name:
-                self.past_key_values_cross_attention_output_names.add(output_name)
-
-        self.use_legacy_outputs = (
-            self.parent_model.use_merged is False and len(self.past_key_values_cross_attention_output_names) > 0
-        )
-
-    def compute_past_key_values_output_shapes(
-        self,
-        input_ids: torch.Tensor,
-        encoder_hidden_states: torch.Tensor,
-        use_cache_branch: Optional[bool],
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-    ) -> Dict[str, int]:
-        batch_size = input_ids.size(0)
-
-        num_attention_heads = self.normalized_config.num_attention_heads
-        embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
-
-        sequence_length = input_ids.size(1)
-        encoder_sequence_length = encoder_hidden_states.size(1)
-        if past_key_values is not None and use_cache_branch is not False:
-            # Here, use_cache_branch may be None in the case of separate decoder without/with past, or True if the with past branch
-            # of a merged decoder is used
-            sequence_length += past_key_values[0].size(2)
-
-        self_attn_shape = (batch_size, num_attention_heads, sequence_length, embed_size_per_head)
-
-        if past_key_values is not None and use_cache_branch is True:
-            cross_attn_shape = (0, num_attention_heads, 1, embed_size_per_head)
-        else:
-            cross_attn_shape = (batch_size, num_attention_heads, encoder_sequence_length, embed_size_per_head)
-
-        past_key_values_shapes = {}
-        for idx, name in enumerate(self.key_value_output_names):
-            is_self_attn = idx % 4 < 2
-            # decoder with past does not ouput cross attention key/values as they are constants
-            past_key_values_shapes[name] = self_attn_shape if (is_self_attn or self.num_pkv == 2) else cross_attn_shape
-        return past_key_values_shapes
-
-    def get_outputs_not_to_bind(self, use_merged_cache: bool) -> Set[str]:
-        result = {
-            output_name
-            for output_name in self.output_names
-            if (not output_name.startswith("present") and output_name not in {"loss", "logits"})
-        }
-        if use_merged_cache is True:
-            # When using a merged decoder and the use cache branch, we output 0-dim tensors that IO Binding do not support.
-            # Therefore, we do not bind them.
-            result = result.union(self.past_key_values_cross_attention_output_names)
-        return result
-
-    def forward(
-        self,
-        input_ids: torch.LongTensor,
-        encoder_hidden_states: torch.FloatTensor,
-        decoder_attention_mask: Optional[torch.LongTensor] = None,
-        encoder_attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        cache_position: Optional[torch.Tensor] = None,
-    ) -> Seq2SeqLMOutput:
-        # Adding use_cache_branch in the signature here is just a hack for IO Binding
-
-        use_torch = isinstance(input_ids, torch.Tensor)
-        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
-
-        # Flatten the past_key_values
-        if past_key_values is not None:
-            past_key_values = tuple(
-                past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
+    @property
+    def providers(self):
+        """
+        Returns a list of Execution Providers registered with the session.
+        """
+        if not all(model.providers == self.parts[0].providers for model in self.parts):
+            logger.warning(
+                "Calling `ORTParentMixin.providers` when the underlying parts have different values "
+                "for `providers` is not recommended. The value of the first session will be returned. "
             )
+        return self.parts[0].providers
 
-        # no-ops if merged decoder is not used
-        use_merged_no_cache = past_key_values is None and self.parent_model.use_merged
-        use_merged_cache = past_key_values is not None and self.parent_model.use_merged
-        use_cache_branch_tensor, past_key_values, cache_position = self.prepare_inputs_for_merged(
-            input_ids, past_key_values, cache_position, use_torch=use_torch
-        )
-
-        model_inputs = {
-            "input_ids": input_ids,
-            "encoder_hidden_states": encoder_hidden_states,
-            "decoder_attention_mask": decoder_attention_mask,
-            "encoder_attention_mask": encoder_attention_mask,
-            "use_cache_branch": use_cache_branch_tensor,
-            "cache_position": cache_position,
-        }
-        if past_key_values is not None:
-            model_inputs.update(zip(self.key_value_input_names, past_key_values))
-
-        if self.parent_model.use_io_binding:
-            known_output_shapes = self.compute_past_key_values_output_shapes(
-                input_ids,
-                encoder_hidden_states,
-                use_cache_branch=use_cache_branch_tensor.item() if use_cache_branch_tensor is not None else None,
-                past_key_values=past_key_values,
+    @property
+    def provider(self):
+        """
+        Returns the main Execution Provider registered with the session.
+        """
+        if not all(model.provider == self.parts[0].provider for model in self.parts):
+            logger.warning(
+                "Calling `ORTParentMixin.provider` when the underlying parts have different values "
+                "for `provider` is not recommended. The value of the first session will be returned. "
             )
-            outputs_to_not_bind = self.get_outputs_not_to_bind(use_merged_cache)
+        return self.parts[0].provider
 
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(
-                self.session,
-                model_inputs,
-                known_output_shapes=known_output_shapes,
-                outputs_to_not_bind=outputs_to_not_bind,
+    @property
+    def provider_options(self):
+        """
+        Returns a dictionary of Execution Providers configurations/options.
+        """
+        if not all(model.provider_options == self.parts[0].provider_options for model in self.parts):
+            logger.warning(
+                "Calling `ORTParentMixin.provider_options` when the underlying parts have different values "
+                "for `provider_options` is not recommended. The value of the first session will be returned. "
             )
+        return self.parts[0].provider_options
 
-            if self.device.type == "cpu":
-                self.session.run_with_iobinding(io_binding)
-            else:
-                io_binding.synchronize_inputs()
-                self.session.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+    @property
+    def provider_option(self):
+        """
+        Returns the configuration/options of the main Execution Provider.
+        """
+        if not all(model.provider_option == self.parts[0].provider_option for model in self.parts):
+            logger.warning(
+                "Calling `ORTParentMixin.provider_option` when the underlying parts have different values "
+                "for `provider_option` is not recommended. The value of the first session will be returned. "
+            )
+        return self.parts[0].provider_option
 
-            # Set -1 for sequence_length as it could be larger than the real sequence_length
-            for name, shape in output_shapes.items():
-                if name in self.key_value_output_names:
-                    output_shapes[name] = shape[:2] + (-1,) + shape[3:]
+    @property
+    def device(self):
+        """
+        Returns the `torch.device` associated with the ONNX Runtime session.
+        This device is inferred from the provider and provider options.
+        """
+        if not all(model.device == self.parts[0].device for model in self.parts):
+            logger.warning(
+                "Calling `ORTParentMixin.device` when the underlying parts have different values "
+                "for `device` is not recommended. The value of the first session will be returned. "
+            )
+        return self.parts[0].device
 
-            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
-            # self-attention layer and 2 to the cross-attention layer)
-            out_past_key_values = ()
-            for name in self.key_value_output_names:
-                # TODO: this should be improved
-                if name in self.past_key_values_cross_attention_output_names and use_merged_cache:
-                    continue
-                out_past_key_values += (output_buffers[name].view(output_shapes[name]),)
+    @property
+    def dtype(self):
+        """
+        Returns the `torch.dtype` associated with the ONNX Runtime session.
+        This dtype is inferred from the input/output dtypes of the session.
+        If no floating point type is found, it defaults to `torch.float32`.
+        """
+        if not all(model.dtype == self.parts[0].dtype for model in self.parts):
+            logger.warning(
+                "Calling `ORTParentMixin.dtype` when the underlying parts have different values "
+                "for `dtype` is not recommended. The value of the first session will be returned. "
+            )
+        return self.parts[0].dtype
 
-            logits = output_buffers["logits"].view(output_shapes["logits"])
+    @property
+    def use_io_binding(self):
+        """
+        Returns whether IO Binding is used or not.
+        """
+        if not all(model.use_io_binding == self.parts[0].use_io_binding for model in self.parts):
+            logger.warning(
+                "Calling `ORTParentMixin.use_io_binding` when the underlying parts have different values "
+                "for `use_io_binding` is not recommended. The value of the first session will be returned. "
+            )
+        return self.parts[0].use_io_binding
 
-            loss = None
-            if "loss" in self.output_names:
-                loss = output_buffers["loss"].view(output_shapes["loss"])
+    @use_io_binding.setter
+    def use_io_binding(self, value: bool):
+        """
+        Setter for the use_io_binding property.
+        """
+        for model in self.parts:
+            model.use_io_binding = value
 
-            if not self.use_past_in_outputs:
-                out_past_key_values = None
-            elif not self.use_past_in_inputs or use_merged_no_cache or self.no_cross_attention_cache:
-                out_past_key_values = tuple(
-                    out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
-                )
-            else:
-                if self.use_legacy_outputs is True:
-                    msg = (
-                        "For the decoder with past, using ONNX models outputting cross attention past key values"
-                        " is deprecated and the support will be removed in optimum 2.0. We recommend exporting again the model"
-                        " with optimum>=1.7.3."
-                    )
-                    warn_once(logger, msg=msg)
-                    out_past_key_values = tuple(
-                        out_past_key_values[i : i + self.num_pkv]
-                        for i in range(0, len(out_past_key_values), self.num_pkv)
-                    )
-                # grab the cross attention key/values from the inputs
-                elif self.num_pkv == 2:
-                    out_past_key_values = tuple(
-                        out_past_key_values[i : i + self.num_pkv]
-                        + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
-                        for i in range(0, len(out_past_key_values), self.num_pkv)
-                    )
-                elif self.num_pkv == 4:
-                    # despite num_pkv being 4, we did not bind the cross-attention output
-                    out_past_key_values = tuple(
-                        out_past_key_values[i : i + 2] + past_key_values[2 * i + 2 : 2 * i + 4]
-                        for i in range(0, len(out_past_key_values), 2)
-                    )
-                else:
-                    raise ValueError("Unsupported num_pkv")
-        else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.session.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
+    def to(self, *args, **kwargs):
+        """
+        Moves all parts to the specified device by updating the execution provider and its options.
+        Args:
+            device (`str`, `int`, `torch.device`):
+                The device to move the session to. It can be a string (e.g., "cuda", "cpu"), an integer (e.g., 0 for GPU 0),
+                or a `torch.device` object.
+        Returns:
+            `ORTParentMixin`: The updated session.
+        Raises:
+            ValueError: If the device is not supported or if the provider is not available.
+        """
+        for model in self.parts:
+            model.to(*args, **kwargs)
 
-            # TODO: using a new variable out_past_key_values is memory inefficient,
-            # past_key_values is not used anymore at this point
-            # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
-            # self-attention layer and 2 to the cross-attention layer)
-            out_past_key_values = tuple(model_outputs[output_name] for output_name in self.key_value_output_names)
-
-            loss = model_outputs.get("loss", None)
-            logits = model_outputs["logits"]
-
-            # TODO: this is extremely ugly and unreadable. What if cross-attention k/v change?
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to:
-            # * 4 for the decoder without cache (k/v of self-attention + k/v of cross-attention)
-            # * 2 for the decoder with cache (k/v of self-attention as cross-attention cache is constant)
-            if not self.use_past_in_outputs:
-                out_past_key_values = None
-            elif not self.use_past_in_inputs or use_merged_no_cache or self.no_cross_attention_cache:
-                out_past_key_values = tuple(
-                    out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
-                )
-            else:
-                if self.use_legacy_outputs is True:
-                    msg = (
-                        "For the decoder with past, using ONNX models outputting cross attention past key values"
-                        " is deprecated and the support will be removed in optimum 2.0. We recommend exporting again the model"
-                        " with optimum>=1.7.3."
-                    )
-                    warn_once(logger, msg=msg)
-                    out_past_key_values = tuple(
-                        out_past_key_values[i : i + self.num_pkv]
-                        for i in range(0, len(out_past_key_values), self.num_pkv)
-                    )
-                # grab the cross attention key/values from the inputs
-                elif self.num_pkv == 2:
-                    out_past_key_values = tuple(
-                        out_past_key_values[i : i + self.num_pkv]
-                        + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
-                        for i in range(0, len(out_past_key_values), self.num_pkv)
-                    )
-                elif self.num_pkv == 4:
-                    out_past_key_values = tuple(
-                        out_past_key_values[i : i + 2] + past_key_values[i + 2 : i + 4]
-                        for i in range(0, len(out_past_key_values), self.num_pkv)
-                    )
-                else:
-                    raise ValueError("Unsupported num_pkv")
-
-        return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=out_past_key_values)
-
-    def prepare_inputs_for_merged(
-        self,
-        input_ids: Optional[Union[torch.LongTensor, np.ndarray]],
-        past_key_values: Optional[Tuple[Union[torch.FloatTensor, np.ndarray]]],
-        cache_position: Optional[Union[torch.Tensor, np.ndarray]],
-        use_torch: bool,
-    ):
-        constructor = torch if use_torch is True else np
-
-        if self.parent_model.use_merged:
-            # Uses without/with branch of a merged decoder depending on whether real past key values are passed
-            use_cache_branch_tensor = constructor.full((1,), past_key_values is not None)
-            if use_torch and use_cache_branch_tensor is not None:
-                use_cache_branch_tensor = use_cache_branch_tensor.to(self.device)
-        else:
-            use_cache_branch_tensor = None
-
-        # Generate dummy past for the first forward if uses a merged decoder
-        if self.parent_model.use_merged and past_key_values is None:
-            batch_size = input_ids.shape[0]
-            num_attention_heads = self.normalized_config.num_attention_heads
-            embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
-            dtype = constructor.float16 if self.use_fp16 else constructor.float32
-            shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
-            key_or_value = constructor.zeros(shape, dtype=dtype)
-
-            if use_torch is True:
-                key_or_value = key_or_value.to(self.device)
-
-            past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
-
-        # Generate dummy position cache for the first forward if uses a merged decoder
-        if self.parent_model.use_merged and cache_position is None:
-            cache_position = constructor.zeros((1,), dtype=constructor.int64)
-            if use_torch is True:
-                cache_position = cache_position.to(self.device)
-
-        return use_cache_branch_tensor, past_key_values, cache_position
+        return self

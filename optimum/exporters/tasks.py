@@ -998,6 +998,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "text-classification",
+            "token-classification",
             onnx="Qwen2OnnxConfig",
         ),
         "llama": supported_tasks_mapping(
@@ -1938,7 +1939,7 @@ class TasksManager:
                 token=token,
                 library_name=library_name,
             )
-        elif type(model) == type:
+        elif type(model) is type:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
         else:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model=model)
@@ -2092,7 +2093,7 @@ class TasksManager:
                 cache_dir=cache_dir,
                 token=token,
             )
-        elif type(model) == type:
+        elif type(model) is type:
             library_name = cls._infer_library_from_model_or_model_class(model_class=model)
         else:
             library_name = cls._infer_library_from_model_or_model_class(model=model)

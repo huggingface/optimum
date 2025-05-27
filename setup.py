@@ -38,6 +38,7 @@ TESTS_REQUIRE = [
     "sentencepiece",
     "rjieba",
     "hf_xet",
+    "onnxslim>=0.1.53",
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
@@ -93,12 +94,12 @@ EXTRAS_REQUIRE = {
         "tensorflow>=2.4,<=2.12.1",
         "transformers>=4.36,<4.38",
     ],
-    "intel": "optimum-intel>=1.18.0",
-    "openvino": "optimum-intel[openvino]>=1.18.0",
-    "nncf": "optimum-intel[nncf]>=1.18.0",
-    "neural-compressor": "optimum-intel[neural-compressor]>=1.18.0",
-    "ipex": "optimum-intel[ipex]>=1.18.0",
-    "habana": ["optimum-habana", "transformers>=4.45.0,<4.46.0"],
+    "intel": "optimum-intel>=1.23.0",
+    "openvino": "optimum-intel[openvino]>=1.23.0",
+    "nncf": "optimum-intel[nncf]>=1.23.0",
+    "neural-compressor": "optimum-intel[neural-compressor]>=1.23.0",
+    "ipex": "optimum-intel[ipex]>=1.23.0",
+    "habana": "optimum-habana>=1.17.0",
     "neuronx": ["optimum-neuron[neuronx]>=0.0.28"],
     "graphcore": "optimum-graphcore",
     "furiosa": "optimum-furiosa",
