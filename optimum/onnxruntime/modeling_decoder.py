@@ -296,8 +296,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 shape = (batch_size, 0, self.embed_size_per_head * 2)
             else:
                 shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
-            tesnor = torch.empty(shape, dtype=self.dtype, device=self.device)
-            past_key_values = tuple(tesnor for _ in range(len(self.key_value_input_names)))
+            tensor = torch.empty(shape, dtype=self.dtype, device=self.device)
+            past_key_values = tuple(tensor for _ in range(len(self.key_value_input_names)))
 
         model_inputs = {
             "input_ids": input_ids,
