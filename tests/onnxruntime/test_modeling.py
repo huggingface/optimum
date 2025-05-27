@@ -180,6 +180,38 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertFalse(model.use_merged)
         self.assertEqual(model_parts, expected_model_parts)
 
+        model_id = "optimum-internal-testing/tiny-random-T5Model"
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id)
+        model_parts = {part.model_path.name for part in model.parts}
+        self.assertEqual(model_parts, {"encoder_model.onnx", "decoder_model_merged.onnx"})
+        self.assertTrue(model.use_cache)
+        self.assertTrue(model.use_merged)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, revision="onnx-legacy")
+        model_parts = {part.model_path.name for part in model.parts}
+        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx", "decoder_with_past_model.onnx"}
+        self.assertEqual(model_parts, expected_model_parts)
+        self.assertTrue(model.use_cache)
+        self.assertFalse(model.use_merged)
+
+        file_names = {
+            "encoder_file_name": "encoder_model_quantized.onnx",
+            "decoder_file_name": "decoder_model_quantized.onnx",
+            "decoder_with_past_file_name": "decoder_with_past_model_quantized.onnx",
+        }
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, revision="optimized", subfolder="onnx", **file_names)
+        self.assertEqual({part.model_path.name for part in model.parts}, set(file_names.values()))
+        self.assertTrue(model.use_cache)
+        self.assertFalse(model.use_merged)
+
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            model_id, revision="optimized", subfolder="subfolder", **file_names
+        )
+        self.assertEqual({part.model_path.name for part in model.parts}, set(file_names.values()))
+        self.assertTrue(model.use_cache)
+        self.assertFalse(model.use_merged)
+        self.assertTrue("subfolder" in str(model.model_save_dir))
+
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
