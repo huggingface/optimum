@@ -1342,8 +1342,7 @@ class TasksManager:
         "unet-2d-condition",
         "vae-encoder",
         "vae-decoder",
-        "clip-text-with-projection",
-        "siglip-text-model",
+        "siglip-text",
         "siglip-text-with-projection",
         # transformers model part
         "trocr",  # the decoder of a trocr vision-encoder-decoder
