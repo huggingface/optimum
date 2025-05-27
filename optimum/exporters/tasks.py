@@ -326,7 +326,7 @@ class TasksManager:
         ("pt", "patchtst", "time-series-forecasting"): ("transformers", "PatchTSTForPrediction"),
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
         ("pt", "pix2struct", "visual-question-answering"): ("transformers", "Pix2StructForConditionalGeneration"),
-        ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
+        ("pt", "visual_bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
         ("pt", "vitpose", "keypoint-detection"): ("transformers", "VitPoseForPoseEstimation"),
@@ -1342,7 +1342,6 @@ class TasksManager:
         "unet-2d-condition",
         "vae-encoder",
         "vae-decoder",
-        "clip-text-model",
         "clip-text-with-projection",
         "siglip-text-model",
         "siglip-text-with-projection",
