@@ -155,6 +155,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
+    "qwen3": "optimum-internal-testing/tiny-random-qwen3",
+    "qwen3-moe": "optimum-internal-testing/tiny-random-qwen3_moe",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",

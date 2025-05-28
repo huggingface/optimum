@@ -1001,6 +1001,23 @@ class TasksManager:
             "token-classification",
             onnx="Qwen2OnnxConfig",
         ),
+        "qwen3": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="Qwen3OnnxConfig",
+        ),
+        "qwen3-moe": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            "token-classification",
+            onnx="Qwen3MoeOnnxConfig",
+        ),
         "llama": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -1479,11 +1496,14 @@ class TasksManager:
         """
         Returns the list of supported architectures by the exporter for a given task. Transformers-specific.
         """
-        return [
+
+        supported_model_types = [
             model_type.replace("-", "_")
             for model_type in TasksManager._SUPPORTED_MODEL_TYPE
             if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
         ]
+
+        return supported_model_types
 
     @staticmethod
     def synonyms_for_task(task: str) -> Set[str]:
