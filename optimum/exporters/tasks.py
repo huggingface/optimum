@@ -549,7 +549,7 @@ class TasksManager:
             onnx="ConvNextV2OnnxConfig",
         ),
         "cvt": supported_tasks_mapping("feature-extraction", "image-classification", onnx="CvTOnnxConfig"),
-        "d-fine": supported_tasks_mapping(
+        "d_fine": supported_tasks_mapping(
             "object-detection",
             onnx="DFineOnnxConfig",
         ),
@@ -1012,7 +1012,7 @@ class TasksManager:
             "text-classification",
             onnx="Qwen3OnnxConfig",
         ),
-        "qwen3-moe": supported_tasks_mapping(
+        "qwen3_moe": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
