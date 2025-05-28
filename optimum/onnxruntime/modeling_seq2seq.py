@@ -1296,7 +1296,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     """
-    Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot_small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5.
+    Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot-small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5.
     """
 
     auto_model_class = AutoModelForSeq2SeqLM

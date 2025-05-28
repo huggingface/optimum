@@ -326,7 +326,7 @@ class TasksManager:
         ("pt", "patchtst", "time-series-forecasting"): ("transformers", "PatchTSTForPrediction"),
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
         ("pt", "pix2struct", "visual-question-answering"): ("transformers", "Pix2StructForConditionalGeneration"),
-        ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
+        ("pt", "visual_bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
         ("pt", "vitpose", "keypoint-detection"): ("transformers", "VitPoseForPoseEstimation"),
@@ -397,6 +397,9 @@ class TasksManager:
         ),
     }
 
+    # Refere to official transformers model types in (we use the name as is, no changing of separators):
+    # https://github.com/huggingface/transformers/blob/main/src/transformers/models/auto/modeling_auto.py
+
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     # TODO: remove `-with-past` tasks and rather rely on `variant`.
@@ -450,7 +453,7 @@ class TasksManager:
             "question-answering",
             onnx="RemBertOnnxConfig",
         ),
-        "big-bird": supported_tasks_mapping(
+        "big_bird": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
             "text-classification",
@@ -459,7 +462,7 @@ class TasksManager:
             "question-answering",
             onnx="BigBirdOnnxConfig",
         ),
-        "bigbird-pegasus": supported_tasks_mapping(
+        "bigbird_pegasus": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
@@ -514,7 +517,7 @@ class TasksManager:
             "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
         ),
-        "clip-vision-model": supported_tasks_mapping(
+        "clip_vision_model": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPVisionModelOnnxConfig",
         ),
@@ -546,7 +549,7 @@ class TasksManager:
             onnx="ConvNextV2OnnxConfig",
         ),
         "cvt": supported_tasks_mapping("feature-extraction", "image-classification", onnx="CvTOnnxConfig"),
-        "d-fine": supported_tasks_mapping(
+        "d_fine": supported_tasks_mapping(
             "object-detection",
             onnx="DFineOnnxConfig",
         ),
@@ -593,7 +596,7 @@ class TasksManager:
             onnx="DebertaV2OnnxConfig",
             tflite="DebertaV2TFLiteConfig",
         ),
-        "decision-transformer": supported_tasks_mapping(
+        "decision_transformer": supported_tasks_mapping(
             "feature-extraction",
             "reinforcement-learning",
             onnx="DecisionTransformerOnnxConfig",
@@ -713,7 +716,7 @@ class TasksManager:
             "token-classification",
             onnx="GPT2OnnxConfig",
         ),
-        "gpt-bigcode": supported_tasks_mapping(
+        "gpt_bigcode": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
@@ -731,7 +734,7 @@ class TasksManager:
             "text-classification",
             onnx="GPTJOnnxConfig",
         ),
-        "gpt-neo": supported_tasks_mapping(
+        "gpt_neo": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
@@ -739,7 +742,7 @@ class TasksManager:
             "text-classification",
             onnx="GPTNeoOnnxConfig",
         ),
-        "gpt-neox": supported_tasks_mapping(
+        "gpt_neox": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
@@ -896,12 +899,12 @@ class TasksManager:
             "image-segmentation",
             onnx="MobileViTOnnxConfig",
         ),
-        "mobilenet-v1": supported_tasks_mapping(
+        "mobilenet_v1": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
             onnx="MobileNetV1OnnxConfig",
         ),
-        "mobilenet-v2": supported_tasks_mapping(
+        "mobilenet_v2": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
             onnx="MobileNetV2OnnxConfig",
@@ -947,7 +950,7 @@ class TasksManager:
             "text-to-audio",  # "variant" handles the "-with-past". We should generalize that.
             onnx="MusicgenOnnxConfig",
         ),
-        "m2m-100": supported_tasks_mapping(
+        "m2m_100": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text2text-generation",
@@ -1009,7 +1012,7 @@ class TasksManager:
             "text-classification",
             onnx="Qwen3OnnxConfig",
         ),
-        "qwen3-moe": supported_tasks_mapping(
+        "qwen3_moe": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
@@ -1131,11 +1134,11 @@ class TasksManager:
             onnx="RoFormerOnnxConfig",
             tflite="RoFormerTFLiteConfig",
         ),
-        "rt-detr": supported_tasks_mapping(
+        "rt_detr": supported_tasks_mapping(
             "object-detection",
             onnx="RTDetrOnnxConfig",
         ),
-        "rt-detr-v2": supported_tasks_mapping(
+        "rt_detr_v2": supported_tasks_mapping(
             "object-detection",
             onnx="RTDetrV2OnnxConfig",
         ),
@@ -1167,7 +1170,7 @@ class TasksManager:
             "zero-shot-image-classification",
             onnx="SiglipOnnxConfig",
         ),
-        "siglip-text-model": supported_tasks_mapping(
+        "siglip-text": supported_tasks_mapping(
             "feature-extraction",
             onnx="SiglipTextOnnxConfig",
         ),
@@ -1175,11 +1178,11 @@ class TasksManager:
             "feature-extraction",
             onnx="SiglipTextWithProjectionOnnxConfig",
         ),
-        "siglip-vision-model": supported_tasks_mapping(
+        "siglip_vision_model": supported_tasks_mapping(
             "feature-extraction",
             onnx="SiglipVisionModelOnnxConfig",
         ),
-        "speech-to-text": supported_tasks_mapping(
+        "speech_to_text": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "automatic-speech-recognition",
@@ -1268,11 +1271,11 @@ class TasksManager:
             "masked-im",
             onnx="ViTOnnxConfig",
         ),
-        "vit-mae": supported_tasks_mapping(
+        "vit_mae": supported_tasks_mapping(
             "feature-extraction",
             onnx="VitMAEOnnxConfig",
         ),
-        "vit-msn": supported_tasks_mapping(
+        "vit_msn": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
             onnx="VitMSNOnnxConfig",
@@ -1360,9 +1363,7 @@ class TasksManager:
         "unet-2d-condition",
         "vae-encoder",
         "vae-decoder",
-        "clip-text-model",
-        "clip-text-with-projection",
-        "siglip-text-model",
+        "siglip-text",
         "siglip-text-with-projection",
         # transformers model part
         "trocr",  # the decoder of a trocr vision-encoder-decoder
@@ -1466,7 +1467,6 @@ class TasksManager:
         else:
             supported_model_type_for_library = TasksManager._LIBRARY_TO_SUPPORTED_MODEL_TYPES[library_name]
 
-        model_type = model_type.lower().replace("_", "-")
         model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
 
         default_model_type = None
@@ -1498,7 +1498,7 @@ class TasksManager:
         """
 
         supported_model_types = [
-            model_type.replace("-", "_")
+            model_type
             for model_type in TasksManager._SUPPORTED_MODEL_TYPE
             if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
         ]
@@ -1604,11 +1604,7 @@ class TasksManager:
                         else:
                             for autoclass_name in tasks_to_model_loader[task]:
                                 module = getattr(loaded_library, autoclass_name)
-                                # TODO: we must really get rid of this - and _ mess
-                                if (
-                                    model_type in module._model_mapping._model_mapping
-                                    or model_type.replace("-", "_") in module._model_mapping._model_mapping
-                                ):
+                                if model_type in module._model_mapping._model_mapping:
                                     model_class_name = autoclass_name
                                     break
 
@@ -2274,11 +2270,7 @@ class TasksManager:
 
         if library_name == "transformers":
             config = AutoConfig.from_pretrained(model_name_or_path, **kwargs)
-            model_type = config.model_type.replace("_", "-")
-            # TODO: if automatic-speech-recognition is passed as task, it may map to several
-            # different auto class (AutoModelForSpeechSeq2Seq or AutoModelForCTC),
-            # depending on the model type
-            # if original_task in ["auto", "automatic-speech-recognition"]:
+            model_type = config.model_type
             if original_task == "automatic-speech-recognition" or task == "automatic-speech-recognition":
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
@@ -2419,7 +2411,6 @@ class TasksManager:
             if model_type is None:
                 raise ValueError("Model type cannot be inferred. Please provide the model_type for the model!")
 
-            model_type = model_type.replace("_", "-")
             model_name = getattr(model, "name", model_name)
 
         model_tasks = TasksManager.get_supported_tasks_for_model_type(
