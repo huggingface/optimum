@@ -27,9 +27,11 @@ jobs:
       matrix:
         python-version: [3.9]
         runs-on: [ubuntu-22.04]
-        test_file: [
+        test_file:
+          [
             test_timm.py,
-            test_modeling.py, # todo: split into test_encoder, test_decoder and test_encoder_decoder
+            test_decoder.py,
+            test_modeling.py,
             test_diffusion.py,
             test_optimization.py,
             test_quantization.py,
