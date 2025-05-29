@@ -473,6 +473,9 @@ def export_pytorch(
     input_shapes: Optional[Dict] = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    use_dynamo: bool = False,
+    verify_accuracy: bool = False,
+    debug_reports: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -573,24 +576,35 @@ def export_pytorch(
                 dynamic_axes=dynamix_axes,
                 do_constant_folding=do_constant_folding,
                 opset_version=opset,
+                dynamo=use_dynamo,
+                verify=verify_accuracy,
+                artifacts_dir = Path(output.as_posix()).parent,
+                report=debug_reports,
+                dump_exported_program=debug_reports,
             )
 
         # check if external data was exported
         onnx_model = onnx.load(str(output), load_external_data=False)
         model_uses_external_data = check_model_uses_external_data(onnx_model)
 
+        tensors_paths = None
+        constant_paths = None
+        tensor_check = set()
+        const_check = set()
+
         if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
             tensors_paths = _get_onnx_external_data_tensors(onnx_model)
             constant_paths = _get_onnx_external_constants(onnx_model)
+
+            for tp in tensors_paths: tensor_check.add(tp)
+            for cp in constant_paths: const_check.add(cp)
+
+        del onnx_model
+        del model
+        gc.collect()
+
+        if tensors_paths and constant_paths and (len(tensor_check) > 1 or len(const_check) > 1):
             logger.info("Saving external data to one file...")
-
-            # try free model memory
-            del model
-            del onnx_model
-            gc.collect()
-
-            if device.type == "cuda" and torch.cuda.is_available():
-                torch.cuda.empty_cache()
 
             # this will probably be too memory heavy for large models
             onnx_model = onnx.load(str(output), load_external_data=True)
@@ -611,6 +625,9 @@ def export_pytorch(
             for tensor in constant_paths:
                 if os.path.isfile(output.parent / tensor):
                     os.remove(output.parent / tensor)
+
+    if device.type == "cuda" and torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     return input_names, output_names
 
@@ -705,6 +722,9 @@ def export_models(
     dtype: Optional[str] = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    use_dynamo: bool = False,
+    verify_accuracy: bool = False,
+    debug_reports: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
@@ -773,6 +793,9 @@ def export_models(
                 dtype=dtype,
                 no_dynamic_axes=no_dynamic_axes,
                 do_constant_folding=do_constant_folding,
+                use_dynamo=use_dynamo,
+                verify_accuracy=verify_accuracy,
+                debug_reports=debug_reports,
                 model_kwargs=model_kwargs,
             )
         )
@@ -792,6 +815,9 @@ def export(
     dtype: Optional[str] = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    use_dynamo: bool = False,
+    verify_accuracy: bool = False,
+    debug_reports: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -875,6 +901,9 @@ def export(
             input_shapes=input_shapes,
             no_dynamic_axes=no_dynamic_axes,
             do_constant_folding=do_constant_folding,
+            use_dynamo=use_dynamo,
+            verify_accuracy=verify_accuracy,
+            debug_reports=debug_reports,
             model_kwargs=model_kwargs,
         )
 
@@ -920,6 +949,9 @@ def onnx_export_from_model(
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
     slim: bool = False,
+    use_dynamo: bool = False,
+    verify_accuracy: bool = False,
+    debug_reports: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -1188,6 +1220,9 @@ def onnx_export_from_model(
         dtype=float_dtype,
         no_dynamic_axes=no_dynamic_axes,
         do_constant_folding=do_constant_folding,
+        use_dynamo=use_dynamo,
+        verify_accuracy=verify_accuracy,
+        debug_reports=debug_reports,
         model_kwargs=model_kwargs,
     )
 

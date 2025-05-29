@@ -15,6 +15,7 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
+import warnings
 from pathlib import Path
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -23,6 +24,7 @@ from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
+from ...utils.import_utils import is_transformers_version
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.import_utils import (
     is_diffusers_available,
@@ -449,6 +451,10 @@ def main():
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
         input_shapes[input_name] = getattr(args, input_name)
 
+    if args.use_dynamo == False and args.opset and args.opset >= 21:
+        warnings.warn('Support for ONNX opset >= 21 will only be supported via dynamo going forward. Switching to dynamo.', FutureWarning)
+        args.use_dynamo = True
+
     main_export(
         model_name_or_path=args.model,
         output=args.output,
@@ -468,6 +474,9 @@ def main():
         library_name=args.library_name,
         legacy=args.legacy,
         do_constant_folding=not args.no_constant_folding,
+        use_dynamo=args.use_dynamo,
+        verify_accuracy=args.verify_accuracy,
+        debug_reports=args.debug_reports,
         **input_shapes,
     )
 
