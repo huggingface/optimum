@@ -175,6 +175,24 @@ def parse_args_onnx(parser):
         help="Enables onnxslim optimization.",
     )
 
+    optional_group.add_argument(
+        "--use-dynamo",
+        action="store_true",
+        help="Use dynamo instead of torchscript for onnx model export.",
+    )
+
+    optional_group.add_argument(
+        "--verify-accuracy",
+        action="store_true",
+        help="Run torch and ORT model inference and compare outputs.",
+    )
+
+    optional_group.add_argument(
+        "--debug-reports",
+        action="store_true",
+        help="Provide debug reports for the conversion process.",
+    )
+
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input)."
     )
