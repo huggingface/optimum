@@ -15,6 +15,7 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
+import warnings
 from pathlib import Path
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -25,6 +26,12 @@ from transformers.utils import is_torch_available
 from ...commands.export.onnx import parse_args_onnx
 from ...utils.import_utils import is_transformers_version
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
+from ...utils.import_utils import (
+    is_diffusers_available,
+    is_sentence_transformers_available,
+    is_timm_available,
+    is_transformers_version,
+)
 from ...utils.save_utils import maybe_load_preprocessors
 from ..tasks import TasksManager
 from ..utils import DisableCompileContextManager
@@ -78,6 +85,7 @@ def main_export(
     legacy: bool = False,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    slim: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -425,6 +433,7 @@ def main_export(
         task=task,
         use_subprocess=use_subprocess,
         do_constant_folding=do_constant_folding,
+        slim=slim,
         **kwargs_shapes,
     )
 
