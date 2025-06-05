@@ -405,7 +405,6 @@ class Phi3OnnxConfig(PhiOnnxConfig):
 
 
 class InternLM2OnnxConfig(LlamaOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
 

@@ -20,7 +20,7 @@ import torch
 from onnxruntime import InferenceSession
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
-from transformers import AutoModelForCausalLM, set_seed
+from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 from transformers.generation import GenerationConfig
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from transformers.onnx.utils import get_preprocessor
@@ -30,6 +30,7 @@ from optimum.exporters.onnx.model_configs import (
     BloomOnnxConfig,
     GemmaOnnxConfig,
     GraniteOnnxConfig,
+    InternLM2OnnxConfig,
     MPTOnnxConfig,
     Olmo2OnnxConfig,
     OlmoOnnxConfig,
@@ -102,10 +103,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("qwen3")
     if is_transformers_version(">=", str(Qwen3MoeOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("qwen3_moe")
+    if is_transformers_version(">=", str(InternLM2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("internlm2")
 
     GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}
     BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}
 
+    MODEL_TRUST_REMOTE_CODE = {"internlm2"}
     TASK = "text-generation"
     ORTMODEL_CLASS = ORTModelForCausalLM
     AUTOMODEL_CLASS = AutoModelForCausalLM
@@ -244,17 +248,26 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # SANITY TESTS
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "trust_remote_code": trust_remote_code,
+        }
         self._setup(model_args)
 
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = get_preprocessor(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         tokenizer.pad_token = tokenizer.eos_token
         tokens = tokenizer(inputs, return_tensors="pt")
-
-        model = self.AUTOMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache).eval()
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
+        model = self.AUTOMODEL_CLASS.from_pretrained(
+            model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
+        ).eval()
+        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
+        )
 
         self.assertEqual(onnx_model.use_cache, use_cache)
         self.assertEqual(model.config.use_cache, use_cache)
@@ -290,17 +303,27 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_generation_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "trust_remote_code": trust_remote_code,
+        }
         self._setup(model_args)
 
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = get_preprocessor(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         tokenizer.pad_token = tokenizer.eos_token
         tokens = tokenizer(inputs, return_tensors="pt")
 
-        model = self.AUTOMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache).eval()
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
+        model = self.AUTOMODEL_CLASS.from_pretrained(
+            model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
+        ).eval()
+        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
+        )
         self.assertEqual(model.config.use_cache, use_cache)
         self.assertEqual(onnx_model.use_cache, use_cache)
 
@@ -311,16 +334,26 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # beam search is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_beam_search_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "trust_remote_code": trust_remote_code,
+        }
         self._setup(model_args)
 
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = get_preprocessor(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         tokenizer.pad_token = tokenizer.eos_token
         tokens = tokenizer(inputs, return_tensors="pt")
-        model = self.AUTOMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache).eval()
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
+        model = self.AUTOMODEL_CLASS.from_pretrained(
+            model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
+        ).eval()
+        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
+        )
         self.assertEqual(model.config.use_cache, use_cache)
         self.assertEqual(onnx_model.use_cache, use_cache)
 
@@ -347,19 +380,34 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_with_and_without_past_key_values(self, model_arch):
-        model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
+        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        model_args = {
+            "test_name": model_arch + "_False",
+            "model_arch": model_arch,
+            "use_cache": False,
+            "trust_remote_code": trust_remote_code,
+        }
         self._setup(model_args)
-        model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
+        model_args = {
+            "test_name": model_arch + "_True",
+            "model_arch": model_arch,
+            "use_cache": True,
+            "trust_remote_code": trust_remote_code,
+        }
         self._setup(model_args)
 
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = get_preprocessor(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         tokens = tokenizer(inputs, return_tensors="pt")
         with_pkv_dir = self.onnx_model_dirs[model_arch + "_True"]
         without_pkv_dir = self.onnx_model_dirs[model_arch + "_False"]
-        model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(with_pkv_dir, use_cache=True)
-        model_without_pkv = self.ORTMODEL_CLASS.from_pretrained(without_pkv_dir, use_cache=False)
+        model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(
+            with_pkv_dir, use_cache=True, trust_remote_code=trust_remote_code
+        )
+        model_without_pkv = self.ORTMODEL_CLASS.from_pretrained(
+            without_pkv_dir, use_cache=False, trust_remote_code=trust_remote_code
+        )
         self.assertFalse(model_without_pkv.use_cache)
         self.assertTrue(model_with_pkv.use_cache)
 
@@ -373,19 +421,33 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # TODO: remove when io binding is the default
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "trust_remote_code": trust_remote_code,
+        }
         self._setup(model_args)
 
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = get_preprocessor(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         tokens = tokenizer(inputs, return_tensors="pt")
         model_dir = self.onnx_model_dirs[test_name]
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            model_dir, use_cache=use_cache, use_io_binding=False, provider="CPUExecutionProvider"
+            model_dir,
+            use_cache=use_cache,
+            use_io_binding=False,
+            provider="CPUExecutionProvider",
+            trust_remote_code=trust_remote_code,
         )
         io_model = self.ORTMODEL_CLASS.from_pretrained(
-            model_dir, use_cache=use_cache, use_io_binding=True, provider="CPUExecutionProvider"
+            model_dir,
+            use_cache=use_cache,
+            use_io_binding=True,
+            provider="CPUExecutionProvider",
+            trust_remote_code=trust_remote_code,
         )
 
         self.assertTrue(io_model.use_io_binding)
@@ -422,21 +484,35 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_generation_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "trust_remote_code": trust_remote_code,
+        }
         self._setup(model_args)
 
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = get_preprocessor(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         tokenizer.pad_token = tokenizer.eos_token
         tokens = tokenizer(inputs, return_tensors="pt")
 
         model_dir = self.onnx_model_dirs[test_name]
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            model_dir, provider="CPUExecutionProvider", use_io_binding=False, use_cache=use_cache
+            model_dir,
+            provider="CPUExecutionProvider",
+            use_io_binding=False,
+            use_cache=use_cache,
+            trust_remote_code=trust_remote_code,
         )
         io_model = self.ORTMODEL_CLASS.from_pretrained(
-            model_dir, provider="CPUExecutionProvider", use_io_binding=True, use_cache=use_cache
+            model_dir,
+            provider="CPUExecutionProvider",
+            use_io_binding=True,
+            use_cache=use_cache,
+            trust_remote_code=trust_remote_code,
         )
 
         self.assertTrue(io_model.use_io_binding)
@@ -533,21 +609,35 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # TODO: remove once legacy export is removed
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_merged_and_not_merged_models_outputs(self, model_arch: str):
+        model_arch = "internlm2"
+        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+
         with tempfile.TemporaryDirectory() as tmpdir:
             inputs = self.get_inputs()
             task = "text-generation-with-past"
             model_id = MODEL_NAMES[model_arch]
-            tokenizer = get_preprocessor(model_id)
+            tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
             tokens = tokenizer(inputs, return_tensors="pt")
-            model = self.AUTOMODEL_CLASS.from_pretrained(model_id).eval()
-            main_export(model_id, output=tmpdir, task=task, legacy=True, no_post_processing=False, do_validation=False)
+            model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=trust_remote_code).eval()
+            main_export(
+                model_id,
+                output=tmpdir,
+                task=task,
+                legacy=True,
+                no_post_processing=False,
+                do_validation=False,
+                trust_remote_code=trust_remote_code,
+            )
 
             # not merged model, without cache
             self.assertIn(ONNX_DECODER_NAME, os.listdir(tmpdir))
             not_merged_without_cache_file = os.path.join(tmpdir, ONNX_DECODER_NAME)
             self.assertFalse(has_onnx_input(not_merged_without_cache_file, "use_cache_branch"))
             not_merged_without_cache_model = self.ORTMODEL_CLASS.from_pretrained(
-                tmpdir, use_cache=False, use_merged=False
+                tmpdir,
+                use_cache=False,
+                use_merged=False,
+                trust_remote_code=trust_remote_code,
             )
             self.assertFalse(not_merged_without_cache_model.generation_config.use_cache)
             self.assertFalse(not_merged_without_cache_model.config.use_cache)
@@ -558,7 +648,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertIn(ONNX_DECODER_MERGED_NAME, os.listdir(tmpdir))
             merged_file = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
             self.assertTrue(has_onnx_input(merged_file, "use_cache_branch"))
-            merged_model = self.ORTMODEL_CLASS.from_pretrained(tmpdir, use_merged=True)
+            merged_model = self.ORTMODEL_CLASS.from_pretrained(
+                tmpdir, use_merged=True, trust_remote_code=trust_remote_code
+            )
             self.assertTrue(merged_model.generation_config.use_cache)
             self.assertTrue(merged_model.config.use_cache)
             self.assertTrue(merged_model.use_merged)
@@ -585,7 +677,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             torch.testing.assert_close(outputs, not_merged_without_cache_outputs, atol=self.ATOL, rtol=self.RTOL)
 
             # load and save (only merged is loaded and saved)
-            loaded_model = self.ORTMODEL_CLASS.from_pretrained(tmpdir)
+            loaded_model = self.ORTMODEL_CLASS.from_pretrained(tmpdir, trust_remote_code=trust_remote_code)
             self.assertEqual(loaded_model.path.name, ONNX_DECODER_MERGED_NAME)
             self.assertTrue(loaded_model.use_merged)
             self.assertTrue(loaded_model.use_cache)
