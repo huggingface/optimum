@@ -22,8 +22,6 @@ import numpy as np
 import torch
 from transformers import set_seed
 
-from optimum.exporters import TasksManager
-
 
 SEED = 42
 
@@ -34,7 +32,7 @@ MODEL_NAMES = {
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bart": "hf-internal-testing/tiny-random-bart",
     "big_bird": "hf-internal-testing/tiny-random-BigBirdModel",
-    "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+    "bigbird_pegasus": "hf-internal-testing/tiny-random-BigBirdPegasusModel",
     "blenderbot_small": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
@@ -65,7 +63,7 @@ MODEL_NAMES = {
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "flux": "optimum-internal-testing/tiny-random-flux",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
-    "gpt2": "hf-internal-testing/tiny-random-gpt2",
+    "gpt2": "hf-internal-testing/tiny-random-GPT2LMHeadModel",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
@@ -95,15 +93,20 @@ MODEL_NAMES = {
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
+    "olmo": "katuni4ka/tiny-random-olmo-hf",
+    "olmo2": "hf-internal-testing/tiny-random-Olmo2ForCausalLM",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver_text": "hf-internal-testing/tiny-random-language_perceiver",
     "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",
+    "phi": "hf-internal-testing/tiny-random-PhiForCausalLM",
     "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
+    "qwen3": "optimum-internal-testing/tiny-random-qwen3",
+    "qwen3_moe": "optimum-internal-testing/tiny-random-qwen3_moe",
     "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
@@ -113,7 +116,7 @@ MODEL_NAMES = {
     "sew_d": "asapp/sew-d-tiny-100k-ft-ls100h",
     "siglip": "hf-internal-testing/tiny-random-SiglipModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
-    "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
+    "speech_to_text": "optimum-internal-testing/tiny-random-Speech2TextModel",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-3": "optimum-internal-testing/tiny-random-stable-diffusion-3",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
@@ -162,8 +165,9 @@ class ORTModelTestMixin(unittest.TestCase):
         Exports the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
         We don't use unittest setUpClass, in order to still be able to run individual tests.
         """
-        model_arch = model_args["model_arch"]
-        model_arch_and_params = model_args["test_name"]
+
+        model_arch_and_params = model_args.pop("test_name")
+        model_arch = model_args.pop("model_arch")
 
         model_ids = MODEL_NAMES[model_arch]
         if isinstance(model_ids, dict):
@@ -171,43 +175,28 @@ class ORTModelTestMixin(unittest.TestCase):
         else:
             model_ids = [model_ids]
 
-        # TODO: this should actually be checked in ORTModel!
         task = self.TASK
-        if "use_cache" in model_args and model_args["use_cache"] is True:
+        if model_args.get("use_cache", False):
             task = task + "-with-past"
 
-        library_name = TasksManager.infer_library_from_model(model_ids[0])
+        if model_arch_and_params in self.onnx_model_dirs:
+            return
 
-        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx", library_name=library_name
-        ):
-            self.skipTest("Unsupported export case")
+        self.onnx_model_dirs[model_arch_and_params] = {}
+        for model_id in model_ids:
+            if isinstance(MODEL_NAMES[model_arch], dict) and task not in MODEL_NAMES[model_arch][model_id]:
+                # The model with use_cache=True is not supported for bert as a decoder")
+                continue
 
-        if model_arch_and_params not in self.onnx_model_dirs:
-            self.onnx_model_dirs[model_arch_and_params] = {}
+            set_seed(SEED)
+            model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{task}_{model_id.replace('/', '_')}")
+            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, export=True)
+            onnx_model.save_pretrained(model_dir)
 
-            # model_args will contain kwargs to pass to ORTModel.from_pretrained()
-            model_args.pop("test_name")
-            model_args.pop("model_arch")
-
-            for idx, model_id in enumerate(model_ids):
-                if model_arch == "encoder-decoder" and task not in MODEL_NAMES[model_arch][model_id]:
-                    # The model with use_cache=True is not supported for bert as a decoder")
-                    continue
-
-                set_seed(SEED)
-                onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-                    model_id, **model_args, use_io_binding=False, export=True
-                )
-
-                model_dir = tempfile.mkdtemp(
-                    prefix=f"{model_arch_and_params}_{self.TASK}_{model_id.replace('/', '_')}"
-                )
-                onnx_model.save_pretrained(model_dir)
-                if isinstance(MODEL_NAMES[model_arch], dict):
-                    self.onnx_model_dirs[model_arch_and_params][model_id] = model_dir
-                else:
-                    self.onnx_model_dirs[model_arch_and_params] = model_dir
+            if isinstance(MODEL_NAMES[model_arch], dict):
+                self.onnx_model_dirs[model_arch_and_params][model_id] = model_dir
+            else:
+                self.onnx_model_dirs[model_arch_and_params] = model_dir
 
     @classmethod
     def tearDownClass(cls):
