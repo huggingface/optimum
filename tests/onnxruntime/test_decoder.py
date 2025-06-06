@@ -686,7 +686,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertNotIn(ONNX_DECODER_NAME, os.listdir(save_dir))
             self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, os.listdir(save_dir))
             self.assertIn(ONNX_DECODER_MERGED_NAME, os.listdir(save_dir))
-            reloaded_model = self.ORTMODEL_CLASS.from_pretrained(save_dir)
+            reloaded_model = self.ORTMODEL_CLASS.from_pretrained(save_dir, trust_remote_code=trust_remote_code)
             self.assertEqual(reloaded_model.path.name, ONNX_DECODER_MERGED_NAME)
             self.assertTrue(reloaded_model.use_merged)
             self.assertTrue(reloaded_model.use_cache)
