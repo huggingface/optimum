@@ -73,7 +73,7 @@ MODEL_NAMES = {
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
-    "internlm2": "katuni4ka/tiny-random-internlm2",
+    "internlm2": "optimum-internal-testing/tiny-random-internlm2",
     "latent-consistency": "echarlaix/tiny-random-latent-consistency",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
