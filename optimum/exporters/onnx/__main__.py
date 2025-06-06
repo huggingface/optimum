@@ -15,7 +15,6 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
-import warnings
 from pathlib import Path
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -450,10 +449,6 @@ def main():
     input_shapes = {}
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
         input_shapes[input_name] = getattr(args, input_name)
-
-    if args.use_dynamo == False and args.opset and args.opset >= 21:
-        warnings.warn('Support for ONNX opset >= 21 will only be supported via dynamo going forward. Switching to dynamo.', FutureWarning)
-        args.use_dynamo = True
 
     main_export(
         model_name_or_path=args.model,

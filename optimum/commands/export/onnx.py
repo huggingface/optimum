@@ -177,7 +177,8 @@ def parse_args_onnx(parser):
 
     optional_group.add_argument(
         "--use-dynamo",
-        action="store_true",
+        type=bool,
+        default=None,
         help="Use dynamo instead of torchscript for onnx model export.",
     )
 
