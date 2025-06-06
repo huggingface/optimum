@@ -73,6 +73,7 @@ MODEL_NAMES = {
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
+    "internlm2": "optimum-internal-testing/tiny-random-internlm2",
     "latent-consistency": "echarlaix/tiny-random-latent-consistency",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
@@ -167,6 +168,7 @@ class ORTModelTestMixin(unittest.TestCase):
 
         model_arch_and_params = model_args.pop("test_name")
         model_arch = model_args.pop("model_arch")
+        trust_remote_code = model_args.pop("trust_remote_code", False)
 
         model_ids = MODEL_NAMES[model_arch]
         if isinstance(model_ids, dict):
@@ -189,7 +191,9 @@ class ORTModelTestMixin(unittest.TestCase):
 
             set_seed(SEED)
             model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{task}_{model_id.replace('/', '_')}")
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, export=True)
+            onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+                model_id, **model_args, export=True, trust_remote_code=trust_remote_code
+            )
             onnx_model.save_pretrained(model_dir)
 
             if isinstance(MODEL_NAMES[model_arch], dict):
