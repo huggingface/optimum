@@ -19,7 +19,10 @@ from typing import Any, Dict, Optional, Union
 from transformers import (
     AudioClassificationPipeline,
     AutoConfig,
+    AutoFeatureExtractor,
+    AutoImageProcessor,
     AutomaticSpeechRecognitionPipeline,
+    AutoTokenizer,
     FeatureExtractionPipeline,
     FillMaskPipeline,
     ImageClassificationPipeline,
@@ -41,9 +44,16 @@ from transformers import (
 )
 from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
-from transformers.onnx.utils import get_preprocessor
+from transformers.image_processing_utils import BaseImageProcessor
+from transformers.pipelines import (
+    FEATURE_EXTRACTOR_MAPPING,
+    IMAGE_PROCESSOR_MAPPING,
+    TOKENIZER_MAPPING,
+    check_task,
+    get_default_model_and_revision,
+    infer_framework_load_model,
+)
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
-from transformers.pipelines import infer_framework_load_model
 
 from ..utils import is_onnxruntime_available, is_transformers_version
 
@@ -87,7 +97,7 @@ if is_onnxruntime_available():
         },
         "image-segmentation": {
             "impl": ImageSegmentationPipeline,
-            "class": (ORTModelForSemanticSegmentation,) if is_onnxruntime_available() else (),
+            "class": (ORTModelForSemanticSegmentation,),
             "default": "nvidia/segformer-b0-finetuned-ade-512-512",
             "type": "image",
         },
@@ -175,6 +185,8 @@ def load_bettertransformer(
     tokenizer=None,
     feature_extractor=None,
     load_feature_extractor=None,
+    image_processor=None,
+    load_image_processor=None,
     SUPPORTED_TASKS=None,
     subfolder: str = "",
     token: Optional[Union[bool, str]] = None,
@@ -194,9 +206,7 @@ def load_bettertransformer(
         else:
             model_kwargs = {}
 
-    if model is None:
-        model_id = SUPPORTED_TASKS[targeted_task]["default"]
-    elif isinstance(model, str):
+    if isinstance(model, str):
         model_id = model
     else:
         model_id = None
@@ -219,7 +229,7 @@ def load_bettertransformer(
 
     model = BetterTransformer.transform(model, **kwargs)
 
-    return model, model_id, tokenizer, feature_extractor
+    return model, model_id, tokenizer, feature_extractor, image_processor
 
 
 def load_ort_pipeline(
@@ -229,6 +239,8 @@ def load_ort_pipeline(
     tokenizer,
     feature_extractor,
     load_feature_extractor,
+    image_processor,
+    load_image_processor,
     SUPPORTED_TASKS,
     subfolder: str = "",
     token: Optional[Union[bool, str]] = None,
@@ -240,10 +252,8 @@ def load_ort_pipeline(
     if model_kwargs is None:
         model_kwargs = {}
 
-    if model is None:
-        model_id = SUPPORTED_TASKS[targeted_task]["default"]
-        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, export=True)
-    elif isinstance(model, str):
+    if isinstance(model, str):
+        model_id = model
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(
             model, revision=revision, subfolder=subfolder, token=token, **model_kwargs
         )
@@ -267,13 +277,24 @@ def load_ort_pipeline(
                     "Could not automatically find a feature extractor for the ORTModel, you must pass a "
                     "feature_extractor explictly"
                 )
+        if image_processor is None and load_image_processor:
+            for preprocessor in model.preprocessors:
+                if isinstance(preprocessor, BaseImageProcessor):
+                    image_processor = preprocessor
+                    break
+            if image_processor is None:
+                raise ValueError(
+                    "Could not automatically find a feature extractor for the ORTModel, you must pass a "
+                    "image_processor explictly"
+                )
+
         model_id = None
     else:
         raise ValueError(
             f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
             You can also provide non model then a default one will be used"""
         )
-    return model, model_id, tokenizer, feature_extractor
+    return model, model_id, tokenizer, feature_extractor, image_processor
 
 
 MAPPING_LOADING_FUNC = {
@@ -287,6 +308,7 @@ def pipeline(
     model: Optional[Any] = None,
     tokenizer: Optional[Union[str, PreTrainedTokenizer]] = None,
     feature_extractor: Optional[Union[str, PreTrainedFeatureExtractor]] = None,
+    image_processor: Optional[Union[str, BaseImageProcessor]] = None,
     use_fast: bool = True,
     token: Optional[Union[str, bool]] = None,
     accelerator: Optional[str] = "ort",
@@ -308,7 +330,16 @@ def pipeline(
             f'Accelerator {accelerator} is not supported. Supported accelerators are "ort" and "bettertransformer".'
         )
 
-    # copied from transformers.pipelines.__init__.py
+    supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
+
+    if model is None:
+        if accelerator != "ort":
+            _, target_task, task_options = check_task(task)
+            model, default_revision = get_default_model_and_revision(target_task, "pt", task_options)
+            revision = revision or default_revision
+        else:
+            model = supported_tasks[targeted_task]["default"]
+
     hub_kwargs = {
         "revision": revision,
         "token": token,
@@ -321,19 +352,25 @@ def pipeline(
         config = AutoConfig.from_pretrained(model, _from_pipeline=task, **hub_kwargs, **kwargs)
         hub_kwargs["_commit_hash"] = config._commit_hash
 
-    supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
-
     no_feature_extractor_tasks = set()
     no_tokenizer_tasks = set()
+    no_image_processor_tasks = set()
     for _task, values in supported_tasks.items():
         if values["type"] == "text":
             no_feature_extractor_tasks.add(_task)
+            no_image_processor_tasks.add(_task)
         elif values["type"] in {"image", "video"}:
             no_tokenizer_tasks.add(_task)
         elif values["type"] in {"audio"}:
             no_tokenizer_tasks.add(_task)
+            no_image_processor_tasks.add(_task)
         elif values["type"] not in ["multimodal", "audio", "video"]:
             raise ValueError(f"SUPPORTED_TASK {_task} contains invalid type {values['type']}")
+
+    model_config = config or model.config
+    load_tokenizer = type(model_config) in TOKENIZER_MAPPING or model_config.tokenizer_class is not None
+    load_feature_extractor = type(model_config) in FEATURE_EXTRACTOR_MAPPING or feature_extractor is not None
+    load_image_processor = type(model_config) in IMAGE_PROCESSOR_MAPPING or image_processor is not None
 
     # copied from transformers.pipelines.__init__.py l.609
     if targeted_task in no_tokenizer_tasks:
@@ -342,21 +379,25 @@ def pipeline(
         # the files could be missing from the hub, instead of failing
         # on such repos, we just force to not load it.
         load_tokenizer = False
-    else:
-        load_tokenizer = True
 
     if targeted_task in no_feature_extractor_tasks:
         load_feature_extractor = False
-    else:
-        load_feature_extractor = True
 
-    model, model_id, tokenizer, feature_extractor = MAPPING_LOADING_FUNC[accelerator](
+    if targeted_task in no_image_processor_tasks:
+        load_image_processor = False
+
+    if load_image_processor and load_feature_extractor:
+        load_feature_extractor = False
+
+    model, model_id, tokenizer, feature_extractor, image_processor = MAPPING_LOADING_FUNC[accelerator](
         model,
         targeted_task,
         load_tokenizer,
         tokenizer,
         feature_extractor,
         load_feature_extractor,
+        image_processor,
+        load_image_processor,
         SUPPORTED_TASKS=supported_tasks,
         config=config,
         hub_kwargs=hub_kwargs,
@@ -365,16 +406,20 @@ def pipeline(
         **kwargs,
     )
 
+    use_fast = kwargs.get(use_fast, "True")
     if tokenizer is None and load_tokenizer:
-        tokenizer = get_preprocessor(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=use_fast, **hub_kwargs)
     if feature_extractor is None and load_feature_extractor:
-        feature_extractor = get_preprocessor(model_id)
+        feature_extractor = AutoFeatureExtractor.from_pretrained(model_id, use_fast=use_fast, **hub_kwargs)
+    if image_processor is None and load_image_processor:
+        image_processor = AutoImageProcessor.from_pretrained(model_id, **hub_kwargs)
 
     return transformers_pipeline(
         task,
         model=model,
         tokenizer=tokenizer,
         feature_extractor=feature_extractor,
+        image_processor=image_processor,
         use_fast=use_fast,
         **kwargs,
     )
