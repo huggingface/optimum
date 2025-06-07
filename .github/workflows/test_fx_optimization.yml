@@ -1,15 +1,17 @@
-name: Code Quality
+name: FX Optimization / Python - Test
 
 on:
   push:
     branches: [main]
-
   pull_request:
     branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
+
+env:
+  TRANSFORMERS_IS_CI: true
 
 jobs:
   build:
@@ -32,12 +34,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install .[quality]
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[tests]
 
-      - name: Check style with black
+      - name: Test with pytest
         run: |
-          black --check .
-
-      - name: Check style with ruff
-        run: |
-          ruff .
+          pytest tests/fx/optimization -n auto -vvvv

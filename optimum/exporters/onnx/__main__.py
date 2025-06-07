@@ -15,18 +15,21 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
-import warnings
 from pathlib import Path
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
-from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
-from ...configuration_utils import _transformers_version
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
+from ...utils.import_utils import (
+    is_diffusers_available,
+    is_sentence_transformers_available,
+    is_timm_available,
+    is_transformers_version,
+)
 from ...utils.save_utils import maybe_load_preprocessors
 from ..tasks import TasksManager
 from ..utils import DisableCompileContextManager
@@ -59,15 +62,16 @@ def main_export(
     no_post_process: bool = False,
     framework: Optional[str] = None,
     atol: Optional[float] = None,
-    cache_dir: str = HUGGINGFACE_HUB_CACHE,
-    trust_remote_code: bool = False,
     pad_token_id: Optional[int] = None,
+    # hub options
     subfolder: str = "",
     revision: str = "main",
     force_download: bool = False,
     local_files_only: bool = False,
-    use_auth_token: Optional[Union[bool, str]] = None,
+    trust_remote_code: bool = False,
+    cache_dir: str = HUGGINGFACE_HUB_CACHE,
     token: Optional[Union[bool, str]] = None,
+    ########################################
     for_ort: bool = False,
     do_validation: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
@@ -79,6 +83,7 @@ def main_export(
     legacy: bool = False,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    slim: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -167,6 +172,8 @@ def main_export(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
+        slim (bool, defaults to `False`):
+            PyTorch-specific argument. If `True`, use onnxslim to optimize the ONNX model.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -177,15 +184,6 @@ def main_export(
     >>> main_export("gpt2", output="gpt2_onnx/")
     ```
     """
-
-    if use_auth_token is not None:
-        warnings.warn(
-            "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-            FutureWarning,
-        )
-        if token is not None:
-            raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-        token = use_auth_token
 
     if fp16:
         if dtype is not None:
@@ -221,10 +219,27 @@ def main_export(
             " and passing it is not required anymore."
         )
 
-    if task in ["stable-diffusion", "stable-diffusion-xl"]:
+    if task in ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]:
         logger.warning(
             f"The task `{task}` is deprecated and will be removed in a future release of Optimum. "
             "Please use one of the following tasks instead: `text-to-image`, `image-to-image`, `inpainting`."
+        )
+
+    if library_name == "sentence_transformers" and not is_sentence_transformers_available():
+        raise ImportError(
+            "The library `sentence_transformers` was specified, but it is not installed. "
+            "Please install it with `pip install sentence-transformers`."
+        )
+
+    if library_name == "diffusers" and not is_diffusers_available():
+        raise ImportError(
+            "The library `diffusers` was specified, but it is not installed. "
+            "Please install it with `pip install diffusers`."
+        )
+
+    if library_name == "timm" and not is_timm_available():
+        raise ImportError(
+            "The library `timm` was specified, but it is not installed. Please install it with `pip install timm`."
         )
 
     original_task = task
@@ -239,6 +254,22 @@ def main_export(
         library_name = TasksManager.infer_library_from_model(
             model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
         )
+        if library_name == "sentence_transformers" and not is_sentence_transformers_available():
+            logger.warning(
+                "The library name was inferred as `sentence_transformers`, which is not installed. "
+                "Falling back to `transformers` to avoid breaking the export."
+            )
+            library_name = "transformers"
+        elif library_name == "timm" and not is_timm_available():
+            raise ImportError(
+                "The library name was inferred as `timm`, which is not installed. "
+                "Please install it with `pip install timm`."
+            )
+        elif library_name == "diffusers" and not is_diffusers_available():
+            raise ImportError(
+                "The library name was inferred as `diffusers`, which is not installed. "
+                "Please install it with `pip install diffusers`."
+            )
 
     torch_dtype = None
     if framework == "pt":
@@ -256,7 +287,14 @@ def main_export(
 
     if task == "auto":
         try:
-            task = TasksManager.infer_task_from_model(model_name_or_path, library_name=library_name)
+            task = TasksManager.infer_task_from_model(
+                model_name_or_path,
+                subfolder=subfolder,
+                revision=revision,
+                cache_dir=cache_dir,
+                token=token,
+                library_name=library_name,
+            )
         except KeyError as e:
             raise KeyError(
                 f"The task could not be automatically inferred. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
@@ -297,8 +335,9 @@ def main_export(
                 f"Asked to export a {model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model_type}."
             )
 
-        # TODO: Fix in Transformers so that SdpaAttention class can be exported to ONNX. `attn_implementation` is introduced in Transformers 4.36.
-        if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and _transformers_version >= version.parse("4.35.99"):
+        # TODO: Fix in Transformers so that SdpaAttention class can be exported to ONNX.
+        # This was fixed in transformers 4.42.0, we can remve it when minimum transformers version is updated to 4.42
+        if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and is_transformers_version("<", "4.42"):
             loading_kwargs["attn_implementation"] = "eager"
 
     with DisableCompileContextManager():
@@ -392,6 +431,7 @@ def main_export(
         task=task,
         use_subprocess=use_subprocess,
         do_constant_folding=do_constant_folding,
+        slim=slim,
         **kwargs_shapes,
     )
 

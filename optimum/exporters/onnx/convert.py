@@ -31,12 +31,14 @@ from transformers.generation import GenerationMixin
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
 
+from ...onnx.graph_transformations import check_and_save_model
 from ...onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
     is_diffusers_available,
+    is_onnxslim_available,
     is_torch_onnx_support_available,
     is_transformers_version,
     logging,
@@ -579,7 +581,6 @@ def export_pytorch(
             )
 
         # check if external data was exported
-        # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
         onnx_model = onnx.load(str(output), load_external_data=False)
         model_uses_external_data = check_model_uses_external_data(onnx_model)
 
@@ -592,12 +593,12 @@ def export_pytorch(
             del model
             del onnx_model
             gc.collect()
+
             if device.type == "cuda" and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-            onnx_model = onnx.load(
-                str(output), load_external_data=True
-            )  # this will probably be too memory heavy for large models
+            # this will probably be too memory heavy for large models
+            onnx_model = onnx.load(str(output), load_external_data=True)
             onnx.save(
                 onnx_model,
                 str(output),
@@ -923,6 +924,7 @@ def onnx_export_from_model(
     task: Optional[str] = None,
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
+    slim: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -978,6 +980,8 @@ def onnx_export_from_model(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
+        slim (bool, defaults to `False`):
+            Use onnxslim to optimize the ONNX model.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -1201,6 +1205,17 @@ def onnx_export_from_model(
 
         optimization_config.disable_shape_inference = True
         optimizer.optimize(save_dir=output, optimization_config=optimization_config, file_suffix="")
+
+    if slim:
+        if not is_onnxslim_available():
+            raise ImportError("The pip package `onnxslim` is required to optimize onnx models.")
+
+        from onnxslim import slim
+
+        for subpath in onnx_files_subpaths:
+            file_path = os.path.join(output, subpath)
+            slimmed_model = slim(file_path)
+            check_and_save_model(slimmed_model, file_path)
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating diffusion separately is quite ugly

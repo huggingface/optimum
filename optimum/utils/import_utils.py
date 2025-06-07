@@ -89,6 +89,7 @@ _gptqmodel_available = _is_package_available("gptqmodel")
 _timm_available = _is_package_available("timm")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
 _datasets_available = _is_package_available("datasets")
+_tensorrt_available = _is_package_available("tensorrt")
 _diffusers_available, _diffusers_version = _is_package_available("diffusers", return_version=True)
 _transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
 _torch_available, _torch_version = _is_package_available("torch", return_version=True)
@@ -136,6 +137,7 @@ _tf_available, _tf_version = _is_package_available(
         "intel-tensorflow-avx512",
     ],
 )
+_onnxslim_available = _is_package_available("onnxslim")
 
 if _tf_available and version.parse(_tf_version) < version.parse("2"):
     logger.warning(
@@ -239,6 +241,10 @@ def is_transformers_available():
     return _transformers_available
 
 
+def is_tensorrt_available():
+    return _tensorrt_available
+
+
 def is_torch_available():
     return _torch_available
 
@@ -267,6 +273,10 @@ def is_gptqmodel_available():
             raise ImportError(
                 f"Found an incompatible version of gptqmodel. Found version {v}, but only version >= {GPTQMODEL_MINIMUM_VERSION} are supported"
             )
+
+
+def is_onnxslim_available():
+    return _onnxslim_available
 
 
 @contextmanager

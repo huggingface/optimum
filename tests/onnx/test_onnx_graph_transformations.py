@@ -14,19 +14,19 @@
 # limitations under the License.
 import os
 import subprocess
-import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
-import huggingface_hub
 import numpy as np
 import onnx
 import torch
+from huggingface_hub import HfApi
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
 from parameterized import parameterized
 from transformers import AutoModel, AutoTokenizer
+from transformers.utils import http_user_agent
 
 from optimum.exporters.onnx import main_export
 from optimum.onnx.graph_transformations import (
@@ -103,8 +103,7 @@ class OnnxToInt32Test(TestCase):
         model_id = "fxmarty/gpt2-tiny-onnx"
 
         with TemporaryDirectory() as tmpdir:
-            repo_path = huggingface_hub.snapshot_download(model_id, cache_dir=tmpdir)
-
+            repo_path = HfApi(user_agent=http_user_agent()).snapshot_download(model_id, cache_dir=tmpdir)
             path = str(Path(repo_path, "decoder_model.onnx"))
             save_path = str(Path(repo_path, "decoder_model_int32.onnx"))
             model = onnx.load(path)
@@ -130,7 +129,3 @@ class OnnxToInt32Test(TestCase):
             }
 
             model.run(None, inputs)
-
-
-if __name__ == "__main__":
-    unittest.main()

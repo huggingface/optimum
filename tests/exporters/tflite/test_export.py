@@ -30,7 +30,7 @@ from optimum.utils.preprocessing import Preprocessor
 from optimum.utils.save_utils import maybe_load_preprocessors
 
 from ...utils.test_task_processors import TASK_TO_NON_DEFAULT_DATASET
-from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
+from ..utils import PYTORCH_EXPORT_MODELS_TINY
 
 
 if is_tf_available():

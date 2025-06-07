@@ -10,14 +10,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  TRANSFORMERS_IS_CI: true
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.9']
+        python-version: [3.9]
+        runs-on: [ubuntu-22.04]
 
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runs-on }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -80,16 +80,19 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gpt-neox",
     "gptj",
     "imagegpt",
+    "internlm2",
     "llama",
     "mistral",
     "phi",
     "phi3",
     "qwen2",
+    "qwen3",
+    "qwen3-moe",
     "granite",
 }
 
 
-if is_transformers_version(">=", "4.45.99"):
+if is_transformers_version(">=", "4.46.0"):
     MODEL_TYPES_REQUIRING_POSITION_IDS.add("opt")
 
 
@@ -247,7 +250,7 @@ def get_speecht5_models_for_export(
 def get_encoder_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
-    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(mode_type="encoder_decoder"))
+    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="encoder_decoder"))
     return _get_encoder_decoder_models_for_export(model, config)
 
 

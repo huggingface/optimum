@@ -32,7 +32,7 @@ if is_transformers_version(">=", "4.35"):
     from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 if is_transformers_version(">=", "4.36"):
     from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
-if is_transformers_version(">=", "4.43"):
+if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
 if is_transformers_version(">=", "4.42"):
     from transformers.cache_utils import SlidingWindowCache, StaticCache
@@ -160,7 +160,7 @@ def onnx_compatible_unfold(input_tensor, dimension, size, step):
 # Without this, we get the following error: https://github.com/pytorch/pytorch/issues/145100
 # NOTE: This implementation is only necessary for export with dynamo=False (dynamo=True works correctly).
 # and can be removed once Optimum switches to dynamo-based exports
-def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None):
+def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None, output_size=None):
     """
     Custom implementation of torch.repeat_interleave without using torch.repeat_interleave.
 
@@ -195,8 +195,32 @@ def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None):
     return result
 
 
+original_linal_norm = torch.linalg.norm
+
+
+# Custom implementation of torch.linalg.matrix_norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
+def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None, out=None) -> torch.Tensor:
+    """
+    Custom implementation of torch.linalg.norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
+    It only handles the case of matrix norm with ord=2, otherwise it uses the original implementation.
+    """
+
+    if ord == 2:
+        if dim is None:
+            dim = (-2, -1)
+        norm = torch.sqrt(torch.sum(torch.square(x), dim=dim, keepdim=keepdim))
+        if dtype is not None:
+            norm = norm.to(dtype)
+        if out is not None:
+            out.copy_(norm)
+        return norm
+
+    return original_linal_norm(x, ord=ord, dim=dim, keepdim=keepdim, dtype=dtype, out=out)
+
+
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
+    PatchingSpec(torch.linalg, "norm", onnx_compatible_linalg_norm, original_linal_norm),
     PatchingSpec(torch.Tensor, "repeat_interleave", onnx_compatible_repeat_interleave, torch.Tensor.repeat_interleave),
     # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
     PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),
@@ -556,7 +580,9 @@ class DecoderModelPatcher(ModelPatcher):
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(_unmask_unattended_patched)
             patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
+                "_prepare_4d_causal_attention_mask_for_sdpa",
+                _prepare_4d_causal_attention_mask_for_sdpa_patched,
+                module_name_prefix="transformers",
             )
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -567,7 +593,9 @@ class DecoderModelPatcher(ModelPatcher):
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
             patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
+                "_prepare_4d_causal_attention_mask_for_sdpa",
+                self.original_prepare_4d_causal_attention_mask_for_sdpa,
+                module_name_prefix="transformers",
             )
 
     def __init__(
@@ -1330,13 +1358,13 @@ class MistralModelPatcher(DecoderModelPatcher):
 class CLIPModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-        if is_transformers_version(">=", "4.43"):
+        if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
             self.original_sdpa_forward = CLIPSdpaAttention.forward
             CLIPSdpaAttention.forward = CLIPAttention.forward
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if is_transformers_version(">=", "4.43"):
+        if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
             CLIPSdpaAttention.forward = self.original_sdpa_forward
 
 

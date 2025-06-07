@@ -21,13 +21,13 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
-import huggingface_hub
+from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.errors import OfflineModeIsEnabled
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
-from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
+from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent, logging
 
 from ..utils.import_utils import is_diffusers_available, is_onnx_available
 
@@ -322,6 +322,7 @@ class TasksManager:
     }
 
     _CUSTOM_CLASSES = {
+        ("pt", "colpali", "feature-extraction"): ("transformers", "ColPaliForRetrieval"),
         ("pt", "patchtsmixer", "time-series-forecasting"): ("transformers", "PatchTSMixerForPrediction"),
         ("pt", "patchtst", "time-series-forecasting"): ("transformers", "PatchTSTForPrediction"),
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
@@ -525,6 +526,10 @@ class TasksManager:
             "text-generation-with-past",
             onnx="CodeGenOnnxConfig",
         ),
+        "colpali": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="ColPaliOnnxConfig",
+        ),
         "convbert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -546,6 +551,10 @@ class TasksManager:
             onnx="ConvNextV2OnnxConfig",
         ),
         "cvt": supported_tasks_mapping("feature-extraction", "image-classification", onnx="CvTOnnxConfig"),
+        "d-fine": supported_tasks_mapping(
+            "object-detection",
+            onnx="DFineOnnxConfig",
+        ),
         "data2vec-text": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -638,6 +647,11 @@ class TasksManager:
             "image-segmentation",
             "semantic-segmentation",
             onnx="DptOnnxConfig",
+        ),
+        "efficientnet": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="EfficientNetOnnxConfig",
         ),
         "electra": supported_tasks_mapping(
             "feature-extraction",
@@ -766,6 +780,11 @@ class TasksManager:
             "feature-extraction",
             "image-classification",
             onnx="ImageGPTOnnxConfig",
+        ),
+        "internlm2": supported_tasks_mapping(
+            "text-generation",
+            "text-generation-with-past",
+            onnx="InternLM2OnnxConfig",
         ),
         "layoutlm": supported_tasks_mapping(
             "feature-extraction",
@@ -989,7 +1008,25 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "text-classification",
+            "token-classification",
             onnx="Qwen2OnnxConfig",
+        ),
+        "qwen3": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="Qwen3OnnxConfig",
+        ),
+        "qwen3-moe": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            "token-classification",
+            onnx="Qwen3MoeOnnxConfig",
         ),
         "llama": supported_tasks_mapping(
             "feature-extraction",
@@ -1469,11 +1506,14 @@ class TasksManager:
         """
         Returns the list of supported architectures by the exporter for a given task. Transformers-specific.
         """
-        return [
+
+        supported_model_types = [
             model_type.replace("-", "_")
             for model_type in TasksManager._SUPPORTED_MODEL_TYPE
             if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
         ]
+
+        return supported_model_types
 
     @staticmethod
     def synonyms_for_task(task: str) -> Set[str]:
@@ -1615,6 +1655,8 @@ class TasksManager:
         request_exception = None
         full_model_path = Path(model_name_or_path, subfolder)
 
+        hf_api = HfApi(user_agent=http_user_agent(), token=token)
+
         if full_model_path.is_dir():
             all_files = [
                 os.path.relpath(os.path.join(dirpath, file), full_model_path)
@@ -1625,17 +1667,20 @@ class TasksManager:
             try:
                 if not isinstance(model_name_or_path, str):
                     model_name_or_path = str(model_name_or_path)
-                all_files = huggingface_hub.list_repo_files(
+                all_files = hf_api.list_repo_files(
                     model_name_or_path,
                     repo_type="model",
-                    token=token,
                     revision=revision,
+                    token=token,
                 )
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
             except (RequestsConnectionError, OfflineModeIsEnabled) as e:
-                snapshot_path = huggingface_hub.snapshot_download(
-                    repo_id=model_name_or_path, revision=revision, cache_dir=cache_dir, token=token
+                snapshot_path = hf_api.snapshot_download(
+                    repo_id=model_name_or_path,
+                    cache_dir=cache_dir,
+                    revision=revision,
+                    token=token,
                 )
                 full_model_path = Path(snapshot_path, subfolder)
                 if full_model_path.is_dir():
@@ -1817,7 +1862,9 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             try:
-                model_info = huggingface_hub.model_info(model_name_or_path, revision=revision, token=token)
+                model_info = HfApi(user_agent=http_user_agent(), token=token).model_info(
+                    model_name_or_path, revision=revision, token=token
+                )
             except (RequestsConnectionError, OfflineModeIsEnabled):
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
@@ -1922,7 +1969,7 @@ class TasksManager:
                 token=token,
                 library_name=library_name,
             )
-        elif type(model) == type:
+        elif type(model) is type:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
         else:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model=model)
@@ -2076,7 +2123,7 @@ class TasksManager:
                 cache_dir=cache_dir,
                 token=token,
             )
-        elif type(model) == type:
+        elif type(model) is type:
             library_name = cls._infer_library_from_model_or_model_class(model_class=model)
         else:
             library_name = cls._infer_library_from_model_or_model_class(model=model)
