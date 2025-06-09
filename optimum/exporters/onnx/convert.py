@@ -258,7 +258,7 @@ def _run_validation(
     # Create ONNX Runtime session
     session_options = SessionOptions()
     # We could well set ORT_DISABLE_ALL here, but it makes CUDA export with O4 of gpt_neo fail
-    session_options.graph_optimization_level = GraphOptimizationLevel.ORT_ENABLE_BASIC
+    # session_options.graph_optimization_level = GraphOptimizationLevel.ORT_ENABLE_BASIC
 
     if device.startswith("cuda"):
         provider = "CUDAExecutionProvider"
