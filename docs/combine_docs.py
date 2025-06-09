@@ -207,8 +207,8 @@ def main():
             # Optimum ExecuTorch has its own doc so it is managed differently
             add_executorch_doc(base_toc)
         elif subpackage == "furiosa":
-        # TODO: add furiosa doc when available
-        #    add_furiosa_doc(base_toc)
+            # TODO: add furiosa doc when available
+            # add_furiosa_doc(base_toc)
             continue
         else:
             subpackage_path = Path(f"{subpackage}-doc-build")
