@@ -46,11 +46,6 @@ jobs:
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-furiosa'
-          path: optimum-furiosa
-
-      - uses: actions/checkout@v2
-        with:
           repository: 'huggingface/optimum-amd'
           path: optimum-amd
 
@@ -85,11 +80,6 @@ jobs:
           make doc BUILD_DIR=intel-doc-build VERSION=pr_$PR_NUMBER
           sudo mv intel-doc-build ../optimum
           cd ..
-
-      # TODO: enable Furiosa doc build in PRs once archive.furiosa.ai is public
-      - name: Make Furiosa documentation
-        run: |
-          echo "For PRs we don't build Furiosa doc"
 
       - name: Make AMD documentation
         run: |
