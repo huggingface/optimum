@@ -170,6 +170,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     Integration tests ensuring supported models are correctly exported.
     """
 
+    MODEL_TRUST_REMOTE_CODE = {"internlm2"}
+
     def _onnx_export(
         self,
         model_name: str,
@@ -183,6 +185,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_dynamic_axes: bool = False,
         model_kwargs: Optional[Dict] = None,
         slim: bool = True,
+        trust_remote_code: bool = False,
     ):
         # We need to set this to some value to be able to test the outputs values for batch size > 1.
         if task == "text-classification":
@@ -206,6 +209,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     pad_token_id=pad_token_id,
                     model_kwargs=model_kwargs,
                     slim=slim,
+                    trust_remote_code=trust_remote_code,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
@@ -223,6 +227,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         fp16: bool = False,
         variant: str = "default",
         model_kwargs: Optional[Dict] = None,
+        trust_remote_code: bool = False,
     ):
         with TemporaryDirectory() as tmpdir:
             try:
@@ -238,6 +243,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     _variant=variant,
                     no_dynamic_axes=True,
                     model_kwargs=model_kwargs,
+                    trust_remote_code=trust_remote_code,
                     **input_shape,
                 )
 
@@ -391,7 +397,16 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "speecht5":
             model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
 
-        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, model_kwargs=model_kwargs)
+        trust_remote_code = model_type in self.MODEL_TRUST_REMOTE_CODE
+        self._onnx_export(
+            model_name,
+            task,
+            monolith,
+            no_post_process,
+            variant=variant,
+            model_kwargs=model_kwargs,
+            trust_remote_code=trust_remote_code,
+        )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES, library_name="transformers"))
     @require_vision
@@ -450,9 +465,17 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         model_kwargs = None
         if model_type == "speecht5":
             model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+        trust_remote_code = model_type in self.MODEL_TRUST_REMOTE_CODE
 
         self._onnx_export(
-            model_name, task, monolith, no_post_process, device="cuda", variant=variant, model_kwargs=model_kwargs
+            model_name,
+            task,
+            monolith,
+            no_post_process,
+            device="cuda",
+            variant=variant,
+            model_kwargs=model_kwargs,
+            trust_remote_code=trust_remote_code,
         )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
@@ -474,6 +497,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "speecht5":
             model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
 
+        trust_remote_code = model_type in self.MODEL_TRUST_REMOTE_CODE
         for optimization_level in ["O1", "O2", "O3"]:
             try:
                 self._onnx_export(
@@ -484,6 +508,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     optimization_level=optimization_level,
                     variant=variant,
                     model_kwargs=model_kwargs,
+                    trust_remote_code=trust_remote_code,
                 )
             except NotImplementedError as e:
                 if "Tried to use ORTOptimizer for the model type" in str(
@@ -521,6 +546,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "speecht5":
             model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
 
+        trust_remote_code = model_type in self.MODEL_TRUST_REMOTE_CODE
+
         try:
             self._onnx_export(
                 model_name,
@@ -531,6 +558,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 device="cuda",
                 variant=variant,
                 model_kwargs=model_kwargs,
+                trust_remote_code=trust_remote_code,
             )
         except NotImplementedError as e:
             if "Tried to use ORTOptimizer for the model type" in str(
@@ -663,7 +691,18 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "speecht5":
             self.skipTest("speecht5 can not be supported in fp16 due to a pytorch bug")
 
-        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, fp16=True, device="cuda")
+        trust_remote_code = model_type in self.MODEL_TRUST_REMOTE_CODE
+
+        self._onnx_export(
+            model_name,
+            task,
+            monolith,
+            no_post_process,
+            variant=variant,
+            fp16=True,
+            device="cuda",
+            trust_remote_code=trust_remote_code,
+        )
 
     @parameterized.expand(
         [
@@ -685,14 +724,19 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @pytest.mark.run_slow
     def test_synonym_tasks_backward_compatibility(self, task: str, model_type: str):
         model_name = PYTORCH_EXPORT_MODELS_TINY[model_type]
+        trust_remote_code = model_type in self.MODEL_TRUST_REMOTE_CODE
 
         if isinstance(model_name, dict):
             for _model_name in model_name.keys():
                 with TemporaryDirectory() as tmpdir:
-                    main_export(model_name_or_path=_model_name, output=tmpdir, task=task)
+                    main_export(
+                        model_name_or_path=_model_name, output=tmpdir, task=task, trust_remote_code=trust_remote_code
+                    )
         else:
             with TemporaryDirectory() as tmpdir:
-                main_export(model_name_or_path=model_name, output=tmpdir, task=task)
+                main_export(
+                    model_name_or_path=model_name, output=tmpdir, task=task, trust_remote_code=trust_remote_code
+                )
 
     @slow
     @pytest.mark.run_slow
