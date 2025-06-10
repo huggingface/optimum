@@ -13,21 +13,32 @@
 #  limitations under the License.
 """Utility functions, classes and constants for ONNX Runtime."""
 
+import importlib
 import os
 import re
 from enum import Enum
 from inspect import signature
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 from packaging import version
+from tqdm import tqdm
+from transformers import EvalPrediction
+from transformers.trainer_pt_utils import nested_concat
+from transformers.trainer_utils import EvalLoopOutput
 from transformers.utils import logging
 
 import onnxruntime as ort
+from onnxruntime.transformers.io_binding_helper import TypeHelper
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
-from ..utils.import_utils import _is_package_available
+
+
+if TYPE_CHECKING:
+    from datasets import Dataset
+
+    from .modeling_ort import ORTModel
 
 
 logger = logging.get_logger(__name__)
@@ -38,34 +49,6 @@ ONNX_ENCODER_NAME = "encoder_model.onnx"
 ONNX_DECODER_NAME = "decoder_model.onnx"
 ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
 ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
-
-_ORT_TO_NP_TYPE = {
-    "tensor(bool)": np.bool_,
-    "tensor(int8)": np.int8,
-    "tensor(uint8)": np.uint8,
-    "tensor(int16)": np.int16,
-    "tensor(uint16)": np.uint16,
-    "tensor(int32)": np.int32,
-    "tensor(uint32)": np.uint32,
-    "tensor(int64)": np.int64,
-    "tensor(uint64)": np.uint64,
-    "tensor(float16)": np.float16,
-    "tensor(float)": np.float32,
-    "tensor(double)": np.float64,
-}
-
-
-def _is_gpu_available():
-    """
-    Checks if a gpu is available.
-    """
-    available_providers = ort.get_available_providers()
-    if (
-        "CUDAExecutionProvider" in available_providers or "ROCMExecutionProvider" in available_providers
-    ) and torch.cuda.is_available():
-        return True
-    else:
-        return False
 
 
 def is_onnxruntime_training_available():
@@ -81,9 +64,11 @@ def is_onnxruntime_training_available():
 
 def is_cupy_available():
     """
-    Checks if onnxruntime-training is available.
+    Checks if CuPy is available.
     """
-    return _is_package_available("cupy")
+    # Don't use _is_package_available as it doesn't work with CuPy installed
+    # with `cupy-cuda*` and `cupy-rocm-*` package name (prebuilt wheels).
+    return importlib.util.find_spec("cupy") is not None
 
 
 class ORTConfigManager:
@@ -102,13 +87,14 @@ class ORTConfigManager:
         "bart": "bart",
         "bert": "bert",
         "big-bird": "bert",
-        # "bigbird-pegasus": None,  # bug in `fusion_skiplayernorm.py`
+        "bigbird-pegasus": "bart",
         "blenderbot": "bert",
         "bloom": "gpt2",
         "camembert": "bert",
         "codegen": "gpt2",
         "deberta": "bert",
         "deberta-v2": "bert",
+        "dinov2": "vit",
         "distilbert": "bert",
         "electra": "bert",
         "gpt2": "gpt2",
@@ -116,21 +102,24 @@ class ORTConfigManager:
         "gpt-neo": "gpt2",
         "gpt-neox": "gpt2",
         "gptj": "gpt2",
-        # longt5 with O4 results in segmentation fault
+        "granite": "gpt2",
         "longt5": "bert",
         "llama": "gpt2",
         "marian": "bart",
         "mbart": "bart",
         "mistral": "gpt2",
+        "mpnet": "bert",
         "mt5": "bart",
         "m2m-100": "bart",
         "nystromformer": "bert",
         "pegasus": "bert",
         "roberta": "bert",
+        "segformer": "vit",
         "t5": "bert",
         "vit": "vit",
         "whisper": "bart",
         "xlm-roberta": "bert",
+        "pix2struct": "vit",
     }
 
     @classmethod
@@ -162,6 +151,7 @@ class ORTConfigManager:
             "clip",
             "vit",
             "swin",
+            "swinv2",
         ]
         model_type = model_type.replace("_", "-")
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
@@ -184,7 +174,7 @@ def get_device_for_provider(provider: str, provider_options: Dict) -> torch.devi
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
     if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider", "ROCMExecutionProvider"]:
-        return torch.device(f"cuda:{provider_options['device_id']}")
+        return torch.device(f"cuda:{provider_options.get('device_id', 0)}")
     else:
         return torch.device("cpu")
 
@@ -273,6 +263,40 @@ def validate_provider_availability(provider: str):
         )
 
 
+def prepare_providers_and_provider_options(
+    provider: str = "CPUExecutionProvider",
+    providers: Optional[Sequence[str]] = None,
+    provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+):
+    """
+    Prepare the providers and provider options for ONNX Runtime.
+    Args:
+        provider (`str`):
+            The provider to use. If `None`, the default provider will be used.
+        providers (`Sequence[str]`, `optional`):
+            The list of providers to use. If `None`, the default provider will be used.
+        provider_options (`Union[Sequence[Dict[str, Any]], Dict[str, Any]]`, `optional`):
+            The options to use for the providers. If `None`, the default options will be used.
+    """
+    if providers is None:
+        providers = [provider]
+
+    for provider in providers:
+        validate_provider_availability(provider)
+
+    if provider_options is None:
+        provider_options = [{}] * len(providers)
+    elif isinstance(provider_options, dict):
+        provider_options = [provider_options] + [{}] * (len(providers) - 1)
+    elif len(provider_options) != len(providers):
+        raise ValueError(
+            f"When passing a list of provider options, it should be the same length as the list of providers. "
+            f"Got {len(provider_options)} provider options for {len(providers)} providers."
+        )
+
+    return providers, provider_options
+
+
 def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None) -> bool:
     """
     Whether to use IOBinding or not.
@@ -338,3 +362,102 @@ class ORTQuantizableOperator(Enum):
     Resize = "Resize"
     AveragePool = "AveragePool"
     Concat = "Concat"
+
+
+def evaluation_loop(
+    model: "ORTModel",
+    dataset: "Dataset",
+    label_names: Optional[List[str]] = None,
+    compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
+):
+    """
+    Run evaluation and returns metrics and predictions.
+
+    Args:
+        model (`ORTModel`):
+            The ONNXRuntime model to use for the evaluation step.
+        dataset (`datasets.Dataset`):
+            Dataset to use for the evaluation step.
+        label_names (`List[str]`, `optional`):
+            The list of keys in your dictionary of inputs that correspond to the labels.
+        compute_metrics (`Callable[[EvalPrediction], Dict]`, `optional`):
+            The function that will be used to compute metrics at evaluation. Must take an `EvalPrediction` and
+            return a dictionary string to metric values.
+    """
+
+    all_preds = None
+    all_labels = None
+
+    for inputs in tqdm(dataset, desc="Evaluation"):
+        has_labels = all(inputs.get(k) is not None for k in label_names)
+        if has_labels:
+            labels = tuple(np.array([inputs.get(name)]) for name in label_names)
+            if len(labels) == 1:
+                labels = labels[0]
+        else:
+            labels = None
+
+        inputs = {key: np.array([inputs[key]]) for key in model.input_names if key in inputs}
+        preds = model(**inputs)
+
+        if len(preds) == 1:
+            preds = preds[0]
+
+        all_preds = preds if all_preds is None else nested_concat(all_preds, preds, padding_index=-100)
+        all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+
+    if compute_metrics is not None and all_preds is not None and all_labels is not None:
+        metrics = compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
+    else:
+        metrics = {}
+
+    return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=len(dataset))
+
+
+def np_to_pt_generators(np_object, device):
+    if isinstance(np_object, np.random.RandomState):
+        return torch.Generator(device=device).manual_seed(int(np_object.get_state()[1][0]))
+    elif isinstance(np_object, np.random.Generator):
+        return torch.Generator(device=device).manual_seed(int(np_object.bit_generator.state[1][0]))
+    elif isinstance(np_object, list) and isinstance(np_object[0], (np.random.RandomState, np.random.Generator)):
+        return [np_to_pt_generators(a, device) for a in np_object]
+    elif isinstance(np_object, dict) and isinstance(
+        next(iter(np_object.values())), (np.random.RandomState, np.random.Generator)
+    ):
+        return {k: np_to_pt_generators(v, device) for k, v in np_object.items()}
+    else:
+        return np_object
+
+
+class DummyWhisperModel:
+    def __init__(self):
+        self.encoder = self.Encoder()
+
+    class Encoder:
+        def __init__(self):
+            self.conv1 = self.Conv(stride=(1,))
+            self.conv2 = self.Conv(stride=(2,))
+
+        class Conv:
+            def __init__(self, stride):
+                self.stride = stride
+
+
+def get_dtype_from_session(session: ort.InferenceSession) -> torch.dtype:
+    """
+    Returns the `torch.dtype` associated with the ONNX Runtime session.
+    This dtype is inferred from the input/output dtypes of the session.
+    If no floating point type is found, it defaults to `torch.float32`.
+    """
+
+    for input in session.get_inputs():
+        torch_dtype = TypeHelper.ort_type_to_torch_type(input.type)
+        if torch_dtype.is_floating_point:
+            return torch_dtype
+
+    for output in session.get_outputs():
+        torch_dtype = TypeHelper.ort_type_to_torch_type(output.type)
+        if torch_dtype.is_floating_point:
+            return torch_dtype
+
+    return torch.float32

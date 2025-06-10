@@ -13,6 +13,16 @@
     title: Conceptual guides
   title: Overview
 - sections:
+  - local: nvidia_overview
+    title: 🤗 Optimum Nvidia
+  title: Nvidia
+  isExpanded: false
+- sections:
+  - local: furiosa_overview
+    title: 🤗 Optimum Furiosa
+  title: Furiosa
+  isExpanded: false
+- sections:
   - local: onnxruntime/overview
     title: Overview
   - local: onnxruntime/quickstart
@@ -96,6 +106,18 @@
   title: Exporters
   isExpanded: false
 - sections:
+  - local: bettertransformer/overview
+    title: Overview
+  - sections:
+    - local: bettertransformer/tutorials/convert
+      title: Convert Transformers models to use BetterTransformer
+    - local: bettertransformer/tutorials/contribute
+      title: How to add support for new architectures?
+    title: Tutorials
+    isExpanded: false
+  title: BetterTransformer
+  isExpanded: false
+- sections:
   - local: torch_fx/overview
     title: Overview
   - sections:
@@ -114,18 +136,6 @@
     title: Reference
     isExpanded: false
   title: Torch FX
-  isExpanded: false
-- sections:
-  - local: bettertransformer/overview
-    title: Overview
-  - sections:
-    - local: bettertransformer/tutorials/convert
-      title: Convert Transformers models to use BetterTransformer
-    - local: bettertransformer/tutorials/contribute
-      title: How to add support for new architectures?
-    title: Tutorials
-    isExpanded: false
-  title: BetterTransformer
   isExpanded: false
 - sections:
   - local: llm_quantization/usage_guides/quantization

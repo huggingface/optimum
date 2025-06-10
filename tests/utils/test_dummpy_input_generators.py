@@ -31,13 +31,13 @@ if TYPE_CHECKING:
     from optimum.utils.input_generators import DummyInputGenerator
 
 
-TEXT_ENCODER_MODELS = {"distilbert": "distilbert-base-cased"}
+TEXT_ENCODER_MODELS = {"distilbert": "hf-internal-testing/tiny-random-DistilBertModel"}
 
 VISION_MODELS = {"resnet": "hf-internal-testing/tiny-random-resnet"}
 
-SEQ2SEQ_MODELS = {"t5": "t5-small"}
+SEQ2SEQ_MODELS = {"t5": "hf-internal-testing/tiny-random-T5Model"}
 
-AUDIO_MODELS = {"whisper": "openai/whisper-tiny.en"}
+AUDIO_MODELS = {"whisper": "optimum-internal-testing/tiny-random-whisper"}
 
 DUMMY_SHAPES = {
     "batch_size": [2, 4],
@@ -60,7 +60,7 @@ class GenerateDummy(TestCase):
         "np": tuple,
     }
     if is_tf_available():
-        import tensorflow as tf
+        import tensorflow as tf  # type: ignore[import]
 
         _FRAMEWORK_TO_SHAPE_CLS["tf"] = tf.TensorShape
 

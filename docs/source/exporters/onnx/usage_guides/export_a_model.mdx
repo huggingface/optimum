@@ -87,7 +87,7 @@ Required arguments:
   output                Path indicating the directory where to store generated ONNX model.
 
 Optional arguments:
-  --task TASK           The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on the model, but are among: ['default', 'fill-mask', 'text-generation', 'text2text-generation', 'text-classification', 'token-classification', 'multiple-choice', 'object-detection', 'question-answering', 'image-classification', 'image-segmentation', 'masked-im', 'semantic-segmentation', 'automatic-speech-recognition', 'audio-classification', 'audio-frame-classification', 'automatic-speech-recognition', 'audio-xvector', 'image-to-text', 'stable-diffusion', 'zero-shot-object-detection']. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder.
+  --task TASK           The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on the model, but are among: ['default', 'fill-mask', 'text-generation', 'text2text-generation', 'text-classification', 'token-classification', 'multiple-choice', 'object-detection', 'question-answering', 'image-classification', 'image-segmentation', 'masked-im', 'semantic-segmentation', 'automatic-speech-recognition', 'audio-classification', 'audio-frame-classification', 'automatic-speech-recognition', 'audio-xvector', 'image-to-text', 'zero-shot-object-detection', 'image-to-image', 'inpainting', 'text-to-image']. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder.
   --monolith            Force to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several ONNX files, for example for encoder-decoder models where the encoder should be run only once while the decoder is looped over.
   --device DEVICE       The device to use to do the export. Defaults to "cpu".
   --opset OPSET         If specified, ONNX opset version to export the model with. Otherwise, the default opset will be used.
@@ -396,14 +396,13 @@ class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
             inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
 
-model_id = "/home/fxmarty/hf_internship/optimum/tiny-mpt-random-remote-code"
+model_id = "fxmarty/tiny-mpt-random-remote-code"
 config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
 
 onnx_config = CustomMPTOnnxConfig(
     config=config,
     task="text-generation",
     use_past_in_inputs=False,
-    use_present_in_outputs=True,
 )
 onnx_config_with_past = CustomMPTOnnxConfig(config, task="text-generation", use_past=True)
 
@@ -419,6 +418,8 @@ main_export(
     trust_remote_code=True,
     custom_onnx_configs=custom_onnx_configs,
     no_post_process=True,
+    legacy=True,
+    opset=14
 )
 ```
 

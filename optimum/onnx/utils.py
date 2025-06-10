@@ -19,6 +19,19 @@ import onnx
 from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
 
 
+def _get_onnx_external_constants(model: onnx.ModelProto) -> List[str]:
+    external_constants = []
+
+    for node in model.graph.node:
+        if node.op_type == "Constant":
+            for attribute in node.attribute:
+                external_datas = attribute.t.external_data
+                for external_data in external_datas:
+                    external_constants.append(external_data.value)
+
+    return external_constants
+
+
 def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> List[str]:
     """
     Gets the paths of the external data tensors in the model.
@@ -56,6 +69,22 @@ def _get_external_data_paths(src_paths: List[Path], dst_paths: List[Path]) -> Tu
             src_paths.extend([model_path.parent / tensor_name for tensor_name in model_tensors_ext])
             dst_paths.extend(dst_paths[idx].parent / tensor_name for tensor_name in model_tensors_ext)
     return src_paths, dst_paths
+
+
+def _get_model_external_data_paths(model_path: Path) -> List[Path]:
+    """
+    Gets external data paths from the model.
+    """
+
+    onnx_model = onnx.load(str(model_path), load_external_data=False)
+    model_tensors = _get_initializer_tensors(onnx_model)
+    # filter out tensors that are not external data
+    model_tensors_ext = [
+        ExternalDataInfo(tensor).location
+        for tensor in model_tensors
+        if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
+    ]
+    return list({model_path.parent / tensor_name for tensor_name in model_tensors_ext})
 
 
 def check_model_uses_external_data(model: onnx.ModelProto) -> bool:

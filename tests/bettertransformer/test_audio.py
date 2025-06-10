@@ -35,7 +35,7 @@ ALL_AUDIO_MODELS_TO_TEST = [
 
 class TestsWhisper(unittest.TestCase):
     def test_error_message(self):
-        model = AutoModel.from_pretrained("openai/whisper-tiny")
+        model = AutoModel.from_pretrained("openai/whisper-tiny", attn_implementation="eager")
 
         with self.assertRaises(ValueError) as cm:
             model = BetterTransformer.transform(model)
@@ -49,6 +49,7 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
     Since `Bark` is a text-to-speech model, it is preferrable
     to define its own testing class.
     """
+
     SUPPORTED_ARCH = ["bark"]
 
     FULL_GRID = {
@@ -81,15 +82,19 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
         set_seed(0)
 
         if not use_to_operator:
-            hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+            hf_random_model = automodel_class.from_pretrained(
+                model_id, torch_dtype=torch.float16, attn_implementation="eager"
+            ).to(0)
             converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
 
-            hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+            hf_random_model = automodel_class.from_pretrained(
+                model_id, torch_dtype=torch.float16, attn_implementation="eager"
+            ).to(0)
         else:
-            hf_random_model = automodel_class.from_pretrained(model_id).to(0)
+            hf_random_model = automodel_class.from_pretrained(model_id, attn_implementation="eager").to(0)
             converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
 
-            hf_random_model = automodel_class.from_pretrained(model_id).to(0)
+            hf_random_model = automodel_class.from_pretrained(model_id, attn_implementation="eager").to(0)
             hf_random_model = hf_random_model.to(torch.float16)
             converted_model = converted_model.to(torch.float16)
 
@@ -146,7 +151,7 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
         model_id = MODELS_DICT[model_type]
         processor = AutoProcessor.from_pretrained(model_id)
 
-        model = AutoModel.from_pretrained(model_id)
+        model = AutoModel.from_pretrained(model_id, attn_implementation="eager")
 
         text = ["This is me and me"]
         if batch_size > 1:
@@ -185,6 +190,7 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
     r"""
     Testing suite for Audio models - tests all the tests defined in `BetterTransformersTestMixin`
     """
+
     SUPPORTED_ARCH = ["wav2vec2", "hubert"]
 
     FULL_GRID = {
@@ -215,14 +221,14 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
             inputs = self.prepare_inputs_for_class(model_id, model_type)
 
             torch.manual_seed(0)
-            hf_random_model = AutoModel.from_pretrained(model_id).eval()
+            hf_random_model = AutoModel.from_pretrained(model_id, attn_implementation="eager").eval()
             random_config = hf_random_model.config
 
             torch.manual_seed(0)
             converted_model = BetterTransformer.transform(hf_random_model)
 
             torch.manual_seed(0)
-            hf_random_model = AutoModel.from_pretrained(model_id).eval()
+            hf_random_model = AutoModel.from_pretrained(model_id, attn_implementation="eager").eval()
             random_config = hf_random_model.config
 
             self.assertFalse(

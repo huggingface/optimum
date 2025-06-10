@@ -38,8 +38,6 @@ optimum/bettertransformer/models/base.py
 optimum/bettertransformer/models/encoder_models.py
 optimum/bettertransformer/transformation.py
 optimum/modeling_base.py
-optimum/fx/quantization/functions.py
-optimum/fx/quantization/__init__.py
 optimum/fx/__init__.py
 optimum/fx/optimization/__init__.py
 optimum/fx/optimization/transformations.py
@@ -48,7 +46,6 @@ optimum/__init__.py
 optimum/version.py
 optimum/quantization_base.py
 optimum/configuration_utils.py
-optimum/pipelines.py
 optimum/onnxruntime/preprocessors/passes/layernorm.py
 optimum/onnxruntime/preprocessors/passes/__init__.py
 optimum/onnxruntime/preprocessors/passes/gelu.py
@@ -65,7 +62,6 @@ optimum/onnxruntime/graph.py
 optimum/onnxruntime/modeling_decoder.py
 optimum/onnxruntime/trainer_seq2seq.py
 optimum/onnxruntime/modeling_seq2seq.py
-optimum/onnxruntime/model.py
 optimum/onnxruntime/training_args_seq2seq.py
 optimum/onnxruntime/quantization.py
 optimum/onnxruntime/runs/__init__.py

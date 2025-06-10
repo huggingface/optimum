@@ -27,7 +27,7 @@ from optimum.utils.testing_utils import flatten_dict, require_torch_gpu
 
 MODELS_DICT = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
-    "bark": "ylacombe/bark-small",  # TODO: put a smaller model, this one is 1.7GB...
+    "bark": "ylacombe/bark-small",
     "bart": "hf-internal-testing/tiny-random-bart",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
@@ -59,12 +59,12 @@ MODELS_DICT = {
     # "llama": "fxmarty/tiny-llama-fast-tokenizer",
     # "llama-gqa": "noamwies/llama-test-gqa-with-better-transformer",
     "m2m_100": "hf-internal-testing/tiny-random-nllb",
-    "marian": "fxmarty/tiny-marian",  # the other tiny ones have a too small max_position_embeddings
+    "marian": "optimum-internal-testing/tiny-random-marian",  # the other tiny ones have a too small max_position_embeddings
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
-    "prophetnet": "hirotasoshu/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings
+    "prophetnet": "optimum-internal-testing/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings
     "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "rocbert": "hf-internal-testing/tiny-random-RoCBertModel",
@@ -136,10 +136,12 @@ class BetterTransformersTestMixin(unittest.TestCase):
 
         torch.manual_seed(0)
         if not use_to_operator:
-            hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+            hf_random_model = automodel_class.from_pretrained(
+                model_id, torch_dtype=torch.float16, attn_implementation="eager"
+            ).to(0)
             converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
         else:
-            hf_random_model = automodel_class.from_pretrained(model_id).to(0)
+            hf_random_model = automodel_class.from_pretrained(model_id, attn_implementation="eager").to(0)
             converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
             hf_random_model = hf_random_model.to(torch.float16)
             converted_model = converted_model.to(torch.float16)
@@ -169,7 +171,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
     def _test_logits_backward(self, model_id: str, model_type: str, **preprocessor_kwargs):
         inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs)
 
-        hf_random_model = AutoModel.from_pretrained(model_id).eval()
+        hf_random_model = AutoModel.from_pretrained(model_id, attn_implementation="eager").eval()
         random_config = hf_random_model.config
 
         # I could not obtain reproducible results with `torch.manual_seed` nor with
@@ -235,7 +237,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
         inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs)
 
         torch.manual_seed(0)
-        hf_random_model = AutoModel.from_pretrained(model_id).eval()
+        hf_random_model = AutoModel.from_pretrained(model_id, attn_implementation="eager").eval()
         random_config = hf_random_model.config
 
         hf_random_model = hf_random_model.eval()
@@ -309,7 +311,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
         """
         inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
 
-        hf_random_model = AutoModel.from_pretrained(model_id).eval()
+        hf_random_model = AutoModel.from_pretrained(model_id, attn_implementation="eager").eval()
 
         bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
         bt_model.train()
@@ -328,7 +330,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
         r"""
         Test that the inverse converted model and hf model have the same modules
         """
-        hf_model = AutoModel.from_pretrained(model_id)
+        hf_model = AutoModel.from_pretrained(model_id, attn_implementation="eager")
         hf_modules = list(hf_model.modules())
 
         bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
@@ -349,7 +351,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
 
     def _test_save_load_invertible(self, model_id, keep_original_model=True):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            hf_model = AutoModel.from_pretrained(model_id).eval()
+            hf_model = AutoModel.from_pretrained(model_id, attn_implementation="eager").eval()
             hf_model_state_dict = copy.deepcopy(hf_model.state_dict())
 
             bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
@@ -359,9 +361,10 @@ class BetterTransformersTestMixin(unittest.TestCase):
             for name, param in bt_model.named_parameters():
                 self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
 
-            bt_model.save_pretrained(tmpdirname)
+            # saving a normal transformers bark model fails because of shared tensors
+            bt_model.save_pretrained(tmpdirname, safe_serialization=hf_model.config.model_type != "bark")
 
-            bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
+            bt_model_from_load = AutoModel.from_pretrained(tmpdirname, attn_implementation="eager")
 
             self.assertEqual(
                 set(bt_model.state_dict().keys()),
@@ -396,7 +399,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
         """
         inputs = self.prepare_inputs_for_class(model_id, model_type=model_type, **preprocessor_kwargs)
 
-        hf_model = AutoModel.from_pretrained(model_id)
+        hf_model = AutoModel.from_pretrained(model_id, attn_implementation="eager")
         hf_model = hf_model.eval()
 
         with torch.inference_mode():

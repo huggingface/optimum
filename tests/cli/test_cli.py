@@ -21,10 +21,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from onnxruntime import __version__ as ort_version
-from packaging.version import Version, parse
-
 import optimum.commands
+from optimum.onnxruntime.configuration import AutoQuantizationConfig, ORTConfig
 
 
 CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
@@ -83,29 +81,33 @@ class TestCLI(unittest.TestCase):
 
     def test_quantize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
+            ort_config = ORTConfig(quantization=AutoQuantizationConfig.avx2(is_static=False))
+            ort_config.save_pretrained(tempdir)
+
             # First export a tiny encoder, decoder only and encoder-decoder
             export_commands = [
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-BertModel {tempdir}/encoder",
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bert {tempdir}/encoder",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 {tempdir}/decoder",
-                # f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder",
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder",
             ]
             quantize_commands = [
                 f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder --avx2 -o {tempdir}/quantized_encoder",
                 f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/decoder --avx2 -o {tempdir}/quantized_decoder",
-                # f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2 -o {tempdir}/quantized_encoder_decoder",
+                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2 -o {tempdir}/quantized_encoder_decoder",
             ]
 
-            if parse(ort_version) != Version("1.16.0"):
-                export_commands.append(
-                    f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder"
-                )
-                quantize_commands.append(
-                    f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2 -o {tempdir}/quantized_encoder_decoder"
-                )
+            quantize_with_config_commands = [
+                f"optimum-cli onnxruntime quantize --onnx_model hf-internal-testing/tiny-random-bert --c {tempdir}/ort_config.json -o {tempdir}/quantized_encoder_with_config",
+                f"optimum-cli onnxruntime quantize --onnx_model hf-internal-testing/tiny-random-gpt2 --c {tempdir}/ort_config.json -o {tempdir}/quantized_decoder_with_config",
+                f"optimum-cli onnxruntime quantize --onnx_model hf-internal-testing/tiny-random-t5 --c {tempdir}/ort_config.json -o {tempdir}/quantized_encoder_decoder_with_config",
+            ]
 
-            for export, quantize in zip(export_commands, quantize_commands):
+            for export, quantize, quantize_with_config in zip(
+                export_commands, quantize_commands, quantize_with_config_commands
+            ):
                 subprocess.run(export, shell=True, check=True)
                 subprocess.run(quantize, shell=True, check=True)
+                subprocess.run(quantize_with_config, shell=True, check=True)
 
     def _run_command_and_check_content(self, command: str, content: str) -> bool:
         proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)

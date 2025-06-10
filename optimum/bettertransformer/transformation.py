@@ -20,7 +20,13 @@ from typing import TYPE_CHECKING, Dict, Optional, Union
 import torch
 from packaging.version import parse
 
-from ..utils import check_if_pytorch_greater, is_accelerate_available, recurse_getattr, recurse_setattr
+from ..utils import (
+    check_if_pytorch_greater,
+    check_if_torch_greater,
+    is_accelerate_available,
+    recurse_getattr,
+    recurse_setattr,
+)
 from .models import BetterTransformerManager
 
 
@@ -206,18 +212,25 @@ class BetterTransformer(object):
             The converted model if the conversion has been successful.
         """
 
+        logger.warning(
+            "The class `optimum.bettertransformers.transformation.BetterTransformer` is deprecated and will be removed in optimum v2.0."
+        )
+
         hf_config = model.config
         if hf_config.model_type in ["falcon", "gpt_bigcode", "llama", "whisper"]:
             raise ValueError(
-                f"Transformers now supports natively BetterTransformer optimizations (torch.nn.functional.scaled_dot_product_attention) for the model type {hf_config.model_type}. As such, there is no need to use `model.to_bettertransformers()` or `BetterTransformer.transform(model)` from the Optimum library. Please upgrade to transformers>=4.36 and torch>=2.1.1 to use it. Details: https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-and-memory-efficient-attention-through-pytorchs-scaleddotproductattention."
+                f"Transformers now supports natively BetterTransformer optimizations (torch.nn.functional.scaled_dot_product_attention) for the model type {hf_config.model_type}. "
+                "As such, there is no need to use `model.to_bettertransformers()` or `BetterTransformer.transform(model)` from the Optimum library. "
+                "Please upgrade to transformers>=4.36 and torch>=2.1.1 to use it. "
+                "Details: https://huggingface.co/docs/transformers/perf_infer_gpu_one#pytorch-scaled-dot-product-attention."
             )
 
-        # Check if we have to load the model using `accelerate`
-        if hasattr(model, "hf_device_map"):
-            load_accelerate = True
-            hf_device_map = model.hf_device_map
-        else:
-            load_accelerate = False
+        if hasattr(hf_config, "_attn_implementation") and hf_config._attn_implementation == "sdpa":
+            raise ValueError(
+                "This model already uses BetterTransformer optimizations from Transformers (torch.nn.functional.scaled_dot_product_attention). "
+                "As such, there is no need to use `model.to_bettertransformers()` or `BetterTransformer.transform(model)` from the Optimum library. "
+                "Details: https://huggingface.co/docs/transformers/perf_infer_gpu_one#pytorch-scaled-dot-product-attention."
+            )
 
         if hasattr(model, "use_bettertransformer") and model.use_bettertransformer is True:
             raise Exception(
@@ -237,10 +250,19 @@ class BetterTransformer(object):
                 f" Currently supported models are: {BetterTransformerManager.MODEL_MAPPING.keys()}."
             )
 
-        if parse(torch.__version__) <= parse("1.14"):
+        if not check_if_torch_greater("2.0"):
             raise ValueError(
                 f"BetterTransformer requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
             )
+
+        hf_config = model.config
+
+        # Check if we have to load the model using `accelerate`
+        if hasattr(model, "hf_device_map"):
+            load_accelerate = True
+            hf_device_map = model.hf_device_map
+        else:
+            load_accelerate = False
 
         if load_accelerate:
             # Remove the hooks from the original model to avoid weights being on `meta` device.

@@ -6,6 +6,9 @@ from typing import Dict, List
 import yaml
 
 
+SUBPACKAGE_TOC_INSERT_INDEX = 2
+
+
 parser = argparse.ArgumentParser(
     description="Script to combine doc builds from subpackages with base doc build of Optimum. "
     "Assumes all subpackage doc builds are present in the root of the `optimum` repo."
@@ -89,7 +92,7 @@ def add_neuron_doc(base_toc: List):
     """
     # Update optimum table of contents
     base_toc.insert(
-        1,
+        SUBPACKAGE_TOC_INSERT_INDEX,
         {
             "sections": [
                 {
@@ -100,6 +103,81 @@ def add_neuron_doc(base_toc: List):
                 }
             ],
             "title": "AWS Trainium/Inferentia",
+            "isExpanded": False,
+        },
+    )
+
+
+def add_tpu_doc(base_toc: List):
+    """
+    Extends the table of content with a section about Optimum TPU.
+
+    Args:
+        base_toc (List): table of content for the doc of Optimum.
+    """
+    # Update optimum table of contents
+    base_toc.insert(
+        SUBPACKAGE_TOC_INSERT_INDEX,
+        {
+            "sections": [
+                {
+                    # Ideally this should directly point at https://huggingface.co/docs/optimum-tpu/index
+                    # Current hacky solution is to have a redirection in _redirects.yml
+                    "local": "docs/optimum-tpu/index",
+                    "title": "🤗 Optimum-TPU",
+                }
+            ],
+            "title": "Google TPUs",
+            "isExpanded": False,
+        },
+    )
+
+
+def add_executorch_doc(base_toc: List):
+    """
+    Extends the table of content with a section about Optimum ExecuTorch.
+
+    Args:
+        base_toc (List): table of content for the doc of Optimum.
+    """
+    # Update optimum table of contents
+    base_toc.insert(
+        SUBPACKAGE_TOC_INSERT_INDEX,
+        {
+            "sections": [
+                {
+                    # Ideally this should directly point at https://huggingface.co/docs/optimum-executorch/index
+                    # Current hacky solution is to have a redirection in _redirects.yml
+                    "local": "docs/optimum-executorch/index",
+                    "title": "🤗 Optimum ExecuTorch",
+                }
+            ],
+            "title": "ExecuTorch",
+            "isExpanded": False,
+        },
+    )
+
+
+def add_furiosa_doc(base_toc: List):
+    """
+    Extends the table of content with a section about Optimum Furiosa.
+
+    Args:
+        base_toc (List): table of content for the doc of Optimum.
+    """
+    # Update optimum table of contents
+    base_toc.insert(
+        SUBPACKAGE_TOC_INSERT_INDEX,
+        {
+            "sections": [
+                {
+                    # Ideally this should directly point at https://huggingface.co/docs/optimum-furiosa/index
+                    # Current hacky solution is to have a redirection in _redirects.yml
+                    "local": "docs/optimum-furiosa/index",
+                    "title": "🤗 Optimum Furiosa",
+                }
+            ],
+            "title": "Furiosa",
             "isExpanded": False,
         },
     )
@@ -118,6 +196,20 @@ def main():
         if subpackage == "neuron":
             # Neuron has its own doc so it is managed differently
             add_neuron_doc(base_toc)
+        elif subpackage == "tpu":
+            # Optimum TPU has its own doc so it is managed differently
+            add_tpu_doc(base_toc)
+        elif subpackage == "nvidia":
+            # At the moment, Optimum Nvidia's doc is the README of the GitHub repo
+            # It is linked to in optimum/docs/source/nvidia_overview.mdx
+            continue
+        elif subpackage == "executorch":
+            # Optimum ExecuTorch has its own doc so it is managed differently
+            add_executorch_doc(base_toc)
+        elif subpackage == "furiosa":
+            # TODO: add furiosa doc when available
+            # add_furiosa_doc(base_toc)
+            continue
         else:
             subpackage_path = Path(f"{subpackage}-doc-build")
 
@@ -136,10 +228,13 @@ def main():
             # Extend table of contents sections with the subpackage name as the parent folder
             rename_subpackage_toc(subpackage, subpackage_toc)
             # Just keep the name of the partner in the TOC title
-            subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum ")[-1]
+            if subpackage == "amd":
+                subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum-")[-1]
+            else:
+                subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum ")[-1]
             if subpackage != "graphcore":
                 # Update optimum table of contents
-                base_toc.insert(1, subpackage_toc[0])
+                base_toc.insert(SUBPACKAGE_TOC_INSERT_INDEX, subpackage_toc[0])
 
     # Write final table of contents
     with open(base_toc_path, "w") as f:

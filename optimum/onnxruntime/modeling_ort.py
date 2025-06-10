@@ -14,16 +14,14 @@
 """ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import logging
-import re
-import shutil
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 import torch
-from huggingface_hub import HfApi, HfFolder, hf_hub_download
-from huggingface_hub.utils import EntryNotFoundError
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import (
     AutoConfig,
     AutoModel,
@@ -32,18 +30,21 @@ from transformers import (
     AutoModelForAudioXVector,
     AutoModelForCTC,
     AutoModelForImageClassification,
+    AutoModelForImageToImage,
     AutoModelForMaskedLM,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
     AutoModelForSemanticSegmentation,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
+    GenerationMixin,
 )
 from transformers.file_utils import add_end_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
     BaseModelOutput,
     CausalLMOutput,
     ImageClassifierOutput,
+    ImageSuperResolutionOutput,
     MaskedLMOutput,
     ModelOutput,
     MultipleChoiceModelOutput,
@@ -53,25 +54,19 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
     XVectorOutput,
 )
+from transformers.utils import cached_file, is_offline_mode
+from typing_extensions import Self
 
-import onnxruntime as ort
+from onnxruntime import InferenceSession, SessionOptions
 
 from ..exporters import TasksManager
 from ..exporters.onnx import main_export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
-from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern
-from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from .io_binding import IOBindingHelper, TypeHelper
-from .utils import (
-    ONNX_WEIGHTS_NAME,
-    check_io_binding,
-    get_device_for_provider,
-    get_ordered_input_names,
-    get_provider_for_device,
-    parse_device,
-    validate_provider_availability,
-)
+from ..utils.save_utils import maybe_save_preprocessors
+from .base import ORTSessionMixin
+from .constants import ONNX_FILE_PATTERN
+from .utils import prepare_providers_and_provider_options
 
 
 if TYPE_CHECKING:
@@ -127,15 +122,8 @@ ONNX_AUDIO_INPUTS_DOCSTRING = r"""
 """
 
 
-class classproperty:
-    def __init__(self, getter):
-        self.getter = getter
-
-    def __get__(self, instance, owner):
-        return self.getter(owner)
-
-
-class ORTModel(OptimizedModel):
+# TODO: remove OptimizedModel and use a HubMixin to be able to combine it freely with other mixins
+class ORTModel(ORTSessionMixin, OptimizedModel):
     """
     Base class for implementing models using ONNX Runtime.
 
@@ -148,68 +136,75 @@ class ORTModel(OptimizedModel):
         - auto_model_class (`Type`, *optional*, defaults to `AutoModel`) -- The "AutoModel" class to represented by the
         current ORTModel class.
 
-    Common attributes:
-        - model (`ort.InferenceSession`) -- The ONNX Runtime InferenceSession that is running the model.
+    Args:
         - config ([`~transformers.PretrainedConfig`] -- The configuration of the model.
+        - session (`~onnxruntime.InferenceSession`) -- The ONNX Runtime InferenceSession that is running the model.
         - use_io_binding (`bool`, *optional*, defaults to `True`) -- Whether to use I/O bindings with **ONNX Runtime
         with the CUDAExecutionProvider**, this can significantly speedup inference depending on the task.
         - model_save_dir (`Path`) -- The directory where the model exported to ONNX is saved.
         By defaults, if the loaded model is local, the directory where the original model will be used. Otherwise, the
         cache directory is used.
-        - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
     """
 
     model_type = "onnx_model"
     auto_model_class = AutoModel
 
-    @classproperty
-    def export_feature(cls):
-        logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
-        try:
-            feature = TasksManager.infer_task_from_model(cls.auto_model_class)
-        except ValueError:
-            feature = None
-        return feature
-
-    @classmethod
-    def _auto_model_to_task(cls, auto_model_class):
-        """
-        Get the task corresponding to a class (for example AutoModelForXXX in transformers).
-        """
-        return TasksManager.infer_task_from_model(auto_model_class)
-
-    def shared_attributes_init(
+    def __init__(
         self,
-        model: ort.InferenceSession,
+        *args,
+        config: "PretrainedConfig" = None,
+        session: "InferenceSession" = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
         **kwargs,
     ):
-        """
-        Initializes attributes that may be shared among several ONNX Runtime inference sesssions.
-        """
-        # TODO: remove at version 2.0
-        if kwargs.pop("latest_model_name", None) is not None:
+        # DEPRECATED BEHAVIOR
+        if args:
             logger.warning(
-                f"The latest_model_name argument to create an {self.__class__.__name__} is deprecated, and not used "
-                "anymore."
+                "Instantiating an ORTModel with positional arguments is deprecated and will be removed in the next version. "
+                "Please use the keyword arguments {config, session, use_io_binding, model_save_dir} instead."
             )
+            # old signature is ORTModel(model, config, use_io_binding, model_save_dir, preprocessors)
+            session = args[0]
+            if len(args) > 1:
+                config = args[1]
+            if len(args) > 2:
+                use_io_binding = args[2]
+            if len(args) > 3:
+                model_save_dir = args[3]
+            if len(args) > 4:
+                _ = args[4]
+
+        if kwargs.get("model", None) is not None:
+            logger.warning(
+                "Passing the inference session as `model` argument to an ORTModel is deprecated. "
+                "Please use `session` instead."
+            )
+            session = kwargs.pop("model")
         if kwargs:
-            raise ValueError(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
+            logger.warning(
+                f"Some keyword arguments were passed to the ORTModel constructor that are not part of its signature: {', '.join(kwargs.keys())}. "
+                "These arguments will be ignored in the current version and will raise an error in the next version."
             )
 
-        self.providers = model.get_providers()
-        self._device = get_device_for_provider(
-            self.providers[0], provider_options=model.get_provider_options()[self.providers[0]]
-        )
+        if config is None:
+            raise ValueError(
+                "The parameter config is required. Please pass a config or use the from_pretrained method."
+            )
+        if session is None:
+            raise ValueError(
+                "The parameter session is required. Please pass a session or use the from_pretrained method."
+            )
+        ## END OF DEPRECATED BEHAVIOR
+
+        super().__init__(model=session, config=config)
+        self.initialize_ort_attributes(session=session, use_io_binding=use_io_binding)
 
         # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
         # would end-up removing the directory containing the underlying ONNX model.
         self._model_save_dir_tempdirectory_instance = None
         if model_save_dir is None:
-            self.model_save_dir = Path(model._model_path).parent
+            self.model_save_dir = Path(session._model_path).parent
         elif isinstance(model_save_dir, TemporaryDirectory):
             self._model_save_dir_tempdirectory_instance = model_save_dir
             self.model_save_dir = Path(model_save_dir.name)
@@ -218,183 +213,23 @@ class ORTModel(OptimizedModel):
         else:
             self.model_save_dir = model_save_dir
 
-        self.preprocessors = preprocessors if preprocessors is not None else []
-
-        if self._device is None:
-            logger.warning(
-                f"ORTModel outputs will be sent to CPU as the device could not be inferred from the execution provider {self.providers[0]}."
-                f" Use `ort_model.to()` to send the outputs to the wanted device."
-            )
-
-        self._use_io_binding = use_io_binding
-
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.model_type, AutoConfig)
         if hasattr(self.auto_model_class, "register"):
             self.auto_model_class.register(AutoConfig, self.__class__)
 
-        # Define the pattern here to avoid recomputing it everytime.
-        self.output_shape_inference_pattern = re.compile(r"([a-zA-Z_]+)|([0-9]+)|([+-/*])|([\(\)])")
-
-    def __init__(
-        self,
-        model: ort.InferenceSession,
-        config: "PretrainedConfig",
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
-        **kwargs,
-    ):
-        super().__init__(model, config)
-
-        if use_io_binding is None:
-            if model.get_providers()[0] == "CUDAExecutionProvider":
-                use_io_binding = True
-            else:
-                use_io_binding = False
-
-        self.model_path = Path(model._model_path)
-        self.model_name = self.model_path.name
-
-        self.shared_attributes_init(
-            model,
-            use_io_binding,
-            model_save_dir,
-            preprocessors,
-            **kwargs,
-        )
-
-        self.inputs_names = {input_key.name: idx for idx, input_key in enumerate(model.get_inputs())}
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
-
-        self._ordered_input_names = get_ordered_input_names(self.inputs_names.keys(), func=self.forward)
-
-    # TODO: why do we make device a property since we are only access the value, and do not do any check when setting the value?
-    @property
-    def device(self) -> torch.device:
-        """
-        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
-        device).
-        """
-        return self._device
-
-    @device.setter
-    def device(self, value: torch.device):
-        self._device = value
-
-    @property
-    def use_io_binding(self):
-        return check_io_binding(self.providers, self._use_io_binding)
-
-    @use_io_binding.setter
-    def use_io_binding(self, value: bool):
-        self._use_io_binding = value
-
-    def to(self, device: Union[torch.device, str, int]):
-        """
-        Changes the ONNX Runtime provider according to the device.
-
-        Args:
-            device (`torch.device` or `str` or `int`):
-                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
-                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
-
-        Returns:
-            `ORTModel`: the model placed on the requested device.
-        """
-        device, provider_options = parse_device(device)
-
-        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
-            return self
-
-        self.device = device
-        provider = get_provider_for_device(self.device)
-        validate_provider_availability(provider)  # raise error if the provider is not available
-
-        # IOBinding is only supported for CPU and CUDA Execution Providers.
-        if device.type == "cuda" and self._use_io_binding is False and provider == "CUDAExecutionProvider":
-            self.use_io_binding = True
-            logger.info(
-                "use_io_binding was set to False, setting it to True because it can provide a huge speedup on GPUs. "
-                "It is possible to disable this feature manually by setting the use_io_binding attribute back to False."
-            )
-
-        if provider == "ROCMExecutionProvider":
-            self.use_io_binding = False
-
-        self.model.set_providers([provider], provider_options=[provider_options])
-        self.providers = self.model.get_providers()
-
-        return self
-
-    def forward(self, *args, **kwargs):
-        raise NotImplementedError
-
-    @staticmethod
-    def load_model(
-        path: Union[str, Path],
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-    ) -> ort.InferenceSession:
-        """
-        Loads an ONNX Inference session with a given provider. Default provider is `CPUExecutionProvider` to match the
-        default behaviour in PyTorch/TensorFlow/JAX.
-
-        Args:
-            path (`Union[str, Path]`):
-                Path of the ONNX model.
-            provider (`str`, defaults to `"CPUExecutionProvider"`):
-                ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
-                for possible providers.
-            session_options (`Optional[onnxruntime.SessionOptions]`, defaults to `None`):
-                ONNX Runtime session options to use for loading the model.
-            provider_options (`Optional[Dict[str, Any]]`, defaults to `None`):
-                Provider option dictionary corresponding to the provider used. See available options
-                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
-        """
-        validate_provider_availability(provider)  # raise error if the provider is not available
-
-        providers = [provider]
-        if provider == "TensorrtExecutionProvider":
-            # Follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
-            providers.append("CUDAExecutionProvider")
-
-        if not isinstance(path, str):
-            path = str(path)
-
-        # `providers` and `provider_options` need to be of the same length
-        if provider_options is not None:
-            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
-        else:
-            providers_options = None
-
-        return ort.InferenceSession(
-            path,
-            providers=providers,
-            sess_options=session_options,
-            provider_options=providers_options,
-        )
-
     def _save_pretrained(self, save_directory: Union[str, Path]):
         """
-        Saves a model and its configuration file to a directory, so that it can be re-loaded using the
-        [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the
-        file under model_save_dir/latest_model_name.
+        Saves the underlying ONNX model and its external data files (if any) to the specified directory.
+        This method is called by the `save_pretrained` method of the `OptimizedModel` class.
+        The model is copied from `self.session._model_path` to `save_directory`.
 
         Args:
             save_directory (`Union[str, Path]`):
                 Directory where to save the model file.
         """
-        src_paths = [self.model_path]
-        dst_paths = [Path(save_directory) / self.model_path.name]
-
-        # add external data paths in case of large models
-        src_paths, dst_paths = _get_external_data_paths(src_paths, dst_paths)
-
-        for src_path, dst_path in zip(src_paths, dst_paths):
-            shutil.copyfile(src_path, dst_path)
+        self.save_session(save_directory)
 
     @staticmethod
     def _generate_regular_names_for_filename(filename: str):
@@ -402,12 +237,12 @@ class ORTModel(OptimizedModel):
         return [filename, f"{name}_quantized.{extension}", f"{name}_optimized.{extension}"]
 
     @staticmethod
-    def infer_onnx_filename(
+    def _infer_onnx_filename(
         model_name_or_path: Union[str, Path],
         patterns: List[str],
         argument_name: str,
         subfolder: str = "",
-        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         fail_if_not_found: bool = True,
     ) -> str:
@@ -418,7 +253,7 @@ class ORTModel(OptimizedModel):
                 pattern,
                 glob_pattern="**/*.onnx",
                 subfolder=subfolder,
-                use_auth_token=use_auth_token,
+                token=token,
                 revision=revision,
             )
             if onnx_files:
@@ -445,198 +280,199 @@ class ORTModel(OptimizedModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: Optional[str] = None,
-        file_name: Optional[str] = None,
+        # hub options
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
+        # file options
+        file_name: Optional[str] = None,
+        # session options
         provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
+        providers: Optional[Sequence[str]] = None,
+        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+        session_options: Optional[SessionOptions] = None,
+        # inference options
         use_io_binding: Optional[bool] = None,
+        # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        **kwargs,
     ) -> "ORTModel":
-        model_path = Path(model_id)
-        regular_onnx_filenames = ORTModel._generate_regular_names_for_filename(ONNX_WEIGHTS_NAME)
+        defaut_file_name = file_name or "model.onnx"
+        onnx_files = find_files_matching_pattern(
+            model_id,
+            ONNX_FILE_PATTERN,
+            glob_pattern="**/*.onnx",
+            subfolder=subfolder,
+            token=token,
+            revision=revision,
+        )
 
-        if file_name is None:
-            if model_path.is_dir():
-                onnx_files = list(model_path.glob("*.onnx"))
-            else:
-                if isinstance(use_auth_token, bool):
-                    token = HfFolder().get_token()
-                else:
-                    token = use_auth_token
-                repo_files = map(Path, HfApi().list_repo_files(model_id, revision=revision, token=token))
-                pattern = "*.onnx" if subfolder == "" else f"{subfolder}/*.onnx"
-                onnx_files = [p for p in repo_files if p.match(pattern)]
+        if len(onnx_files) == 0:
+            raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
+        if len(onnx_files) == 1 and file_name and file_name != onnx_files[0].name:
+            raise FileNotFoundError(f"Trying to load {file_name} but only found {onnx_files[0].name}")
 
-            if len(onnx_files) == 0:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
-            elif len(onnx_files) > 1:
-                raise RuntimeError(
-                    f"Too many ONNX model files were found in {model_path}, specify which one to load by using the "
-                    "file_name argument."
-                )
-            else:
-                file_name = onnx_files[0].name
+        file_name = onnx_files[0].name
+        subfolder = onnx_files[0].parent
 
-        if file_name not in regular_onnx_filenames:
+        if len(onnx_files) > 1:
+            for file in onnx_files:
+                if file.name == defaut_file_name:
+                    file_name = file.name
+                    subfolder = file.parent
+                    break
+
             logger.warning(
-                f"The ONNX file {file_name} is not a regular name used in optimum.onnxruntime, the ORTModel might "
-                "not behave as expected."
+                f"Too many ONNX model files were found in {' ,'.join(map(str, onnx_files))}. "
+                "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
+                f"Loading the file {file_name} in the subfolder {subfolder}."
             )
 
-        model_cache_path, preprocessors = cls._cached_file(
-            model_path=model_path,
-            use_auth_token=use_auth_token,
+        if os.path.isdir(model_id):
+            model_id = subfolder
+            subfolder = ""
+
+        if isinstance(subfolder, Path):
+            subfolder = subfolder.as_posix()
+
+        model_cache_path = cached_file(
+            model_id,
+            filename=file_name,
+            # hub options
+            token=token,
             revision=revision,
-            force_download=force_download,
-            cache_dir=cache_dir,
-            file_name=file_name,
             subfolder=subfolder,
+            cache_dir=cache_dir,
+            force_download=force_download,
             local_files_only=local_files_only,
         )
-        new_model_save_dir = model_cache_path.parent
+        new_model_save_dir = Path(model_cache_path).parent
 
-        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
-        # instead of the path only.
+        try:
+            cached_file(
+                model_id,
+                filename=file_name + "_data",
+                # hub options
+                token=token,
+                revision=revision,
+                subfolder=subfolder,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+            )
+        except EnvironmentError:
+            # If the external data file is not found, we assume that the model is not using external data.
+            pass
+
+        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance,
+        # in which case we want to keep it instead of the path only.
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
 
-        model = ORTModel.load_model(
+        providers, provider_options = prepare_providers_and_provider_options(
+            provider=provider, providers=providers, provider_options=provider_options
+        )
+        session = InferenceSession(
             model_cache_path,
-            provider=provider,
-            session_options=session_options,
+            providers=providers,
             provider_options=provider_options,
+            sess_options=session_options,
         )
 
         return cls(
-            model=model,
             config=config,
+            session=session,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
-        )
-
-    @classmethod
-    def _from_transformers(
-        cls,
-        model_id: str,
-        config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: Optional[str] = None,
-        subfolder: str = "",
-        local_files_only: bool = False,
-        trust_remote_code: bool = False,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
-        task: Optional[str] = None,
-    ) -> "ORTModel":
-        """The method will be deprecated in future releases."""
-        return cls._export(
-            model_id=model_id,
-            config=config,
-            revision=revision,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            use_auth_token=use_auth_token,
-            subfolder=subfolder,
-            local_files_only=local_files_only,
-            trust_remote_code=trust_remote_code,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-            use_io_binding=use_io_binding,
-            task=task,
         )
 
     @classmethod
     def _export(
         cls,
-        model_id: str,
+        model_id: Union[str, Path],
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        # hub options
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
-        task: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
+        # other arguments
+        **kwargs,
     ) -> "ORTModel":
-        if task is None:
-            task = cls._auto_model_to_task(cls.auto_model_class)
+        # this is garanteed to work since we it uses a mapping from model classes to task names
+        # instead of relying on the hub metadata or the model configuration
+        task = TasksManager._infer_task_from_model_or_model_class(model_class=cls.auto_model_class)
 
-        save_dir = TemporaryDirectory()
-        save_dir_path = Path(save_dir.name)
+        if kwargs.get("task", None) is not None:
+            raise ValueError(
+                f"The `task` argument is not needed when exporting a model with `{cls.__name__}`. "
+                f"The `task` is automatically inferred from the class as `{task}`."
+            )
+
+        model_save_dir = TemporaryDirectory()
+        model_save_path = Path(model_save_dir.name)
 
         main_export(
             model_name_or_path=model_id,
-            output=save_dir_path,
+            output=model_save_path,
             task=task,
             do_validation=False,
             no_post_process=True,
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
+            token=token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
+        maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
 
-        config.save_pretrained(save_dir_path)
-        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
-
-        return cls._from_pretrained(
-            save_dir_path,
-            config,
-            use_io_binding=use_io_binding,
-            model_save_dir=save_dir,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-        )
+        return cls._from_pretrained(model_save_path, config, model_save_dir=model_save_dir, **kwargs)
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
     def from_pretrained(
         cls,
         model_id: Union[str, Path],
-        export: bool = False,
-        force_download: bool = False,
-        use_auth_token: Optional[str] = None,
-        cache_dir: Optional[str] = None,
-        subfolder: str = "",
         config: Optional["PretrainedConfig"] = None,
+        # export options
+        export: bool = False,
+        # hub options
+        subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
+        # session options
         provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
+        providers: Optional[Sequence[str]] = None,
+        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+        session_options: Optional[SessionOptions] = None,
+        # inference options
         use_io_binding: Optional[bool] = None,
         **kwargs,
-    ):
+    ) -> Self:
         """
         provider (`str`, defaults to `"CPUExecutionProvider"`):
-            ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/ for
-            possible providers.
-        session_options (`Optional[onnxruntime.SessionOptions]`, defaults to `None`),:
-            ONNX Runtime session options to use for loading the model.
+            ONNX Runtime provider to use for loading the model.
+            See https://onnxruntime.ai/docs/execution-providers/ for possible providers.
+        providers (`Optional[Sequence[str]]`, defaults to `None`):
+            List of execution providers to use for loading the model.
+            This argument takes precedence over the `provider` argument.
         provider_options (`Optional[Dict[str, Any]]`, defaults to `None`):
             Provider option dictionaries corresponding to the provider used. See available options
             for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
+        session_options (`Optional[onnxruntime.SessionOptions]`, defaults to `None`),:
+            ONNX Runtime session options to use for loading the model.
         use_io_binding (`Optional[bool]`, defaults to `None`):
             Whether to use IOBinding during inference to avoid memory copy between the host and device, or between numpy/torch tensors and ONNX Runtime ORTValue. Defaults to
             `True` if the execution provider is CUDAExecutionProvider. For [~onnxruntime.ORTModelForCausalLM], defaults to `True` on CPUExecutionProvider,
@@ -659,240 +495,95 @@ class ORTModel(OptimizedModel):
         Returns:
             `ORTModel`: The loaded ORTModel model.
         """
+
+        if isinstance(model_id, Path):
+            model_id = model_id.as_posix()
+
+        if is_offline_mode() and not local_files_only:
+            logger.info("Offline mode: setting `local_files_only=True`")
+            local_files_only = True
+
+        _export = export
+        try:
+            if local_files_only and not os.path.isdir(model_id):
+                object_id = model_id.replace("/", "--")
+                cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
+                refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
+                with open(refs_file) as f:
+                    _revision = f.read()
+                model_id = os.path.join(cached_model_dir, "snapshots", _revision)
+
+            onnx_files = find_files_matching_pattern(
+                model_id,
+                pattern=ONNX_FILE_PATTERN,
+                glob_pattern="**/*.onnx",
+                subfolder=subfolder,
+                token=token,
+                revision=revision,
+            )
+
+            _export = len(onnx_files) == 0
+            if _export ^ export:
+                if export:
+                    logger.warning(
+                        f"The model {model_id} was already converted to ONNX but got `export=True`, the model will be converted to ONNX once again. "
+                        "Don't forget to save the resulting model with `.save_pretrained()`"
+                    )
+                    _export = True
+                else:
+                    logger.warning(
+                        f"No ONNX files were found for {model_id}, setting `export=True` to convert the model to ONNX. "
+                        "Don't forget to save the resulting model with `.save_pretrained()`"
+                    )
+        except Exception as exception:
+            logger.warning(
+                f"Could not infer whether the model was already converted or not to ONNX, keeping `export={export}`.\n{exception}"
+            )
+
+        if _export:
+            file_name = kwargs.pop("file_name", None)
+            if file_name is not None:
+                logger.warning(
+                    f"`file_name` was set to `{file_name}` but will be ignored as the model will be converted to ONNX"
+                )
+
         return super().from_pretrained(
             model_id,
-            export=export,
+            config=config,
+            export=_export,
             force_download=force_download,
-            use_auth_token=use_auth_token,
+            token=token,
             cache_dir=cache_dir,
             subfolder=subfolder,
-            config=config,
             local_files_only=local_files_only,
+            trust_remote_code=trust_remote_code,
+            revision=revision,
             provider=provider,
-            session_options=session_options,
+            providers=providers,
             provider_options=provider_options,
+            session_options=session_options,
             use_io_binding=use_io_binding,
             **kwargs,
         )
 
-    def _prepare_output_buffer(self, model: ort.InferenceSession, output_shape: Tuple[int], output_name: str):
-        """Prepares the buffer of output_name with a 1D tensor."""
-        ort_type = TypeHelper.get_output_type(model, output_name)
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-        if len(output_shape) > 0:
-            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
-        else:
-            # Case when the output is a scalar
-            output_buffer = torch.tensor(0, dtype=torch_type, device=self.device).contiguous()
-        return output_buffer
-
-    def _output_shape_inference(self, axis_name: Union[str, int], dimensions: Dict[str, int]) -> Union[str, int]:
+    def can_generate(self) -> bool:
         """
-        Infers the output shape of a given dynamic axis by using the `dimensions` mapping.
-
-        For instance, for the following inputs:
-            axis_name = "past_sequence_length + sequence_length"
-            dimensions = {"batch_size": 2, "sequence_length": 3, "past_sequence_length": 7}
-
-        The inferred shape is 3 + 7 = 10.
+        Returns whether this model can generate sequences with `.generate()`.
         """
-        if isinstance(axis_name, int):
-            return axis_name
-        # It is actually covered below, but this is to make things faster.
-        elif axis_name in dimensions:
-            return dimensions[axis_name]
+        return isinstance(self, GenerationMixin)
 
-        # Tokens is going to be populated by iterating over every match for the self.output_shape_inference_pattern.
-        # This pattern matches 4 things: axis names, integer values, operators (+, -, *, /) and parenthesis.
-        tokens = []
-        for idx, match_ in enumerate(re.finditer(self.output_shape_inference_pattern, axis_name)):
-            groups = match_.groups()
-            matched_group = None
-            for idx, group in enumerate(groups):
-                if group is not None:
-                    matched_group = idx
-                    break
-
-            # For every match except an axis name, we simply append the content of the match to the tokens list.
-            # For an axis name, we check if it is specified in the `dimensions` dictionary. If for some reason it is
-            # not there, or its value not an integer, the shape inference process stops and we return the axis name as
-            # is.
-            if matched_group == 0:
-                dim = dimensions.get(groups[0], None)
-                if dim is None or not isinstance(dim, int):
-                    return axis_name
-                tokens.append(str(dim))
-            else:
-                tokens.append(groups[matched_group])
-
-        # Here it should not be problematic to use eval since anything not matching the pattern would trigger an
-        # exception.
-        return int(eval(" ".join(tokens)))
-
-    def _prepare_io_binding(
-        self,
-        model: ort.InferenceSession,
-        *model_inputs: torch.Tensor,
-        ordered_input_names: List[str],
-        known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
-        outputs_to_not_bind: Optional[Union[Set[str], str]] = None,
-    ) -> Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
-        """
-        Prepares IO binding for ONNX Runtime.
+    def _warn_on_unhandled_inputs(self, kwargs: Dict[str, Any]) -> None:
+        """Warn about unhandled input arguments.
 
         Args:
-            model (`ort.InferenceSession`):
-                The model for which we want to bind the inputs and outputs.
-            *model_inputs:
-                The inputs of the model.
-            ordered_input_names (`List[str]`):
-                Names of the inputs, that must match with the order of model_inputs.
-            known_output_shapes (`Optional[Dict[str, Tuple[int]]]`, defaults to `None`):
-                It can be hard to infer all the output shapes from the inputs only. For instance for the past key /
-                values. It is possible to explicitely pass the shape via this argument.
-            outputs_to_not_bind (`Optional[Union[Set[str], str]]`, defaults to `None`):
-                The names of the outputs that should not be bound.
-
-        Returns:
-            `Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]`: The IOBinding object, a dictionary
-            containing the shape of each output, and another one pointing to the buffers containing the outputs data.
+            kwargs: Dictionary of unhandled input arguments.
         """
-        io_binding = model.io_binding()
-
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
-
-        input_name_to_shape = {}
-        for idx, tensor in enumerate(model_inputs):
-            if tensor is None:
-                continue
-            name = ordered_input_names[idx]
-            tensor = tensor.contiguous()
-            input_name_to_shape[name] = tensor.shape
-
-            data_ptr = tensor.data_ptr()
-            if "past" in name and data_ptr == 0:
-                # During first generation, sequence_length can be 0 when use_cache=True, which results in data_ptr to also be 0.
-                # To keep compatibility with IO binding, we pass the data pointer of input_ids instead. This will have no impact because past_key_values will not be used during the first generation.
-                data_ptr = model_inputs[0].data_ptr()
-
-            io_binding.bind_input(
-                name,
-                tensor.device.type,
-                IOBindingHelper.get_device_index(self.device),
-                name_to_np_type[name],
-                tuple(tensor.shape),
-                data_ptr,
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
             )
-        dimensions = {}
-        for input_ in model.get_inputs():
-            shape = input_.shape
-            for idx, axis in enumerate(shape):
-                if isinstance(axis, str):
-                    dimensions[axis] = input_name_to_shape[input_.name][idx]
-
-        output_shapes = {}
-        output_buffers = {}
-
-        if known_output_shapes is None:
-            known_output_shapes = {}
-
-        if outputs_to_not_bind is None:
-            outputs_to_not_bind = set()
-        elif isinstance(outputs_to_not_bind, str):
-            outputs_to_not_bind = {outputs_to_not_bind}
-
-        for output_node in model.get_outputs():
-            output_name = output_node.name
-            if output_name in outputs_to_not_bind:
-                continue
-            if output_name in known_output_shapes:
-                output_shape = known_output_shapes[output_name]
-            else:
-                output_shape = []
-                for axis_name in output_node.shape:
-                    output_shape.append(self._output_shape_inference(axis_name, dimensions))
-            output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
-
-            io_binding.bind_output(
-                output_name,
-                output_buffer.device.type,
-                IOBindingHelper.get_device_index(self.device),
-                name_to_np_type[output_name],
-                output_shape,
-                output_buffer.data_ptr(),
-            )
-            output_shapes[output_name] = output_shape
-            output_buffers[output_name] = output_buffer
-
-        return io_binding, output_shapes, output_buffers
-
-    def prepare_io_binding(self, *model_inputs, ordered_input_names, known_output_shapes=None):
-        return self._prepare_io_binding(
-            self.model, ordered_input_names=ordered_input_names, known_output_shapes=known_output_shapes, *model_inputs
-        )
-
-    def raise_on_numpy_input_io_binding(self, use_torch: bool):
-        """
-        Raises an error if IO Binding is requested although the tensor used are numpy arrays.
-
-        Args:
-            use_torch (`bool`):
-                Whether the tensor used during inference are of type torch.Tensor or not.
-        """
-        if use_torch is False and self.use_io_binding is True:
-            raise ValueError(
-                "IO Binding can not be used when passing numpy inputs. Please disable IO Binding"
-                " with model.use_io_binding = False, or pass torch.Tensor inputs instead."
-            )
-
-    @staticmethod
-    def _cached_file(
-        model_path: Union[Path, str],
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: Optional[str] = None,
-        file_name: Optional[str] = None,
-        subfolder: str = "",
-        local_files_only: bool = False,
-    ):
-        model_path = Path(model_path)
-
-        # locates a file in a local folder and repo, downloads and cache it if necessary.
-        if model_path.is_dir():
-            model_cache_path = model_path / file_name
-            preprocessors = maybe_load_preprocessors(model_path.as_posix())
-        else:
-            model_cache_path = hf_hub_download(
-                repo_id=model_path.as_posix(),
-                filename=file_name,
-                subfolder=subfolder,
-                use_auth_token=use_auth_token,
-                revision=revision,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-            )
-            # try download external data
-            try:
-                hf_hub_download(
-                    repo_id=model_path.as_posix(),
-                    subfolder=subfolder,
-                    filename=file_name + "_data",
-                    use_auth_token=use_auth_token,
-                    revision=revision,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    local_files_only=local_files_only,
-                )
-            except EntryNotFoundError:
-                # model doesn't use external data
-                pass
-
-            model_cache_path = Path(model_cache_path)
-            preprocessors = maybe_load_preprocessors(model_path.as_posix(), subfolder=subfolder)
-
-        return model_cache_path, preprocessors
 
 
 FEATURE_EXTRACTION_EXAMPLE = r"""
@@ -951,56 +642,73 @@ class ORTModelForFeatureExtraction(ORTModel):
         input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        position_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        pixel_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
-        use_torch = isinstance(input_ids, torch.Tensor)
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
+        # Determine the tensor type from any available tensor input
+        tensor_inputs = [
+            input_ids,
+            attention_mask,
+            token_type_ids,
+            position_ids,
+            pixel_values,
+            input_features,
+            input_values,
+        ]
+        first_tensor = next(filter(lambda x: x is not None, tensor_inputs))
+        use_torch = isinstance(first_tensor, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            if attention_mask is None:
-                attention_mask = torch.ones_like(input_ids)
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        # Build model_inputs dictionary
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+            "position_ids": position_ids,
+            "pixel_values": pixel_values,
+            "input_features": input_features,
+            "input_values": input_values,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # converts output to namedtuple for pipelines post-processing
-            return BaseModelOutput(
-                last_hidden_state=output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
-            )
+            last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            if use_torch:
-                input_ids = input_ids.cpu().detach().numpy()
-                if attention_mask is None:
-                    attention_mask = np.ones_like(input_ids)
-                else:
-                    attention_mask = attention_mask.cpu().detach().numpy()
-                if token_type_ids is not None:
-                    token_type_ids = token_type_ids.cpu().detach().numpy()
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            onnx_inputs = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-            }
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
+            if "last_hidden_state" in self.output_names:
+                last_hidden_state = model_outputs["last_hidden_state"]
+            else:
+                # TODO: This allows to support sentence-transformers models (sentence embedding), but is not validated.
+                last_hidden_state = next(iter(model_outputs.values()))
 
-            outputs = self.model.run(None, onnx_inputs)
+        if not return_dict:
+            return (last_hidden_state,)
 
-            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
-            if use_torch:
-                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
-
-            # converts output to namedtuple for pipelines post-processing
-            return BaseModelOutput(last_hidden_state=last_hidden_state)
+        # converts output to namedtuple for pipelines post-processing
+        return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
 MASKED_LM_EXAMPLE = r"""
@@ -1059,50 +767,49 @@ class ORTModelForMaskedLM(ORTModel):
         input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        if "token_type_ids" in self.input_names and token_type_ids is None:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
+
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # converts output to namedtuple for pipelines post-processing
-            return MaskedLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+            logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            if use_torch:
-                input_ids = input_ids.cpu().detach().numpy()
-                attention_mask = attention_mask.cpu().detach().numpy()
-                if token_type_ids is not None:
-                    token_type_ids = token_type_ids.cpu().detach().numpy()
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-            }
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
+            logits = model_outputs["logits"]
 
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
-            logits = outputs[self.output_names["logits"]]
+        if not return_dict:
+            return (logits,)
 
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-
-            # converts output to namedtuple for pipelines post-processing
-            return MaskedLMOutput(logits=logits)
+        # converts output to namedtuple for pipelines post-processing
+        return MaskedLMOutput(logits=logits)
 
 
 QUESTION_ANSWERING_EXAMPLE = r"""
@@ -1162,55 +869,51 @@ class ORTModelForQuestionAnswering(ORTModel):
         input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
+
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # converts output to namedtuple for pipelines post-processing
-            return QuestionAnsweringModelOutput(
-                start_logits=output_buffers["start_logits"].view(output_shapes["start_logits"]),
-                end_logits=output_buffers["end_logits"].view(output_shapes["end_logits"]),
-            )
+            start_logits = output_buffers["start_logits"].view(output_shapes["start_logits"])
+            end_logits = output_buffers["end_logits"].view(output_shapes["end_logits"])
         else:
-            if use_torch:
-                input_ids = input_ids.cpu().detach().numpy()
-                attention_mask = attention_mask.cpu().detach().numpy()
-                if token_type_ids is not None:
-                    token_type_ids = token_type_ids.cpu().detach().numpy()
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-            }
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
+            start_logits = model_outputs["start_logits"]
+            end_logits = model_outputs["end_logits"]
 
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
+        if not return_dict:
+            return (start_logits, end_logits)
 
-            start_logits = outputs[self.output_names["start_logits"]]
-            end_logits = outputs[self.output_names["end_logits"]]
-            if use_torch:
-                start_logits = torch.from_numpy(start_logits).to(self.device)
-                end_logits = torch.from_numpy(end_logits).to(self.device)
-
-            # converts output to namedtuple for pipelines post-processing
-            return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
+        # converts output to namedtuple for pipelines post-processing
+        return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
 
 
 SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
@@ -1285,48 +988,49 @@ class ORTModelForSequenceClassification(ORTModel):
         input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
+
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # converts output to namedtuple for pipelines post-processing
-            return SequenceClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+            logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            if use_torch:
-                input_ids = input_ids.cpu().detach().numpy()
-                attention_mask = attention_mask.cpu().detach().numpy()
-                if token_type_ids is not None:
-                    token_type_ids = token_type_ids.cpu().detach().numpy()
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            onnx_inputs = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-            }
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
+            logits = model_outputs["logits"]
 
-            outputs = self.model.run(None, onnx_inputs)
+        if not return_dict:
+            return (logits,)
 
-            logits = outputs[self.output_names["logits"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-
-            # converts output to namedtuple for pipelines post-processing
-            return SequenceClassifierOutput(logits=logits)
+        # converts output to namedtuple for pipelines post-processing
+        return SequenceClassifierOutput(logits=logits)
 
 
 TOKEN_CLASSIFICATION_EXAMPLE = r"""
@@ -1387,50 +1091,48 @@ class ORTModelForTokenClassification(ORTModel):
         input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
+
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # converts output to namedtuple for pipelines post-processing
-            return TokenClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+            logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            if use_torch:
-                input_ids = input_ids.cpu().detach().numpy()
-                attention_mask = attention_mask.cpu().detach().numpy()
-                if token_type_ids is not None:
-                    token_type_ids = token_type_ids.cpu().detach().numpy()
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-            }
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
+            logits = model_outputs["logits"]
 
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
-            logits = outputs[self.output_names["logits"]]
+        if not return_dict:
+            return (logits,)
 
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-
-            # converts output to namedtuple for pipelines post-processing
-            return TokenClassifierOutput(logits=logits)
+        return TokenClassifierOutput(logits=logits)
 
 
 MULTIPLE_CHOICE_EXAMPLE = r"""
@@ -1485,49 +1187,49 @@ class ORTModelForMultipleChoice(ORTModel):
         input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
+
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # converts output to namedtuple for pipelines post-processing
-            return MultipleChoiceModelOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+            logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            if use_torch:
-                input_ids = input_ids.cpu().detach().numpy()
-                attention_mask = attention_mask.cpu().detach().numpy()
-                if token_type_ids is not None:
-                    token_type_ids = token_type_ids.cpu().detach().numpy()
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            onnx_inputs = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-            }
-            if token_type_ids is not None:
-                onnx_inputs["token_type_ids"] = token_type_ids
+            logits = model_outputs["logits"]
 
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
-            logits = outputs[self.output_names["logits"]]
+        if not return_dict:
+            return (logits,)
 
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-
-            # converts output to namedtuple for pipelines post-processing
-            return MultipleChoiceModelOutput(logits=logits)
+        # converts output to namedtuple for pipelines post-processing
+        return MultipleChoiceModelOutput(logits=logits)
 
 
 IMAGE_CLASSIFICATION_EXAMPLE = r"""
@@ -1572,7 +1274,7 @@ IMAGE_CLASSIFICATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForImageClassification(ORTModel):
     """
-    ONNX Model for image-classification tasks. This class officially supports beit, convnext, convnextv2, data2vec_vision, deit, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, vit.
+    ONNX Model for image-classification tasks. This class officially supports beit, convnext, convnextv2, data2vec_vision, deit, dinov2, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, swinv2, vit.
     """
 
     auto_model_class = AutoModelForImageClassification
@@ -1588,40 +1290,44 @@ class ORTModelForImageClassification(ORTModel):
     def forward(
         self,
         pixel_values: Union[torch.Tensor, np.ndarray],
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                pixel_values, ordered_input_names=self._ordered_input_names
-            )
+        model_inputs = {
+            "pixel_values": pixel_values,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # converts output to namedtuple for pipelines post-processing
-            return ImageClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
+            logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            if use_torch:
-                pixel_values = pixel_values.cpu().detach().numpy()
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            onnx_inputs = {
-                "pixel_values": pixel_values,
-            }
+            logits = model_outputs["logits"]
 
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
-            logits = outputs[self.output_names["logits"]]
+        if not return_dict:
+            return (logits,)
 
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-
-            # converts output to namedtuple for pipelines post-processing
-            return ImageClassifierOutput(logits=logits)
+        # converts output to namedtuple for pipelines post-processing
+        return ImageClassifierOutput(logits=logits)
 
 
 SEMANTIC_SEGMENTATION_EXAMPLE = r"""
@@ -1666,7 +1372,7 @@ SEMANTIC_SEGMENTATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSemanticSegmentation(ORTModel):
     """
-    ONNX Model for semantic-segmentation, with an all-MLP decode head on top e.g. for ADE20k, CityScapes. This class officially supports segformer.
+    ONNX Model for semantic-segmentation, with an all-MLP decode head on top e.g. for ADE20k, CityScapes. This class officially supports maskformer, segformer.
     """
 
     auto_model_class = AutoModelForSemanticSegmentation
@@ -1679,51 +1385,47 @@ class ORTModelForSemanticSegmentation(ORTModel):
             checkpoint="optimum/segformer-b0-finetuned-ade-512-512",
         )
     )
-    def forward(self, **kwargs):
-        use_torch = isinstance(next(iter(kwargs.values())), torch.Tensor)
+    def forward(
+        self,
+        pixel_values: Union[torch.Tensor, np.ndarray],
+        *,
+        return_dict: bool = True,
+        **kwargs,
+    ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
+        use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = IOBindingHelper.prepare_io_binding(
-                self,
-                **kwargs,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "pixel_values": pixel_values,
+        }
 
-            # run inference with binding
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
-            outputs = {}
-            for name, output in zip(self.output_names.keys(), io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # converts output to namedtuple for pipelines post-processing
-            return SemanticSegmenterOutput(logits=outputs["logits"])
+            logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch=use_torch, **kwargs)
-
-            # run inference
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            logits = onnx_outputs[self.output_names["logits"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
+            logits = model_outputs["logits"]
 
-            # converts output to namedtuple for pipelines post-processing
-            return SemanticSegmenterOutput(logits=logits)
+        if not return_dict:
+            return (logits,)
 
-    def _prepare_onnx_inputs(self, use_torch: bool, **kwargs):
-        onnx_inputs = {}
-        # converts pytorch inputs into numpy inputs for onnx
-        for input in self.inputs_names.keys():
-            onnx_inputs[input] = kwargs.pop(input)
-
-            if use_torch:
-                onnx_inputs[input] = onnx_inputs[input].cpu().detach().numpy()
-
-        return onnx_inputs
+        # converts output to namedtuple for pipelines post-processing
+        return SemanticSegmenterOutput(logits=logits)
 
 
 AUDIO_CLASSIFICATION_EXAMPLE = r"""
@@ -1788,44 +1490,57 @@ class ORTModelForAudioClassification(ORTModel):
     )
     def forward(
         self,
-        input_values: Optional[torch.Tensor] = None,
-        attenton_mask: Optional[torch.Tensor] = None,
+        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
-        use_torch = isinstance(input_values, torch.Tensor)
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
+        if self.config.model_type == "whisper":
+            assert input_features is not None, "input_features must be provided for this model"
+            input_name = "input_features"
+            model_input = input_features
+        else:
+            assert input_values is not None, "input_values must be provided for this model"
+            input_name = "input_values"
+            model_input = input_values
+
+        use_torch = isinstance(model_input, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_values, ordered_input_names=self._ordered_input_names
-            )
+
+        model_inputs = {
+            input_name: model_input,
+            "attention_mask": attention_mask,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # converts output to namedtuple for pipelines post-processing
-            return SequenceClassifierOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
-        else:
-            if use_torch:
-                # converts pytorch inputs into numpy inputs for onnx
-                onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
-                }
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                onnx_inputs = {
-                    "input_values": input_values,
-                }
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
+            logits = output_buffers["logits"].view(output_shapes["logits"])
+        else:
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            logits = outputs[self.output_names["logits"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
+            logits = model_outputs["logits"]
 
-            # converts output to namedtuple for pipelines post-processing
-            return SequenceClassifierOutput(logits=logits)
+        if not return_dict:
+            return (logits,)
+
+        # converts output to namedtuple for pipelines post-processing
+        return SequenceClassifierOutput(logits=logits)
 
 
 CTC_EXAMPLE = r"""
@@ -1873,57 +1588,55 @@ class ORTModelForCTC(ORTModel):
     )
     def forward(
         self,
-        input_values: Optional[torch.Tensor] = None,
+        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
-        if self.device.type == "cuda" and self.use_io_binding:
-            input_size = input_values.shape[1]
-            output_sizes = []
 
-            def _conv_output_size(input_size, kernel_size, stride):
-                return (input_size - kernel_size) // stride + 1
+        model_inputs = {
+            "input_values": input_values,
+        }
+
+        if self.use_io_binding:
+            batch_size = input_values.shape[0]
+            sequence_length = input_values.shape[-1]
 
             for kernel_size, stride in zip(self.config.conv_kernel, self.config.conv_stride):
-                input_size = _conv_output_size(input_size, kernel_size, stride)
-                output_sizes.append(input_size)
+                sequence_length = (sequence_length - kernel_size) // stride + 1
 
-            known_output_shapes = {"logits": [input_values.shape[0], output_sizes[-1], self.config.vocab_size]}
+            known_output_shapes = {"logits": [batch_size, sequence_length, self.config.vocab_size]}
 
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_values,
-                ordered_input_names=self._ordered_input_names,
-                known_output_shapes=known_output_shapes,
+            output_shapes, output_buffers = self._prepare_io_binding(
+                model_inputs, known_output_shapes=known_output_shapes
             )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            outputs = {}
-
-            return CausalLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
-        else:
-            if use_torch:
-                # converts pytorch inputs into numpy inputs for onnx
-                onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
-                }
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                onnx_inputs = {
-                    "input_values": input_values,
-                }
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
+            logits = output_buffers["logits"].view(output_shapes["logits"])
+        else:
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            logits = outputs[self.output_names["logits"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-            # converts output to namedtuple for pipelines post-processing
-            return CausalLMOutput(logits=logits)
+            logits = model_outputs["logits"]
+
+        if not return_dict:
+            return (logits,)
+
+        # converts output to namedtuple for pipelines post-processing
+        return CausalLMOutput(logits=logits)
 
 
 AUDIO_XVECTOR_EXAMPLE = r"""
@@ -1979,48 +1692,48 @@ class ORTModelForAudioXVector(ORTModel):
     )
     def forward(
         self,
-        input_values: Optional[torch.Tensor] = None,
+        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_values, ordered_input_names=self._ordered_input_names
-            )
+
+        model_inputs = {
+            "input_values": input_values,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            # converts output to namedtuple for pipelines post-processing
-            return XVectorOutput(
-                logits=output_buffers["logits"].view(output_shapes["logits"]),
-                embeddings=output_buffers["embeddings"].view(output_shapes["embeddings"]),
-            )
-        else:
-            if use_torch:
-                # converts pytorch inputs into numpy inputs for onnx
-                onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
-                }
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                onnx_inputs = {
-                    "input_values": input_values,
-                }
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
+            logits = output_buffers["logits"].view(output_shapes["logits"])
+            embeddings = output_buffers["embeddings"].view(output_shapes["embeddings"])
 
-            logits = outputs[self.output_names["logits"]]
-            embeddings = outputs[self.output_names["embeddings"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-                embeddings = torch.from_numpy(embeddings).to(self.device)
+        else:
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            # converts output to namedtuple for pipelines post-processing
-            return XVectorOutput(logits=logits, embeddings=embeddings)
+            logits = model_outputs["logits"]
+            embeddings = model_outputs["embeddings"]
+
+        if not return_dict:
+            return (logits, embeddings)
+
+        # converts output to namedtuple for pipelines post-processing
+        return XVectorOutput(logits=logits, embeddings=embeddings)
 
 
 AUDIO_FRAME_CLASSIFICATION_EXAMPLE = r"""
@@ -2068,33 +1781,136 @@ class ORTModelForAudioFrameClassification(ORTModel):
     )
     def forward(
         self,
-        input_values: Optional[torch.Tensor] = None,
+        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        *,
+        return_dict: bool = True,
         **kwargs,
     ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            raise NotImplementedError()
-        else:
-            if use_torch:
-                # converts pytorch inputs into numpy inputs for onnx
-                onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
-                }
+        model_inputs = {
+            "input_values": input_values,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                onnx_inputs = {
-                    "input_values": input_values,
-                }
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            # run inference
-            outputs = self.model.run(None, onnx_inputs)
+            logits = output_buffers["logits"].view(output_shapes["logits"])
+        else:
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            logits = outputs[self.output_names["logits"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-            # converts output to namedtuple for pipelines post-processing
-            return TokenClassifierOutput(logits=logits)
+            logits = model_outputs["logits"]
+
+        if not return_dict:
+            return (logits,)
+
+        # converts output to namedtuple for pipelines post-processing
+        return TokenClassifierOutput(logits=logits)
+
+
+IMAGE_TO_IMAGE_EXAMPLE = r"""
+    Example of image-to-image (Super Resolution):
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from PIL import Image
+
+    >>> image = Image.open("path/to/image.jpg")
+
+    >>> image_processor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}")
+
+    >>> inputs = image_processor(images=image, return_tensors="pt")
+
+    >>> with torch.no_grad():
+    ...     logits = model(**inputs).logits
+    ```
+"""
+
+
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTModelForImageToImage(ORTModel):
+    """
+    ONNX Model for image-to-image tasks. This class officially supports pix2pix, cyclegan, wav2vec2, wav2vec2-conformer.
+    """
+
+    auto_model_class = AutoModelForImageToImage
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
+        + IMAGE_TO_IMAGE_EXAMPLE.format(
+            processor_class=_PROCESSOR_FOR_DOC,
+            model_class="ORTModelForImgageToImage",
+            checkpoint="caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr",
+        )
+    )
+    def forward(
+        self,
+        pixel_values: Union[torch.Tensor, np.ndarray],
+        *,
+        return_dict: bool = True,
+        **kwargs,
+    ):
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
+
+        use_torch = isinstance(pixel_values, torch.Tensor)
+        self.raise_on_numpy_input_io_binding(use_torch)
+
+        model_inputs = {
+            "pixel_values": pixel_values,
+        }
+
+        if self.use_io_binding:
+            batch_size, num_channels, height, width = pixel_values.shape
+
+            output_shapes, output_buffers = self._prepare_io_binding(
+                model_inputs,
+                known_output_shapes={
+                    "reconstruction": [
+                        batch_size,
+                        num_channels,
+                        height * self.config.upscale,
+                        width * self.config.upscale,
+                    ]
+                },
+            )
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
+
+            reconstruction = output_buffers["reconstruction"].view(output_shapes["reconstruction"])
+        else:
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
+
+            reconstruction = model_outputs["reconstruction"]
+
+        if not return_dict:
+            return (reconstruction,)
+
+        return ImageSuperResolutionOutput(reconstruction=reconstruction)
 
 
 CUSTOM_TASKS_EXAMPLE = r"""
@@ -2143,57 +1959,26 @@ class ORTModelForCustomTasks(ORTModel):
             checkpoint="optimum/sbert-all-MiniLM-L6-with-pooler",
         )
     )
-    def forward(self, **kwargs):
-        use_torch = isinstance(next(iter(kwargs.values())), torch.Tensor)
+    def forward(self, **model_inputs: Union[torch.Tensor, np.ndarray]):
+        use_torch = isinstance(next(iter(model_inputs.values())), torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = IOBindingHelper.prepare_io_binding(
-                self,
-                **kwargs,
-                ordered_input_names=self._ordered_input_names,
-            )
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
-            # run inference with binding
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            outputs = {}
-            for name, output in zip(self.output_names.keys(), io_binding._iobinding.get_outputs()):
-                outputs[name] = IOBindingHelper.to_pytorch(output)
-
-            # converts output to namedtuple for pipelines post-processing
-            return ModelOutput(**outputs)
+            model_outputs = {name: output_buffers[name].view(shape) for name, shape in output_shapes.items()}
         else:
-            # converts pytorch inputs into numpy inputs for onnx
-            onnx_inputs = self._prepare_onnx_inputs(use_torch=use_torch, **kwargs)
-
-            # run inference
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            outputs = self._prepare_onnx_outputs(onnx_outputs, use_torch=use_torch)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            # converts output to namedtuple for pipelines post-processing
-            return ModelOutput(outputs)
-
-    def _prepare_onnx_inputs(self, use_torch: bool, **kwargs):
-        onnx_inputs = {}
-        # converts pytorch inputs into numpy inputs for onnx
-        for input in self.inputs_names.keys():
-            onnx_inputs[input] = kwargs.pop(input)
-
-            if use_torch:
-                onnx_inputs[input] = onnx_inputs[input].cpu().detach().numpy()
-
-        return onnx_inputs
-
-    def _prepare_onnx_outputs(self, onnx_outputs, use_torch: bool):
-        outputs = {}
-        # converts onnxruntime outputs into tensor for standard outputs
-        for output, idx in self.output_names.items():
-            outputs[output] = onnx_outputs[idx]
-
-            if use_torch:
-                outputs[output] = torch.from_numpy(outputs[output]).to(self.device)
-
-        return outputs
+        # converts output to namedtuple for pipelines post-processing
+        return ModelOutput(**model_outputs)

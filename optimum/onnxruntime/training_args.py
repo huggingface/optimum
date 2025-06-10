@@ -44,9 +44,14 @@ from transformers.utils import (
 )
 from transformers.utils.generic import strtobool
 
+from ..utils.import_utils import is_transformers_version
+
 
 if is_torch_available():
     import torch
+
+if is_accelerate_available() and is_transformers_version(">=", "4.38.0"):
+    from transformers.trainer_pt_utils import AcceleratorConfig
 
 
 class ORTOptimizerNames(ExplicitEnum):
@@ -74,6 +79,29 @@ class ORTTrainingArguments(TrainingArguments):
         },
     )
 
+    save_onnx: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Configure ORTModule to save onnx models. Defaults to False. \
+            The output directory of the onnx models by default is set to args.output_dir. \
+            To change the output directory, the environment variable ORTMODULE_SAVE_ONNX_PATH can be \
+            set to the destination directory path."
+        },
+    )
+
+    onnx_prefix: Optional[str] = field(
+        default=None,
+        metadata={"help": "Prefix for the saved ORTModule file names. Must be provided if save_onnx is True."},
+    )
+
+    onnx_log_level: Optional[str] = field(
+        default="WARNING",
+        metadata={
+            "help": "Configure ORTModule log level. Defaults to WARNING. \
+            onnx_log_level can also be set to one of VERBOSE, INFO, WARNING, ERROR, FATAL."
+        },
+    )
+
     # This method will not need to be overriden after the deprecation of `--adafactor` in version 5 of 🤗 Transformers.
     def __post_init__(self):
         # expand paths, if not os.makedirs("~/bar") will make directory
@@ -89,32 +117,32 @@ class ORTTrainingArguments(TrainingArguments):
         if self.disable_tqdm is None:
             self.disable_tqdm = logger.getEffectiveLevel() > logging.WARN
 
-        if isinstance(self.evaluation_strategy, EvaluationStrategy):
+        if isinstance(self.eval_strategy, EvaluationStrategy):
             warnings.warn(
-                "using `EvaluationStrategy` for `evaluation_strategy` is deprecated and will be removed in version 5"
+                "using `EvaluationStrategy` for `eval_strategy` is deprecated and will be removed in version 5"
                 " of 🤗 Transformers. Use `IntervalStrategy` instead",
                 FutureWarning,
             )
             # Go back to the underlying string or we won't be able to instantiate `IntervalStrategy` on it.
-            self.evaluation_strategy = self.evaluation_strategy.value
+            self.eval_strategy = self.eval_strategy.value
 
-        self.evaluation_strategy = IntervalStrategy(self.evaluation_strategy)
+        self.eval_strategy = IntervalStrategy(self.eval_strategy)
         self.logging_strategy = IntervalStrategy(self.logging_strategy)
         self.save_strategy = IntervalStrategy(self.save_strategy)
         self.hub_strategy = HubStrategy(self.hub_strategy)
 
         self.lr_scheduler_type = SchedulerType(self.lr_scheduler_type)
-        if self.do_eval is False and self.evaluation_strategy != IntervalStrategy.NO:
+        if self.do_eval is False and self.eval_strategy != IntervalStrategy.NO:
             self.do_eval = True
 
         # eval_steps has to be defined and non-zero, fallbacks to logging_steps if the latter is non-zero
-        if self.evaluation_strategy == IntervalStrategy.STEPS and (self.eval_steps is None or self.eval_steps == 0):
+        if self.eval_strategy == IntervalStrategy.STEPS and (self.eval_steps is None or self.eval_steps == 0):
             if self.logging_steps > 0:
                 logger.info(f"using `logging_steps` to initialize `eval_steps` to {self.logging_steps}")
                 self.eval_steps = self.logging_steps
             else:
                 raise ValueError(
-                    f"evaluation strategy {self.evaluation_strategy} requires either non-zero --eval_steps or"
+                    f"evaluation strategy {self.eval_strategy} requires either non-zero --eval_steps or"
                     " --logging_steps"
                 )
 
@@ -126,7 +154,7 @@ class ORTTrainingArguments(TrainingArguments):
             if self.logging_steps != int(self.logging_steps):
                 raise ValueError(f"--logging_steps must be an integer if bigger than 1: {self.logging_steps}")
             self.logging_steps = int(self.logging_steps)
-        if self.evaluation_strategy == IntervalStrategy.STEPS and self.eval_steps > 1:
+        if self.eval_strategy == IntervalStrategy.STEPS and self.eval_steps > 1:
             if self.eval_steps != int(self.eval_steps):
                 raise ValueError(f"--eval_steps must be an integer if bigger than 1: {self.eval_steps}")
             self.eval_steps = int(self.eval_steps)
@@ -137,13 +165,13 @@ class ORTTrainingArguments(TrainingArguments):
 
         # Sanity checks for load_best_model_at_end: we require save and eval strategies to be compatible.
         if self.load_best_model_at_end:
-            if self.evaluation_strategy != self.save_strategy:
+            if self.eval_strategy != self.save_strategy:
                 raise ValueError(
                     "--load_best_model_at_end requires the saving steps to be a multiple of the evaluation "
                     "steps, which cannot get guaranteed when mixing ratio and absolute steps for save_steps "
                     f"{self.save_steps} and eval_steps {self.eval_steps}."
                 )
-            if self.evaluation_strategy == IntervalStrategy.STEPS and self.save_steps % self.eval_steps != 0:
+            if self.eval_strategy == IntervalStrategy.STEPS and self.save_steps % self.eval_steps != 0:
                 if self.eval_steps < 1 or self.save_steps < 1:
                     if not (self.eval_steps < 1 and self.save_steps < 1):
                         raise ValueError(
@@ -216,7 +244,7 @@ class ORTTrainingArguments(TrainingArguments):
                 )
 
         if self.lr_scheduler_type == SchedulerType.REDUCE_ON_PLATEAU:
-            if self.evaluation_strategy == IntervalStrategy.NO:
+            if self.eval_strategy == IntervalStrategy.NO:
                 raise ValueError("lr_scheduler_type reduce_lr_on_plateau requires an eval strategy")
             if not is_torch_available():
                 raise ValueError("lr_scheduler_type reduce_lr_on_plateau requires torch>=0.2.0")
@@ -238,6 +266,13 @@ class ORTTrainingArguments(TrainingArguments):
             # there is a bug in fp16/AMP in pt-2.0.0
             if version.parse(version.parse(torch.__version__).base_version) == version.parse("2.0.0") and self.fp16:
                 raise ValueError("--optim adamw_torch_fused with --fp16 requires PyTorch>2.0")
+
+        if self.save_onnx:
+            if not self.onnx_prefix:
+                raise ValueError("onnx_prefix must be provided if save_onnx is True")
+            if not os.getenv("ORTMODULE_SAVE_ONNX_PATH", None):
+                os.environ["ORTMODULE_SAVE_ONNX_PATH"] = self.output_dir
+            os.environ["ORTMODULE_LOG_LEVEL"] = self.onnx_log_level
 
         if (
             is_torch_available()
@@ -397,6 +432,7 @@ class ORTTrainingArguments(TrainingArguments):
         ):
             raise ValueError("`min_num_params` and `transformer_layer_cls_to_wrap` are mutually exclusive.")
         self.fsdp_config["xla"] = self.fsdp_config.get("xla", False)
+        self.fsdp_config["xla_fsdp_v2"] = self.fsdp_config.get("xla_fsdp_v2", False)
         self.fsdp_config["xla_fsdp_grad_ckpt"] = self.fsdp_config.get("xla_fsdp_grad_ckpt", False)
         if self.fsdp_config["xla"]:
             if len(self.fsdp) > 0:
@@ -444,6 +480,30 @@ class ORTTrainingArguments(TrainingArguments):
             os.environ[f"{prefix}FORWARD_PREFETCH"] = self.fsdp_config.get("forward_prefect", "false")
             os.environ[f"{prefix}SYNC_MODULE_STATES"] = self.fsdp_config.get("sync_module_states", "true")
             os.environ[f"{prefix}USE_ORIG_PARAMS"] = self.fsdp_config.get("use_orig_params", "false")
+
+        if is_accelerate_available() and is_transformers_version(">=", "4.38.0"):
+            if not isinstance(self.accelerator_config, (AcceleratorConfig)):
+                if self.accelerator_config is None:
+                    self.accelerator_config = AcceleratorConfig()
+                elif isinstance(self.accelerator_config, dict):
+                    self.accelerator_config = AcceleratorConfig(**self.accelerator_config)
+                else:
+                    self.accelerator_config = AcceleratorConfig.from_json_file(self.accelerator_config)
+            if self.dispatch_batches is not None:
+                warnings.warn(
+                    "Using `--dispatch_batches` is deprecated and will be removed in version 4.41 of 🤗 Transformers. Use"
+                    " `--accelerator_config {'dispatch_batches':VALUE} instead",
+                    FutureWarning,
+                )
+                self.accelerator_config.dispatch_batches = self.dispatch_batches
+
+            if self.split_batches is not None:
+                warnings.warn(
+                    "Using `--split_batches` is deprecated and will be removed in version 4.41 of 🤗 Transformers. Use"
+                    " `--accelerator_config {'split_batches':VALUE} instead",
+                    FutureWarning,
+                )
+                self.accelerator_config.split_batches = self.split_batches
 
         if self.tpu_metrics_debug:
             warnings.warn(

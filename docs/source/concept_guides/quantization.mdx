@@ -95,11 +95,11 @@ paragraph.
 
 ### Symmetric and affine quantization schemes
 
-The equation above is called the *affine quantization sheme* because the mapping from `[a, b]` to `int8` is an affine one.
+The equation above is called the *affine quantization scheme* because the mapping from `[a, b]` to `int8` is an affine one.
 
 A common special case of this scheme is the *symmetric quantization scheme*, where we consider a symmetric range of float values `[-a, a]`.
-In this case the integer space is usally `[-127, 127]`, meaning that the `-128` is opted out of the regular `[-128, 127]` signed `int8` range.
-The reason being that having both ranges symmetric allows to have `Z = 0`. While one value out of the 256 representable
+In this case the integer space is usually `[-127, 127]`, meaning that the `-128` is opted out of the regular `[-128, 127]` signed `int8` range.
+The reason being that having a symmetric range allows to have `Z = 0`. While one value out of the 256 representable
 values is lost, it can provide a speedup since a lot of addition operations can be skipped.
 
 **Note**: To learn how the quantization parameters `S` and `Z` are computed, you can read the

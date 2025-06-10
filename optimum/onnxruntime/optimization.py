@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 import onnx
 from onnx import load_model
+from transformers import GenerationConfig
 from transformers.models.auto.configuration_auto import AutoConfig
 
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
@@ -91,19 +92,19 @@ class ORTOptimizer:
             from_ortmodel = True
             if isinstance(model_or_path, ORTModelForConditionalGeneration):
                 onnx_model_path += [
-                    model_or_path.encoder_model_path,
-                    model_or_path.decoder_model_path,
+                    model_or_path.encoder.path,
+                    model_or_path.decoder.path,
                 ]
                 # Add the decoder with past key/values if present
-                if model_or_path.use_cache:
-                    onnx_model_path.append(model_or_path.decoder_with_past_model_path)
+                if model_or_path.decoder_with_past is not None:
+                    onnx_model_path.append(model_or_path.decoder_with_past.path)
             elif isinstance(model_or_path, ORTModelForCausalLM) and model_or_path.use_merged:
                 raise NotImplementedError(
                     "ORTOptimizer does not support ORTModelForCausalLM models when without/with past models are merged. "
                     "Please re-export your model. This can be done by using the optimum-cli ONNX export tool or `ORTModelForCausalLM.from_pretrained(..., export=True, use_merged=False)`."
                 )
             else:
-                onnx_model_path.append(model_or_path.model_path)
+                onnx_model_path.append(model_or_path.path)
             config = model_or_path.config
         elif os.path.isdir(model_or_path):
             from_ortmodel = False
@@ -152,10 +153,6 @@ class ORTOptimizer:
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         ORTConfigManager.check_optimization_supported_model(self.model_type, optimization_config)
-
-        self.config.save_pretrained(save_dir)
-        maybe_save_preprocessors(self.onnx_model_path[0].parent, save_dir)
-
         model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
         optimization_options = optimization_config.create_fusion_options(model_type)
 
@@ -236,6 +233,13 @@ class ORTOptimizer:
         # Save the model configuration
         self.config.save_pretrained(save_dir)
         ort_config.save_pretrained(save_dir)
+        maybe_save_preprocessors(self.onnx_model_path[0].parent, save_dir)
+
+        try:
+            generation_config = GenerationConfig.from_pretrained(self.onnx_model_path[0].parent)
+            generation_config.save_pretrained(save_dir)
+        except Exception:
+            pass
 
         logger.info(
             f"Optimized model saved at: {save_dir} (external data format: "

@@ -1,37 +1,71 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 name: ONNX Runtime / Python - Test
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+    types:
+      - opened
+      - labeled
+      - reopened
+      - unlabeled
+      - synchronize
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
+
+env:
+  TRANSFORMERS_IS_CI: true
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8, 3.9]
-        os: [ubuntu-20.04, windows-2019, macos-latest]
+        python-version: [3.9]
+        runs-on: [ubuntu-22.04]
+        test_file:
+          [
+            test_timm.py,
+            test_decoder.py,
+            test_modeling.py,
+            test_diffusion.py,
+            test_optimization.py,
+            test_quantization.py,
+            test_utils.py,
+          ]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
+
     steps:
-    - uses: actions/checkout@v2
-    - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        pip install .[tests,onnxruntime]
-    - name: Test with pytest
-      working-directory: tests
-      run: |
-        pytest -n auto -m "not run_in_series" --durations=0 -vs onnxruntime
-        pytest -m "run_in_series" --durations=0 onnxruntime
+      - name: Free Disk Space (Ubuntu)
+        if: matrix.test_file == 'test_modeling.py'
+        uses: jlumbroso/free-disk-space@main
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[tests,onnxruntime] diffusers
+
+      - name: Test with pytest (in series)
+        if: matrix.test_file == 'test_modeling.py'
+        run: |
+          pytest tests/onnxruntime/test_modeling.py -m "run_in_series" --durations=0 -vvvv
+
+      - name: Test with pytest (in parallel)
+        run: |
+          pytest tests/onnxruntime/${{ matrix.test_file }} -m "not run_in_series" --durations=0 -vvvv -n auto
+        env:
+          HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}

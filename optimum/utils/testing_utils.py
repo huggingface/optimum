@@ -16,6 +16,7 @@
 import importlib.util
 import itertools
 import os
+import shutil
 import subprocess
 import sys
 import unittest
@@ -27,6 +28,7 @@ import torch
 from . import (
     is_accelerate_available,
     is_auto_gptq_available,
+    is_datasets_available,
     is_diffusers_available,
     is_sentence_transformers_available,
     is_timm_available,
@@ -35,9 +37,6 @@ from . import (
 
 # Used to test the hub
 USER = "__DUMMY_OPTIMUM_USER__"
-
-# Not critical, only usable on the sandboxed CI instance.
-TOKEN = "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"
 
 
 def flatten_dict(dictionary: Dict):
@@ -90,8 +89,9 @@ def require_hf_token(test_case):
     """
     Decorator marking a test that requires huggingface hub token.
     """
-    use_auth_token = os.environ.get("HF_AUTH_TOKEN", None)
-    if use_auth_token is None:
+    # is HF_AUTH_TOKEN used instead of HF_TOKEN to avoid huggingface_hub picking it up ?
+    hf_token = os.environ.get("HF_AUTH_TOKEN", None)
+    if hf_token is None:
         return unittest.skip("test requires hf token as `HF_AUTH_TOKEN` environment variable")(test_case)
     else:
         return test_case
@@ -101,9 +101,9 @@ def require_sigopt_token_and_project(test_case):
     """
     Decorator marking a test that requires sigopt API token.
     """
-    use_auth_token = os.environ.get("SIGOPT_API_TOKEN", None)
+    sigopt_api_token = os.environ.get("SIGOPT_API_TOKEN", None)
     has_sigopt_project = os.environ.get("SIGOPT_PROJECT", None)
-    if use_auth_token is None or has_sigopt_project is None:
+    if sigopt_api_token is None or has_sigopt_project is None:
         return unittest.skip("test requires an environment variable `SIGOPT_API_TOKEN` and `SIGOPT_PROJECT`")(
             test_case
         )
@@ -147,6 +147,10 @@ def require_sentence_transformers(test_case):
     return unittest.skipUnless(is_sentence_transformers_available(), "test requires sentence-transformers")(test_case)
 
 
+def require_datasets(test_case):
+    return unittest.skipUnless(is_datasets_available(), "test requires datasets")(test_case)
+
+
 def grid_parameters(
     parameters: Dict[str, Iterable[Any]],
     yield_dict: bool = False,
@@ -184,3 +188,16 @@ def grid_parameters(
         else:
             returned_list = [test_name] + list(params) if add_test_name is True else list(params)
             yield returned_list
+
+
+def remove_directory(dirpath):
+    """
+    Remove a directory and its content.
+    This is a cross-platform solution to remove a directory and its content that avoids the use of `shutil.rmtree` on Windows.
+    Reference: https://github.com/python/cpython/issues/107408
+    """
+    if os.path.exists(dirpath) and os.path.isdir(dirpath):
+        if os.name == "nt":
+            os.system(f"rmdir /S /Q {dirpath}")
+        else:
+            shutil.rmtree(dirpath)

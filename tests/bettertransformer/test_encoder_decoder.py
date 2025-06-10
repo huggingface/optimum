@@ -35,6 +35,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     - if the converted model produces the same logits as the original model.
     - if the converted model is faster than the original model.
     """
+
     SUPPORTED_ARCH = [
         "bart",
         "blenderbot",
@@ -152,7 +153,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         model_id = MODELS_DICT[model_type]
         tokenizer = AutoTokenizer.from_pretrained(model_id)
 
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_id, attn_implementation="eager")
 
         if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token

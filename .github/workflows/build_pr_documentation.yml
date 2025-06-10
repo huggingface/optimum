@@ -1,31 +1,22 @@
 name: Build PR documentation
 
-# WARNING: As this workflow supports the pull_request_target event, please exercise extra care when editing it.
-
 on:
   workflow_dispatch:
-  pull_request_target:
+  pull_request:
     branches: [ main ]
-    types: [ opened, synchronize, reopened, labeled ]
     paths:
       - "optimum/**.py"
       - "docs/**.mdx"
       - "docs/**.yml"
+      - ".github/workflows/build_pr_documentation.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  authorize:
-    if: (github.event.action == 'labeled' && github.event.label.name == 'build-pr-doc') || github.event_name != 'pull_request_target' || (! github.event.pull_request.head.repo.fork)
-    runs-on: ubuntu-latest
-    steps:
-      - run: true
-
   build_documentation:
-    needs: authorize
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
@@ -42,7 +33,6 @@ jobs:
         with:
           repository: 'huggingface/optimum'
           path: optimum
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - uses: actions/checkout@v2
         with:
@@ -51,33 +41,28 @@ jobs:
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-graphcore'
-          path: optimum-graphcore
-
-      - uses: actions/checkout@v2
-        with:
           repository: 'huggingface/optimum-intel'
           path: optimum-intel
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-furiosa'
-          path: optimum-furiosa
+          repository: 'huggingface/optimum-amd'
+          path: optimum-amd
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-tpu'
+          path: optimum-tpu
 
       - name: Setup environment
         run: |
+          python -m venv venv-doc
+          source venv-doc/bin/activate
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
           pip install .
           pip install black
-          cd ..
-
-      - name: Make Graphcore documentation
-        run: |
-          cd optimum-graphcore
-          make doc BUILD_DIR=graphcore-doc-build VERSION=pr_$PR_NUMBER
-          sudo mv graphcore-doc-build ../optimum
           cd ..
 
       - name: Make Habana documentation
@@ -96,26 +81,23 @@ jobs:
           sudo mv intel-doc-build ../optimum
           cd ..
 
-      - name: Make Furiosa documentation
+      - name: Make AMD documentation
         run: |
-          cd optimum-furiosa
-          pip install .
-          sudo apt update
-          sudo apt install -y ca-certificates apt-transport-https gnupg
-          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 5F03AFA423A751913F249259814F888B20B09A7E
-            # TODO: remove secrets and pull_request_target once archive.furiosa.ai is public
-          sudo tee -a /etc/apt/auth.conf.d/furiosa.conf > /dev/null <<EOT
-            machine archive.furiosa.ai
-            login ${{ secrets.FURIOSA_ACCESS_KEY }}
-            password ${{ secrets.FURIOSA_SECRET_ACCESS_KEY }}
-          EOT
-          sudo chmod 400 /etc/apt/auth.conf.d/furiosa.conf
-          sudo tee -a /etc/apt/sources.list.d/furiosa.list <<EOT
-            deb [arch=amd64] https://archive.furiosa.ai/ubuntu jammy restricted
-          EOT
-          sudo apt update && sudo apt install -y furiosa-libnux
-          doc-builder build optimum.furiosa docs/source/ --build_dir furiosa-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
-          mv furiosa-doc-build ../optimum
+          sudo docker system prune -a -f
+          cd optimum-amd
+          make doc BUILD_DIR=amd-doc-build VERSION=pr_$PR_NUMBER
+          sudo mv amd-doc-build ../optimum
+          cd ..
+
+      - name: Make TPU documentation
+        run: |
+          sudo docker system prune -a -f
+          source venv-doc/bin/activate
+          cd optimum-tpu
+          pip install -U pip
+          pip install . -f https://storage.googleapis.com/libtpu-releases/index.html
+          doc-builder build optimum.tpu docs/source/ --build_dir tpu-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
+          mv tpu-doc-build ../optimum
           cd ..
 
       - name: Make Optimum documentation
@@ -128,7 +110,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron furiosa --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa executorch --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 
@@ -139,7 +121,7 @@ jobs:
           echo ${{ env.COMMIT_SHA }} > ./commit_sha
           echo ${{ env.PR_NUMBER }} > ./pr_number
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: doc-build-artifact
           path: optimum-doc-build/

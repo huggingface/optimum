@@ -37,6 +37,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
     - if the converted model produces the same logits as the original model.
     - if the converted model is faster than the original model.
     """
+
     SUPPORTED_ARCH = [
         "albert",
         "bert",
@@ -113,7 +114,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         """
         model_name = "bert-base-uncased"
 
-        hf_model = AutoModel.from_pretrained(model_name).eval()
+        hf_model = AutoModel.from_pretrained(model_name, attn_implementation="eager").eval()
         bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
         BATCH_SIZE = 8
@@ -180,7 +181,9 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         If this works for roberta, it should work for all other models too.
         """
 
-        hf_model = AutoModel.from_pretrained("xlm-roberta-base", device_map="auto", max_memory=max_memory).eval()
+        hf_model = AutoModel.from_pretrained(
+            "xlm-roberta-base", device_map="auto", max_memory=max_memory, attn_implementation="eager"
+        ).eval()
         bt_model = BetterTransformer.transform(
             hf_model, keep_original_model=keep_original_model, max_memory=max_memory
         )
