@@ -1217,10 +1217,6 @@ class SiglipNormalizedConfig(CLIPNormalizedConfig):
     pass
 
 
-class ChineseCLIPNormalizedConfig(CLIPNormalizedConfig):
-    pass
-
-
 class ChineseCLIPOnnxConfig(CLIPOnnxConfig):
     pass
 
