@@ -519,10 +519,6 @@ class TasksManager:
             "feature-extraction",
             onnx="ChineseCLIPTextOnnxConfig",
         ),
-        "chinese-clip-text-with-projection": supported_tasks_mapping(
-            "feature-extraction",
-            onnx="ChineseCLIPTextWithProjectionOnnxConfig",
-        ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-image-classification",

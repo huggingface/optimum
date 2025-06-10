@@ -1221,10 +1221,6 @@ class ChineseCLIPOnnxConfig(CLIPOnnxConfig):
     pass
 
 
-class ChineseCLIPTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
-    pass
-
-
 class ChineseCLIPTextOnnxConfig(CLIPTextOnnxConfig):
     pass
 
