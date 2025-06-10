@@ -158,6 +158,31 @@ def add_executorch_doc(base_toc: List):
     )
 
 
+def add_furiosa_doc(base_toc: List):
+    """
+    Extends the table of content with a section about Optimum Furiosa.
+
+    Args:
+        base_toc (List): table of content for the doc of Optimum.
+    """
+    # Update optimum table of contents
+    base_toc.insert(
+        SUBPACKAGE_TOC_INSERT_INDEX,
+        {
+            "sections": [
+                {
+                    # Ideally this should directly point at https://huggingface.co/docs/optimum-furiosa/index
+                    # Current hacky solution is to have a redirection in _redirects.yml
+                    "local": "docs/optimum-furiosa/index",
+                    "title": "🤗 Optimum Furiosa",
+                }
+            ],
+            "title": "Furiosa",
+            "isExpanded": False,
+        },
+    )
+
+
 def main():
     args = parser.parse_args()
     optimum_path = Path("optimum-doc-build")
@@ -181,12 +206,12 @@ def main():
         elif subpackage == "executorch":
             # Optimum ExecuTorch has its own doc so it is managed differently
             add_executorch_doc(base_toc)
+        elif subpackage == "furiosa":
+            # TODO: add furiosa doc when available
+            # add_furiosa_doc(base_toc)
+            continue
         else:
             subpackage_path = Path(f"{subpackage}-doc-build")
-
-            # The doc of Furiosa will be missing for PRs
-            if subpackage == "furiosa" and not subpackage_path.is_dir():
-                continue
 
             # Copy all HTML files from subpackage into optimum
             rename_copy_subpackage_html_paths(
