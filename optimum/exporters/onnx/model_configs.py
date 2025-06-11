@@ -1217,6 +1217,10 @@ class SiglipNormalizedConfig(CLIPNormalizedConfig):
     pass
 
 
+class ChineseCLIPOnnxConfig(CLIPOnnxConfig):
+    pass
+
+
 class SiglipOnnxConfig(CLIPOnnxConfig):
     NORMALIZED_CONFIG_CLASS = SiglipNormalizedConfig
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 13 is not supported.

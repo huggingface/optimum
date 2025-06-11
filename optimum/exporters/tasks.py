@@ -510,6 +510,11 @@ class TasksManager:
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
         ),
+        "chinese-clip": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-image-classification",
+            onnx="ChineseCLIPOnnxConfig",
+        ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-image-classification",
