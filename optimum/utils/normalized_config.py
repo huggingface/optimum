@@ -265,6 +265,7 @@ class NormalizedConfigManager:
         "mbart": BartLikeNormalizedTextConfig,
         "mistral": NormalizedTextConfigWithGQA,
         "mixtral": NormalizedTextConfigWithGQA,
+        "modernbert": NormalizedTextConfig,
         "mpnet": NormalizedTextConfig,
         "mpt": MPTNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
