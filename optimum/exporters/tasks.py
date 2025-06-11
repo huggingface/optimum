@@ -515,10 +515,6 @@ class TasksManager:
             "zero-shot-image-classification",
             onnx="ChineseCLIPOnnxConfig",
         ),
-        "chinese-clip-text-model": supported_tasks_mapping(
-            "feature-extraction",
-            onnx="ChineseCLIPTextOnnxConfig",
-        ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-image-classification",
