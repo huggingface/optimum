@@ -47,7 +47,7 @@ from ...utils.import_utils import (
     is_onnxruntime_available,
     is_transformers_version,
 )
-from ..base import ExportConfig
+from ..base import ExporterConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import DecoderModelPatcher, ModelPatcher, Seq2SeqModelPatcher
 
@@ -100,11 +100,11 @@ GENERATE_DUMMY_DOCSTRING = r"""
 """
 
 
-class OnnxConfig(ExportConfig, ABC):
+class OnnxConfig(ExporterConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
     VARIANTS = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
-    # TODO: move PATCHING_SPECS to ExportConfig
+    # TODO: move PATCHING_SPECS to ExporterConfig
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     _MODEL_PATCHER = ModelPatcher
 

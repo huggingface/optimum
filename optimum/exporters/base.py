@@ -67,8 +67,10 @@ GENERATE_DUMMY_DOCSTRING = r"""
             `Dict[str, [tf.Tensor, torch.Tensor]]`: A dictionary mapping the input names to dummy tensors in the proper framework format.
 """
 
-
 class ExportConfig(ABC):
+    pass
+
+class ExporterConfig(ABC):
     """
     Base class describing metadata on how to export the model through the ONNX format.
 

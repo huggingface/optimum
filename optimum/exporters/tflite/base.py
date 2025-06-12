@@ -27,7 +27,7 @@ from transformers.utils import is_tf_available
 if is_tf_available():
     import tensorflow as tf
 
-from ..base import ExportConfig
+from ..base import ExporterConfig
 
 
 if TYPE_CHECKING:
@@ -115,7 +115,7 @@ class TFLiteQuantizationConfig:
                 self.approach = QuantizationApproach(self.approach)
 
 
-class TFLiteConfig(ExportConfig, ABC):
+class TFLiteConfig(ExporterConfig, ABC):
     """
     Base class for TFLite exportable model describing metadata on how to export the model through the TFLite format.
 
