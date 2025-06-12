@@ -96,6 +96,7 @@ class ORTOptimizerTest(unittest.TestCase):
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
         (ORTModelForCausalLM, "hf-internal-testing/tiny-random-gpt2"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-ModernBertForSequenceClassification"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-xlm-roberta"),
     )
@@ -174,6 +175,7 @@ class ORTOptimizerTest(unittest.TestCase):
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
+        (ORTModelForImageClassification, "hf-internal-testing/tiny-random-Dinov2Model"),
     )
 
     @parameterized.expand(SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID)

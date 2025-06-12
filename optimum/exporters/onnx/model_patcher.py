@@ -32,7 +32,7 @@ if is_transformers_version(">=", "4.35"):
     from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 if is_transformers_version(">=", "4.36"):
     from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
-if is_transformers_version(">=", "4.43"):
+if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
 if is_transformers_version(">=", "4.42"):
     from transformers.cache_utils import SlidingWindowCache, StaticCache
@@ -580,7 +580,9 @@ class DecoderModelPatcher(ModelPatcher):
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(_unmask_unattended_patched)
             patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
+                "_prepare_4d_causal_attention_mask_for_sdpa",
+                _prepare_4d_causal_attention_mask_for_sdpa_patched,
+                module_name_prefix="transformers",
             )
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -591,7 +593,9 @@ class DecoderModelPatcher(ModelPatcher):
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
             patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
+                "_prepare_4d_causal_attention_mask_for_sdpa",
+                self.original_prepare_4d_causal_attention_mask_for_sdpa,
+                module_name_prefix="transformers",
             )
 
     def __init__(
@@ -1354,13 +1358,13 @@ class MistralModelPatcher(DecoderModelPatcher):
 class CLIPModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-        if is_transformers_version(">=", "4.43"):
+        if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
             self.original_sdpa_forward = CLIPSdpaAttention.forward
             CLIPSdpaAttention.forward = CLIPAttention.forward
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if is_transformers_version(">=", "4.43"):
+        if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
             CLIPSdpaAttention.forward = self.original_sdpa_forward
 
 

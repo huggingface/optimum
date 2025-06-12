@@ -57,13 +57,16 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
+    "chinese-clip": "hf-internal-testing/tiny-random-ChineseCLIPModel",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "clip-vision-model": "fxmarty/clip-vision-model-tiny",
+    "colpali": "hf-internal-testing/tiny-random-ColPaliForRetrieval",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
     "convnextv2": "hf-internal-testing/tiny-random-ConvNextV2Model",
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
     "cvt": "hf-internal-testing/tiny-random-CvTModel",
+    "d-fine": "ustc-community/dfine-nano-coco",
     "data2vec-text": "hf-internal-testing/tiny-random-Data2VecTextModel",
     "data2vec-vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
     "data2vec-audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
@@ -77,6 +80,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "detr": "hf-internal-testing/tiny-random-DetrModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "dpt": "hf-internal-testing/tiny-random-DPTModel",
+    "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
         "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
@@ -107,6 +111,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",
+    "internlm2": "optimum-internal-testing/tiny-random-internlm2",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
@@ -153,6 +158,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
+    "qwen3": "optimum-internal-testing/tiny-random-qwen3",
+    "qwen3-moe": "optimum-internal-testing/tiny-random-qwen3_moe",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
@@ -235,6 +242,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "convbert": "YituTech/conv-bert-base",
     "convnext": "facebook/convnext-tiny-224",
     "codegen": "Salesforce/codegen-350M-multi",
+    "d-fine": "ustc-community/dfine-nano-coco",
     "data2vec-text": "facebook/data2vec-text-base",
     "data2vec-vision": "facebook/data2vec-vision-base",
     "data2vec-audio": "facebook/data2vec-audio-base",
@@ -363,4 +371,8 @@ PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES = {
         "timm/ese_vovnet39b.ra_in1k": ["image-classification"],
         "timm/ese_vovnet19b_dw.ra_in1k": ["image-classification"],
     }
+}
+
+PYTORCH_EXPORT_MODELS_TINY_SLIM = {
+    k: v for k, v in PYTORCH_EXPORT_MODELS_TINY.items() if k in ["modernbert", "llama", "t5", "whisper"]
 }

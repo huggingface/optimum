@@ -27,12 +27,22 @@ jobs:
       matrix:
         python-version: [3.9]
         runs-on: [ubuntu-22.04]
+        test_file:
+          [
+            test_timm.py,
+            test_decoder.py,
+            test_modeling.py,
+            test_diffusion.py,
+            test_optimization.py,
+            test_quantization.py,
+            test_utils.py,
+          ]
 
     runs-on: ${{ matrix.runs-on }}
 
     steps:
       - name: Free Disk Space (Ubuntu)
-        if: matrix.runs-on == 'ubuntu-22.04'
+        if: matrix.test_file == 'test_modeling.py'
         uses: jlumbroso/free-disk-space@main
 
       - name: Checkout code
@@ -50,11 +60,12 @@ jobs:
           pip install .[tests,onnxruntime] diffusers
 
       - name: Test with pytest (in series)
+        if: matrix.test_file == 'test_modeling.py'
         run: |
-          pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv
+          pytest tests/onnxruntime/test_modeling.py -m "run_in_series" --durations=0 -vvvv
 
       - name: Test with pytest (in parallel)
         run: |
-          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv -n auto
+          pytest tests/onnxruntime/${{ matrix.test_file }} -m "not run_in_series" --durations=0 -vvvv -n auto
         env:
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}

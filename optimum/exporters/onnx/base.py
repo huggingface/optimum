@@ -801,19 +801,19 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             path, models_and_onnx_configs, onnx_files_subpaths
         )
 
-        # Attempt to merge only if the decoder was exported without/with past, and ignore seq2seq models exported with text-generation task
-        if len(onnx_files_subpaths) >= 3 and self.use_past is True:
-            decoder_path = Path(path, onnx_files_subpaths[1])
-            decoder_with_past_path = Path(path, onnx_files_subpaths[2])
-            decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
+        # Attempt to merge only if the decoder was exported without/with past
+        onnx_decoder_path = Path(path, ONNX_DECODER_NAME + ".onnx")
+        onnx_decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
+        decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
+        if onnx_decoder_path.is_file() and onnx_decoder_with_past_path.is_file() and self.use_past is True:
             try:
-                from ...onnx import merge_decoders
-
                 # The decoder with past does not output the cross attention past key values as they are constant,
                 # hence the need for strict=False
+                from ...onnx import merge_decoders
+
                 merge_decoders(
-                    decoder=decoder_path,
-                    decoder_with_past=decoder_with_past_path,
+                    decoder=onnx_decoder_path,
+                    decoder_with_past=onnx_decoder_with_past_path,
                     save_path=decoder_merged_path,
                     strict=False,
                 )

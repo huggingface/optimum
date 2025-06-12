@@ -322,6 +322,7 @@ class TasksManager:
     }
 
     _CUSTOM_CLASSES = {
+        ("pt", "colpali", "feature-extraction"): ("transformers", "ColPaliForRetrieval"),
         ("pt", "patchtsmixer", "time-series-forecasting"): ("transformers", "PatchTSMixerForPrediction"),
         ("pt", "patchtst", "time-series-forecasting"): ("transformers", "PatchTSTForPrediction"),
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
@@ -509,6 +510,11 @@ class TasksManager:
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
         ),
+        "chinese-clip": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-image-classification",
+            onnx="ChineseCLIPOnnxConfig",
+        ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-image-classification",
@@ -524,6 +530,10 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             onnx="CodeGenOnnxConfig",
+        ),
+        "colpali": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="ColPaliOnnxConfig",
         ),
         "convbert": supported_tasks_mapping(
             "feature-extraction",
@@ -546,6 +556,10 @@ class TasksManager:
             onnx="ConvNextV2OnnxConfig",
         ),
         "cvt": supported_tasks_mapping("feature-extraction", "image-classification", onnx="CvTOnnxConfig"),
+        "d-fine": supported_tasks_mapping(
+            "object-detection",
+            onnx="DFineOnnxConfig",
+        ),
         "data2vec-text": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -638,6 +652,11 @@ class TasksManager:
             "image-segmentation",
             "semantic-segmentation",
             onnx="DptOnnxConfig",
+        ),
+        "efficientnet": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="EfficientNetOnnxConfig",
         ),
         "electra": supported_tasks_mapping(
             "feature-extraction",
@@ -766,6 +785,11 @@ class TasksManager:
             "feature-extraction",
             "image-classification",
             onnx="ImageGPTOnnxConfig",
+        ),
+        "internlm2": supported_tasks_mapping(
+            "text-generation",
+            "text-generation-with-past",
+            onnx="InternLM2OnnxConfig",
         ),
         "layoutlm": supported_tasks_mapping(
             "feature-extraction",
@@ -989,7 +1013,25 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "text-classification",
+            "token-classification",
             onnx="Qwen2OnnxConfig",
+        ),
+        "qwen3": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="Qwen3OnnxConfig",
+        ),
+        "qwen3-moe": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            "token-classification",
+            onnx="Qwen3MoeOnnxConfig",
         ),
         "llama": supported_tasks_mapping(
             "feature-extraction",
@@ -1469,11 +1511,14 @@ class TasksManager:
         """
         Returns the list of supported architectures by the exporter for a given task. Transformers-specific.
         """
-        return [
+
+        supported_model_types = [
             model_type.replace("-", "_")
             for model_type in TasksManager._SUPPORTED_MODEL_TYPE
             if task in TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
         ]
+
+        return supported_model_types
 
     @staticmethod
     def synonyms_for_task(task: str) -> Set[str]:
@@ -1929,7 +1974,7 @@ class TasksManager:
                 token=token,
                 library_name=library_name,
             )
-        elif type(model) == type:
+        elif type(model) is type:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
         else:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model=model)
@@ -2083,7 +2128,7 @@ class TasksManager:
                 cache_dir=cache_dir,
                 token=token,
             )
-        elif type(model) == type:
+        elif type(model) is type:
             library_name = cls._infer_library_from_model_or_model_class(model_class=model)
         else:
             library_name = cls._infer_library_from_model_or_model_class(model=model)

@@ -80,16 +80,19 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gpt-neox",
     "gptj",
     "imagegpt",
+    "internlm2",
     "llama",
     "mistral",
     "phi",
     "phi3",
     "qwen2",
+    "qwen3",
+    "qwen3-moe",
     "granite",
 }
 
 
-if is_transformers_version(">=", "4.45.99"):
+if is_transformers_version(">=", "4.46.0"):
     MODEL_TYPES_REQUIRING_POSITION_IDS.add("opt")
 
 
