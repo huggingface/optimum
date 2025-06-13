@@ -316,8 +316,9 @@ class OptimizedModel(PreTrainedModel):
         )
 
     @classmethod
-    def _from_transformers(cls, *arg, **kwargs):
-        return cls._export(*arg, **kwargs)
+    def _from_transformers(cls, *args, **kwargs):
+        # TODO : add warning when from_pretrained_method is set to cls._export instead of cls._from_transformers when export=True
+        return cls._export(*args, **kwargs)
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
