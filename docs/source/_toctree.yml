@@ -18,6 +18,11 @@
   title: Nvidia
   isExpanded: false
 - sections:
+  - local: furiosa_overview
+    title: 🤗 Optimum Furiosa
+  title: Furiosa
+  isExpanded: false
+- sections:
   - local: onnxruntime/overview
     title: Overview
   - local: onnxruntime/quickstart

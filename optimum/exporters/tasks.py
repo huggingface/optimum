@@ -322,6 +322,7 @@ class TasksManager:
     }
 
     _CUSTOM_CLASSES = {
+        ("pt", "colpali", "feature-extraction"): ("transformers", "ColPaliForRetrieval"),
         ("pt", "patchtsmixer", "time-series-forecasting"): ("transformers", "PatchTSMixerForPrediction"),
         ("pt", "patchtst", "time-series-forecasting"): ("transformers", "PatchTSTForPrediction"),
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
@@ -512,6 +513,11 @@ class TasksManager:
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
         ),
+        "chinese-clip": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-image-classification",
+            onnx="ChineseCLIPOnnxConfig",
+        ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-image-classification",
@@ -527,6 +533,10 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             onnx="CodeGenOnnxConfig",
+        ),
+        "colpali": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="ColPaliOnnxConfig",
         ),
         "convbert": supported_tasks_mapping(
             "feature-extraction",
@@ -778,6 +788,11 @@ class TasksManager:
             "feature-extraction",
             "image-classification",
             onnx="ImageGPTOnnxConfig",
+        ),
+        "internlm2": supported_tasks_mapping(
+            "text-generation",
+            "text-generation-with-past",
+            onnx="InternLM2OnnxConfig",
         ),
         "layoutlm": supported_tasks_mapping(
             "feature-extraction",
