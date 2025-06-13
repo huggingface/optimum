@@ -316,6 +316,10 @@ class OptimizedModel(PreTrainedModel):
         )
 
     @classmethod
+    def _from_transformers(cls, *arg, **kwargs):
+        return cls._export(*arg, **kwargs)
+
+    @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
     def from_pretrained(
         cls,
