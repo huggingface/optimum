@@ -316,11 +316,6 @@ class OptimizedModel(PreTrainedModel):
         )
 
     @classmethod
-    def _from_transformers(cls, *args, **kwargs):
-        # TODO : add warning when from_pretrained_method is set to cls._export instead of cls._from_transformers when export=True
-        return cls._export(*args, **kwargs)
-
-    @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
     def from_pretrained(
         cls,
@@ -408,7 +403,21 @@ class OptimizedModel(PreTrainedModel):
                 trust_remote_code=trust_remote_code,
             )
 
-        from_pretrained_method = cls._export if export else cls._from_pretrained
+        if export:
+            if hasattr(cls, "_export"):
+                from_pretrained_method = cls._export
+            elif hasattr(cls, "_from_transformers"):
+                logger.warning(
+                    "The `export` argument is set to `True`, but the class does not implement `_export` methods. "
+                    "Using the `_from_transformers` method instead."
+                )
+                from_pretrained_method = cls._from_transformers
+            else:
+                raise ValueError(
+                    "The `export` argument is set to `True`, but the class does not implement `_export` methods."
+                )
+        else:
+            from_pretrained_method = cls._from_pretrained
 
         return from_pretrained_method(
             model_id=model_id,
