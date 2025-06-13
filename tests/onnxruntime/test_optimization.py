@@ -65,7 +65,7 @@ class ORTOptimizerTestMixin(unittest.TestCase):
             task = task + "-with-past"
 
         if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
+            model_arch, exporter="onnx"
         ):
             self.skipTest("Unsupported export case")
 
@@ -119,7 +119,7 @@ class ORTOptimizerTest(unittest.TestCase):
 
             tokens = tokenizer("This is a sample input", return_tensors="pt")
             position_ids = None
-            if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+            if model.config.model_type in MODEL_TYPES_REQUIRING_POSITION_IDS:
                 input_shape = tokens["input_ids"].shape
                 position_ids = (
                     torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
@@ -252,7 +252,7 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "bart",
         "blenderbot",
-        "blenderbot_small",
+        "blenderbot-small",
         "longt5",
         "m2m_100",
         "marian",

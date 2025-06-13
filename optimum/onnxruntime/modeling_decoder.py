@@ -122,7 +122,7 @@ TEXT_GENERATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForCausalLM(ORTModel, GenerationMixin):
     """
-    ONNX model with a causal language modeling head for ONNX Runtime inference. This class officially supports bloom, codegen, falcon, gpt2, gpt_bigcode, gpt_neo, gpt_neox, gptj, llama.
+    ONNX model with a causal language modeling head for ONNX Runtime inference. This class officially supports bloom, codegen, falcon, gpt2, gpt-bigcode, gpt_neo, gpt_neox, gptj, llama.
     """
 
     auto_model_class = AutoModelForCausalLM
@@ -190,7 +190,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         self.generation_config = generation_config
 
         # Reference: https://github.com/huggingface/optimum/pull/1381
-        model_type = self.config.model_type.replace("_", "-")
+        model_type = self.config.model_type
         if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
             logger.warning(
                 f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although the model type {model_type} "

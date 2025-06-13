@@ -79,7 +79,7 @@ MODELS_DICT = {
     "wav2vec2": ("patrickvonplaten/wav2vec2_tiny_random", "ybelkada/tiny-wav2vec2-stable-ln"),
     # NOTE: whisper directy supports SDPA in Transformers.
     # "whisper": "openai/whisper-tiny",
-    "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
+    "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
 }
 

@@ -55,7 +55,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         "roformer",
         "splinter",
         "tapas",
-        "xlm_roberta",
+        "xlm-roberta",
     ]
 
     FULL_GRID = {

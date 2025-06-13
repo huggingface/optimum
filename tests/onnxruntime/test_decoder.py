@@ -71,7 +71,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "llama",
         "mistral",
         "bart",
-        "blenderbot_small",
+        "blenderbot-small",
         "bigbird_pegasus",
         "marian",
         "pegasus",
