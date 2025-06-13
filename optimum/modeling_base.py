@@ -407,10 +407,6 @@ class OptimizedModel(PreTrainedModel):
             if hasattr(cls, "_export"):
                 from_pretrained_method = cls._export
             elif hasattr(cls, "_from_transformers"):
-                logger.warning(
-                    "The `export` argument is set to `True`, but the class does not implement `_export` methods. "
-                    "Using the `_from_transformers` method instead."
-                )
                 from_pretrained_method = cls._from_transformers
             else:
                 raise ValueError(
