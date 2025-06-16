@@ -2058,13 +2058,19 @@ class TasksManager:
         """
         tasks = []
         if is_torch_available():
+            framework = "pt"
             mapping = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP
         else:
+            framework = "tf"
             mapping = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP
 
         tasks = []
         for d in mapping.values():
             tasks += list(d.keys())
+
+        for custom_class in TasksManager._CUSTOM_CLASSES:
+            if custom_class[0] == framework:
+                tasks.append(custom_class[2])
 
         tasks = list(set(tasks))
 

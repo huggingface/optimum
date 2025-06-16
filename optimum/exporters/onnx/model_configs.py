@@ -140,12 +140,7 @@ COMMON_TEXT_GENERATION_TASKS = [
     "text-generation-with-past",
 ]
 
-
-COMMON_TEXT2TEXT_GENERATION_TASKS = [
-    "feature-extraction",
-    "feature-extraction-with-past",
-    "text-generation",
-    "text-generation-with-past",
+COMMON_TEXT2TEXT_GENERATION_TASKS = COMMON_TEXT_GENERATION_TASKS + [
     "text2text-generation",
     "text2text-generation-with-past",
 ]
