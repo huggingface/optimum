@@ -1024,7 +1024,7 @@ class SwinV2OnnxConfig(SwinOnnxConfig):
     pass
 
 
-@register_tasks_manager_onnx("vit", *["feature-extraction", "image-to-image"])
+@register_tasks_manager_onnx("swin2sr", *["feature-extraction", "image-to-image"])
 class Swin2srOnnxConfig(SwinOnnxConfig):
     pass
 
@@ -2553,6 +2553,15 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
 
 @register_tasks_manager_onnx(
     "donut",
+    *[
+        "image-to-text",
+        "image-to-text-with-past",
+        "document-question-answering",
+        "document-question-answering-with-past",
+    ],
+)
+@register_tasks_manager_onnx(
+    "vision-encoder-decoder",
     *[
         "image-to-text",
         "image-to-text-with-past",
