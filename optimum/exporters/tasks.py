@@ -1237,8 +1237,6 @@ class TasksManager:
         "unet-2d-condition",
         "vae-encoder",
         "vae-decoder",
-        "clip-text-model",
-        "clip-text-with-projection",
         "siglip-text-model",
         "siglip-text-with-projection",
         # transformers model part
