@@ -293,7 +293,10 @@ class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
-@register_tasks_manager_onnx("deberta", *COMMON_TEXT_TASKS)
+@register_tasks_manager_onnx(
+    "deberta",
+    *["feature-extraction", "fill-mask", "text-classification", "token-classification", "question-answering"],
+)
 class DebertaOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
