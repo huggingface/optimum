@@ -100,6 +100,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
+    "gemma2": "100daggers/tiny-random-gemma2",
     "glpn": "hf-internal-testing/tiny-random-GLPNModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
@@ -357,14 +358,12 @@ PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
     },
 }
 
-
 PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
 }
-
 
 PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES = {
     "default-timm-config": {

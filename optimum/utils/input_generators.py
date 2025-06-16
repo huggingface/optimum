@@ -29,6 +29,7 @@ from .normalized_config import (
     NormalizedSeq2SeqConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
+    NormalizedTextConfigWithGQA,
 )
 
 
@@ -1278,6 +1279,54 @@ class GemmaDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             for _ in range(self.num_layers)
         ]
 
+class Gemma2DummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def __init__(
+            self,
+            task: str,
+            normalized_config: NormalizedTextConfigWithGQA,
+            batch_size: int = 2,
+            sequence_length: int = 1,
+            random_batch_size_range=None,
+            random_sequence_length_range=None,
+            **kwargs,
+    ):
+        super().__init__(
+            task,
+            normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+        )
+        # Number of layers and heads
+        self.num_layers = normalized_config.num_layers
+        self.num_attention_heads = normalized_config.num_attention_heads
+        self.num_key_value_heads = normalized_config.num_key_value_heads
+        self.hidden_size = normalized_config.hidden_size
+        self.batch_size = batch_size
+        self.head_dim = normalized_config.head_dim
+        self.sequence_length = sequence_length
+
+    def supports_input(self, input_name: str) -> bool:
+        # ONNX exporter will ask for “past_key_values_0”, “past_key_values_1”, ... etc.
+        return input_name.startswith("past_key_values")
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        """
+        Returns a list of (key, value) tuples for each layer:
+          - Each key/value: [batch_size, num_key_value_heads, 1, head_dim]
+          - head_dim = hidden_size // num_attention_heads
+        """
+        shape = (self.batch_size, self.num_key_value_heads, 1, 256)
+
+        # Generate `num_layers` pairs of random tensors
+        return [
+            (
+                self.random_float_tensor(shape, framework=framework),
+                self.random_float_tensor(shape, framework=framework),
+            )
+            for _ in range(self.num_layers)
+        ]
 
 class DummySpeechT5InputGenerator(DummyInputGenerator):
     SUPPORTED_INPUT_NAMES = ("output_sequence", "speaker_embeddings", "spectrogram")
