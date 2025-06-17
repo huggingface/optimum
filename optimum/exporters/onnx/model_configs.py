@@ -1352,7 +1352,7 @@ class SiglipTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
     pass
 
 
-@register_tasks_manager_onnx("siglip-text-model", *["feature-extraction"])
+@register_tasks_manager_onnx("siglip-text", *["feature-extraction"])
 class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
     pass
 
