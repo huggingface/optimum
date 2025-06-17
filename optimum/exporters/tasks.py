@@ -492,7 +492,7 @@ class TasksManager:
             "question-answering",
             tflite="CamembertTFLiteConfig",
         ),
-        "chinese-clip": supported_tasks_mapping(
+        "chinese_clip": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-image-classification",
         ),

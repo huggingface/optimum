@@ -57,7 +57,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
-    "chinese-clip": "hf-internal-testing/tiny-random-ChineseCLIPModel",
+    "chinese_clip": "hf-internal-testing/tiny-random-ChineseCLIPModel",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "clip_vision_model": "fxmarty/clip-vision-model-tiny",
     "colpali": "hf-internal-testing/tiny-random-ColPaliForRetrieval",

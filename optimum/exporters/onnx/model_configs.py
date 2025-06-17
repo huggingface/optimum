@@ -1326,7 +1326,7 @@ class SiglipNormalizedConfig(CLIPNormalizedConfig):
     pass
 
 
-@register_tasks_manager_onnx("chinese-clip", *["feature-extraction", "zero-shot-image-classification"])
+@register_tasks_manager_onnx("chinese_clip", *["feature-extraction", "zero-shot-image-classification"])
 class ChineseCLIPOnnxConfig(CLIPOnnxConfig):
     pass
 
