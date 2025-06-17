@@ -147,7 +147,7 @@ class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoX
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
         self.downcast_qk = True
-        self.dropout_prob_attn = 0.0  # no dropout for gpt-neox
+        self.dropout_prob_attn = 0.0  # no dropout for gpt_neox
 
     def forward(self, *args, **kwargs):
         return super().forward(*args, **kwargs)

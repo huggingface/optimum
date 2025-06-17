@@ -374,7 +374,7 @@ class ImageGPTOnnxConfig(GPT2OnnxConfig):
     pass
 
 
-@register_tasks_manager_onnx("decision-transformer", *["feature-extraction", "reinforcement-learning"])
+@register_tasks_manager_onnx("decision_transformer", *["feature-extraction", "reinforcement-learning"])
 class DecisionTransformerOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyDecisionTransformerInputGenerator,)
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
@@ -399,13 +399,13 @@ class DecisionTransformerOnnxConfig(OnnxConfig):
         }
 
 
-@register_tasks_manager_onnx("gpt-neo", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
+@register_tasks_manager_onnx("gpt_neo", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
 class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
 
-@register_tasks_manager_onnx("gpt-neox", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
+@register_tasks_manager_onnx("gpt_neox", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
 class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
@@ -457,7 +457,7 @@ class Qwen3OnnxConfig(LlamaOnnxConfig):
 
 
 @register_tasks_manager_onnx(
-    "qwen3-moe", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"]
+    "qwen3_moe", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"]
 )
 class Qwen3MoeOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
@@ -542,7 +542,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
 
 
 @register_tasks_manager_onnx(
-    "gpt-bigcode", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"]
+    "gpt_bigcode", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"]
 )
 class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
@@ -691,7 +691,7 @@ class LongT5OnnxConfig(T5OnnxConfig):
 
 
 @register_tasks_manager_onnx(
-    "m2m-100",
+    "m2m_100",
     *["feature-extraction", "feature-extraction-with-past", "text2text-generation", "text2text-generation-with-past"],
 )
 class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
@@ -848,13 +848,13 @@ class BlenderbotSmallOnnxConfig(BartOnnxConfig):
     pass
 
 
-@register_tasks_manager_onnx("big-bird", *COMMON_TEXT_TASKS)
+@register_tasks_manager_onnx("big_bird", *COMMON_TEXT_TASKS)
 class BigBirdOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
 @register_tasks_manager_onnx(
-    "bigbird-pegasus", *COMMON_TEXT2TEXT_GENERATION_TASKS + ["text-classification", "question-answering"]
+    "bigbird_pegasus", *COMMON_TEXT2TEXT_GENERATION_TASKS + ["text-classification", "question-answering"]
 )
 class BigBirdPegasusOnnxConfig(BartOnnxConfig):
     @property
@@ -955,14 +955,14 @@ class PvtOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
-@register_tasks_manager_onnx("vit-mae", *["feature-extraction"])
+@register_tasks_manager_onnx("vit_mae", *["feature-extraction"])
 class VitMAEOnnxConfig(ViTOnnxConfig):
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
     DEFAULT_ONNX_OPSET = 14
 
 
-@register_tasks_manager_onnx("vit-msn", *["feature-extraction", "image-classification"])
+@register_tasks_manager_onnx("vit_msn", *["feature-extraction", "image-classification"])
 class VitMSNOnnxConfig(ViTOnnxConfig):
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
@@ -1065,7 +1065,7 @@ class SegformerOnnxConfig(YolosOnnxConfig):
         return outputs
 
 
-@register_tasks_manager_onnx("mobilenet-v1", *["feature-extraction", "image-classification"])
+@register_tasks_manager_onnx("mobilenet_v1", *["feature-extraction", "image-classification"])
 class MobileNetV1OnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     DEFAULT_ONNX_OPSET = 11
@@ -1075,7 +1075,7 @@ class MobileNetV1OnnxConfig(ViTOnnxConfig):
         return {"pixel_values": {0: "batch_size"}}
 
 
-@register_tasks_manager_onnx("mobilenet-v2", *["feature-extraction", "image-classification"])
+@register_tasks_manager_onnx("mobilenet_v2", *["feature-extraction", "image-classification"])
 class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
 
@@ -1188,7 +1188,7 @@ class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     VISION_CONFIG = "vision_config"
 
 
-@register_tasks_manager_onnx("clip-vision-model", *["feature-extraction"])
+@register_tasks_manager_onnx("clip_vision_model", *["feature-extraction"])
 class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
     DEFAULT_ONNX_OPSET = 14  # scaled_dot_product_attention support was added in opset 14
@@ -1326,7 +1326,7 @@ class SiglipNormalizedConfig(CLIPNormalizedConfig):
     pass
 
 
-@register_tasks_manager_onnx("chinese-clip", *["feature-extraction", "zero-shot-image-classification"])
+@register_tasks_manager_onnx("chinese_clip", *["feature-extraction", "zero-shot-image-classification"])
 class ChineseCLIPOnnxConfig(CLIPOnnxConfig):
     pass
 
@@ -1352,12 +1352,12 @@ class SiglipTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
     pass
 
 
-@register_tasks_manager_onnx("siglip-text-model", *["feature-extraction"])
+@register_tasks_manager_onnx("siglip-text", *["feature-extraction"])
 class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
     pass
 
 
-@register_tasks_manager_onnx("siglip-vision-model", *["feature-extraction"])
+@register_tasks_manager_onnx("siglip_vision_model", *["feature-extraction"])
 class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
@@ -2480,7 +2480,7 @@ class VitsOnnxConfig(TextEncoderOnnxConfig):
 
 
 @register_tasks_manager_onnx(
-    "speech-to-text",
+    "speech_to_text",
     *[
         "feature-extraction",
         "feature-extraction-with-past",
@@ -2901,7 +2901,7 @@ class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
     pass
 
 
-@register_tasks_manager_onnx("rt-detr", *["object-detection"])
+@register_tasks_manager_onnx("rt_detr", *["object-detection"])
 class RTDetrOnnxConfig(ViTOnnxConfig):
     # Export the operator 'aten::grid_sampler' to ONNX fails under opset 16.
     # Support for this operator was added in version 16.
@@ -2931,7 +2931,7 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
         return super()._create_dummy_input_generator_classes(**kwargs)
 
 
-@register_tasks_manager_onnx("rt-detr-v2", *["object-detection"])
+@register_tasks_manager_onnx("rt_detr_v2", *["object-detection"])
 class RTDetrV2OnnxConfig(RTDetrOnnxConfig):
     pass
 
@@ -2990,6 +2990,6 @@ class ColPaliOnnxConfig(GemmaOnnxConfig):
         return dummy_inputs
 
 
-@register_tasks_manager_onnx("d-fine", *["object-detection"])
+@register_tasks_manager_onnx("d_fine", *["object-detection"])
 class DFineOnnxConfig(RTDetrOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")

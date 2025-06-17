@@ -233,8 +233,8 @@ class NormalizedConfigManager:
         "albert": NormalizedTextConfig,
         "bart": BartLikeNormalizedTextConfig,
         "bert": NormalizedTextConfig,
-        "big-bird": NormalizedTextConfig,
-        "bigbird-pegasus": BartLikeNormalizedTextConfig,
+        "big_bird": NormalizedTextConfig,
+        "bigbird_pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot-small": BartLikeNormalizedTextConfig,
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head"),
@@ -252,9 +252,9 @@ class NormalizedConfigManager:
         "encoder-decoder": NormalizedEncoderDecoderConfig,
         "gemma": NormalizedTextConfigWithGQA,
         "gpt2": GPT2LikeNormalizedTextConfig,
-        "gpt-bigcode": GPTBigCodeNormalizedTextConfig,
-        "gpt-neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
-        "gpt-neox": NormalizedTextConfig,
+        "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
+        "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
+        "gpt_neox": NormalizedTextConfig,
         "gptj": GPT2LikeNormalizedTextConfig,
         "imagegpt": GPT2LikeNormalizedTextConfig,
         "internlm2": NormalizedTextConfigWithGQA,
@@ -269,7 +269,7 @@ class NormalizedConfigManager:
         "mpnet": NormalizedTextConfig,
         "mpt": MPTNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
-        "m2m-100": BartLikeNormalizedTextConfig,
+        "m2m_100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,
         "olmo": NormalizedTextConfig,
         "olmo2": NormalizedTextConfig,
@@ -283,7 +283,7 @@ class NormalizedConfigManager:
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
         "segformer": NormalizedSegformerConfig,
-        "speech-to-text": SpeechToTextLikeNormalizedTextConfig,
+        "speech_to_text": SpeechToTextLikeNormalizedTextConfig,
         "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
         "trocr": TrOCRLikeNormalizedTextConfig,
@@ -294,7 +294,7 @@ class NormalizedConfigManager:
         "yolos": NormalizedVisionConfig,
         "qwen2": NormalizedTextConfig,
         "qwen3": NormalizedTextConfig,
-        "qwen3-moe": NormalizedTextConfig,
+        "qwen3_moe": NormalizedTextConfig,
         "granite": NormalizedTextConfigWithGQA,
     }
 
@@ -309,6 +309,5 @@ class NormalizedConfigManager:
 
     @classmethod
     def get_normalized_config_class(cls, model_type: str) -> Type:
-        model_type = model_type.replace("_", "-")
         cls.check_supported_model(model_type)
         return cls._conf[model_type]
