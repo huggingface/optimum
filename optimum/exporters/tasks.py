@@ -740,13 +740,6 @@ class TasksManager:
             "text-classification",
             "token-classification",
         ),
-        # "layoutlmv2": supported_tasks_mapping(
-        #     "feature-extraction",
-        #     "question-answering",
-        #     "text-classification",
-        #     "token-classification",
-        #     onnx="LayoutLMv2OnnxConfig",
-        # ),
         "layoutlmv3": supported_tasks_mapping(
             "feature-extraction",
             "question-answering",
