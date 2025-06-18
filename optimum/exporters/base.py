@@ -136,8 +136,6 @@ class ExporterConfig(ABC):
         "zero-shot-image-classification": ["logits_per_image", "logits_per_text", "text_embeds", "image_embeds"],
         "zero-shot-object-detection": ["logits", "pred_boxes", "text_embeds", "image_embeds"],
     }
-    # TODO : add _MODEL_PATCHER + patch_model_for_export
-    # _MODEL_PATCHER = ModelPatcher
 
     def __init__(
         self,

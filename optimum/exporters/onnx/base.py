@@ -104,7 +104,6 @@ class OnnxConfig(ExporterConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
     VARIANTS = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
-    # TODO: move PATCHING_SPECS to ExporterConfig
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     _MODEL_PATCHER = ModelPatcher
 
@@ -345,7 +344,6 @@ class OnnxConfig(ExporterConfig, ABC):
                 ordered_inputs[name] = dynamic_axes
         return ordered_inputs
 
-    # TODO: use instead flatten_inputs and remove
     @classmethod
     def flatten_output_collection_property(cls, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         """
