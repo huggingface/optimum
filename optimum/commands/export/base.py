@@ -26,11 +26,6 @@ class ExportCommand(BaseOptimumCLICommand):
     )
     SUBCOMMANDS = (
         CommandInfo(
-            name="onnx",
-            help="Export PyTorch and TensorFlow to ONNX.",
-            subcommand_class=ONNXExportCommand,
-        ),
-        CommandInfo(
             name="tflite",
             help="Export TensorFlow to TensorFlow Lite.",
             subcommand_class=TFLiteExportCommand,
