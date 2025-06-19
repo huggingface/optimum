@@ -78,7 +78,6 @@ class TestCLI(unittest.TestCase):
                 subprocess.run(export, shell=True, check=True)
                 subprocess.run(optimize, shell=True, check=True)
 
-
     def _run_command_and_check_content(self, command: str, content: str) -> bool:
         proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
