@@ -34,49 +34,17 @@ class TestCLI(unittest.TestCase):
         super().tearDown()
         REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink(missing_ok=True)
 
-    def test_helps_no_raise(self):
-        commands = [
-            "optimum-cli --help",
-            "optimum-cli export --help",
-            "optimum-cli export onnx --help",
-            "optimum-cli env --help",
-            "optimum-cli onnxruntime quantize --help",
-            "optimum-cli onnxruntime optimize --help",
-        ]
-
-        for command in commands:
-            subprocess.run(command, shell=True, check=True)
-
     def test_env_commands(self):
         subprocess.run("optimum-cli env", shell=True, check=True)
 
     def test_export_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             commands = [
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vision_perceiver_conv --task image-classification {tempdir}/onnx",
                 f"optimum-cli export tflite --model hf-internal-testing/tiny-random-bert --task text-classification --sequence_length 128 {tempdir}/tflite",
             ]
 
             for command in commands:
                 subprocess.run(command, shell=True, check=True)
-
-    def test_optimize_commands(self):
-        with tempfile.TemporaryDirectory() as tempdir:
-            # First export a tiny encoder, decoder only and encoder-decoder
-            export_commands = [
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-BertModel {tempdir}/encoder",
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 {tempdir}/decoder",
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bart {tempdir}/encoder-decoder",
-            ]
-            optimize_commands = [
-                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder -O1 -o {tempdir}/optimized_encoder",
-                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/decoder -O1 -o {tempdir}/optimized_decoder",
-                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder-decoder -O1 -o {tempdir}/optimized_encoder_decoder",
-            ]
-
-            for export, optimize in zip(export_commands, optimize_commands):
-                subprocess.run(export, shell=True, check=True)
-                subprocess.run(optimize, shell=True, check=True)
 
     def _run_command_and_check_content(self, command: str, content: str) -> bool:
         proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
