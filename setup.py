@@ -94,6 +94,7 @@ EXTRAS_REQUIRE = {
         "tensorflow>=2.4,<=2.12.1",
         "transformers>=4.36,<4.38",
     ],
+    "onnx": "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
     "intel": "optimum-intel>=1.23.0",
     "openvino": "optimum-intel[openvino]>=1.23.0",
     "nncf": "optimum-intel[nncf]>=1.23.0",
