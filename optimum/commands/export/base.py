@@ -15,7 +15,6 @@
 """optimum.exporters command-line interface base classes."""
 
 from .. import BaseOptimumCLICommand, CommandInfo
-from .onnx import ONNXExportCommand
 from .tflite import TFLiteExportCommand
 
 
