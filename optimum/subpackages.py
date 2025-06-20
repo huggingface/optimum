@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 import logging
 import sys
 
@@ -23,8 +22,6 @@ if sys.version_info >= (3, 8):
 else:
     import importlib_metadata
 from importlib.util import find_spec, module_from_spec
-
-from .utils import is_onnxruntime_available
 
 
 logger = logging.getLogger(__name__)
@@ -78,8 +75,3 @@ def load_subpackages():
     """
     SUBPACKAGE_LOADER = "subpackage"
     load_namespace_modules("optimum", SUBPACKAGE_LOADER)
-
-    # Load subpackages from internal modules not explicitly defined as namespace packages
-    loader_name = "." + SUBPACKAGE_LOADER
-    if is_onnxruntime_available():
-        importlib.import_module(loader_name, package="optimum.onnxruntime")
