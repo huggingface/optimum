@@ -14,5 +14,4 @@
 
 
 from .base import ExportCommand
-from .onnx import ONNXExportCommand
 from .tflite import TFLiteExportCommand

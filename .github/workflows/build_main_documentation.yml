@@ -105,7 +105,7 @@ jobs:
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
-          pip install .
+          pip install .[onnx]
           pip install black
           cd ..
 
