@@ -35,11 +35,6 @@ jobs:
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-furiosa'
-          path: optimum-furiosa
-
-      - uses: actions/checkout@v2
-        with:
           repository: 'huggingface/optimum-amd'
           path: optimum-amd
 
@@ -128,30 +123,6 @@ jobs:
           cd optimum-intel
           make doc BUILD_DIR=intel-doc-build VERSION=${{ env.VERSION }}
           sudo mv intel-doc-build ../optimum
-          cd ..
-
-      - name: Make Furiosa documentation
-        run: |
-          source venv-doc/bin/activate
-          cd optimum-furiosa
-          pip install .
-          sudo apt install software-properties-common
-          sudo add-apt-repository --remove https://packages.microsoft.com/ubuntu/22.04/prod
-          sudo apt update
-          sudo apt install -y ca-certificates apt-transport-https gnupg
-          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 5F03AFA423A751913F249259814F888B20B09A7E
-          sudo tee -a /etc/apt/auth.conf.d/furiosa.conf > /dev/null <<EOT
-            machine archive.furiosa.ai
-            login ${{ secrets.FURIOSA_ACCESS_KEY }}
-            password ${{ secrets.FURIOSA_SECRET_ACCESS_KEY }}
-          EOT
-          sudo chmod 400 /etc/apt/auth.conf.d/furiosa.conf
-          sudo tee -a /etc/apt/sources.list.d/furiosa.list <<EOT
-            deb [arch=amd64] https://archive.furiosa.ai/ubuntu jammy restricted
-          EOT
-          sudo apt update && sudo apt install -y furiosa-libnux
-          doc-builder build optimum.furiosa docs/source/ --build_dir furiosa-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
-          mv furiosa-doc-build ../optimum
           cd ..
 
       - name: Make TPU documentation

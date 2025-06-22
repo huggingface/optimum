@@ -80,14 +80,12 @@ EXTRAS_REQUIRE = {
     ],
     "exporters": [
         "onnx",
-        "timm",
         "onnxruntime",
         "protobuf>=3.20.1",
         "transformers>=4.36,<4.53.0",
     ],
     "exporters-gpu": [
         "onnx",
-        "timm",
         "onnxruntime-gpu",
         "protobuf>=3.20.1",
         "transformers>=4.36,<4.53.0",
@@ -101,7 +99,6 @@ EXTRAS_REQUIRE = {
     ],
     "exporters-tf": [
         "onnx",
-        "timm",
         "h5py",
         "tf2onnx",
         "onnxruntime",

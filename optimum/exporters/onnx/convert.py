@@ -998,9 +998,9 @@ def onnx_export_from_model(
     TasksManager.standardize_model_attributes(model)
 
     if hasattr(model.config, "export_model_type"):
-        model_type = model.config.export_model_type.replace("_", "-")
+        model_type = model.config.export_model_type
     else:
-        model_type = model.config.model_type.replace("_", "-")
+        model_type = model.config.model_type
 
     library_name = TasksManager.infer_library_from_model(model)
 

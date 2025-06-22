@@ -86,8 +86,8 @@ class ORTConfigManager:
         "albert": "bert",
         "bart": "bart",
         "bert": "bert",
-        "big-bird": "bert",
-        "bigbird-pegasus": "bart",
+        "big_bird": "bert",
+        "bigbird_pegasus": "bart",
         "blenderbot": "bert",
         "bloom": "gpt2",
         "camembert": "bert",
@@ -98,9 +98,9 @@ class ORTConfigManager:
         "distilbert": "bert",
         "electra": "bert",
         "gpt2": "gpt2",
-        "gpt-bigcode": "gpt2",
-        "gpt-neo": "gpt2",
-        "gpt-neox": "gpt2",
+        "gpt_bigcode": "gpt2",
+        "gpt_neo": "gpt2",
+        "gpt_neox": "gpt2",
         "gptj": "gpt2",
         "granite": "gpt2",
         "longt5": "bert",
@@ -108,9 +108,10 @@ class ORTConfigManager:
         "marian": "bart",
         "mbart": "bart",
         "mistral": "gpt2",
+        "modernbert": "bert",
         "mpnet": "bert",
         "mt5": "bart",
-        "m2m-100": "bart",
+        "m2m_100": "bart",
         "nystromformer": "bert",
         "pegasus": "bert",
         "roberta": "bert",
@@ -124,7 +125,6 @@ class ORTConfigManager:
 
     @classmethod
     def get_model_ort_type(cls, model_type: str) -> str:
-        model_type = model_type.replace("_", "-")
         cls.check_supported_model(model_type)
         return cls._conf[model_type]
 
@@ -153,7 +153,6 @@ class ORTConfigManager:
             "swin",
             "swinv2",
         ]
-        model_type = model_type.replace("_", "-")
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
             raise NotImplementedError(
                 f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {list(cls._conf.keys())} are supported. "
