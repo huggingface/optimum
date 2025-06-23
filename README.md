@@ -80,6 +80,8 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### ONNX + ONNX Runtime
 
+⚠️ Everything related to ONNX and ONNX Runtime will soon be moved to [optimum-onnx](https://github.com/huggingface/optimum-onnx).
+
 Before you begin, make sure you have all the necessary libraries installed :
 
 ```bash
