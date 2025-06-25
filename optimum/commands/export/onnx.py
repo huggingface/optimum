@@ -252,13 +252,13 @@ def parse_args_onnx(parser):
         "--visual_seq_length",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["visual_seq_length"],
-        help="Visual sequence length"
+        help="Visual sequence length",
     )
     input_group.add_argument(
         "--visual_embedding_dim",
         type=int,
         default=DEFAULT_DUMMY_SHAPES["visual_embedding_dim"],
-        help="Visual embedding dimension"
+        help="Visual embedding dimension",
     )
 
     # deprecated argument

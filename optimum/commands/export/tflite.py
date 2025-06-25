@@ -125,18 +125,8 @@ def parse_args_tflite(parser: "ArgumentParser"):
         default=None,
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
-    input_group.add_argument(
-        "--visual_seq_length",
-        type=int,
-        default=None,
-        help="Visual sequence length"
-    )
-    input_group.add_argument(
-        "--visual_embedding_dim",
-        type=int,
-        default=None,
-        help="Visual embedding dimension"
-    )
+    input_group.add_argument("--visual_seq_length", type=int, default=None, help="Visual sequence length")
+    input_group.add_argument("--visual_embedding_dim", type=int, default=None, help="Visual embedding dimension")
 
     quantization_group = parser.add_argument_group("Quantization")
     quantization_group.add_argument(
