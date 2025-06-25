@@ -106,18 +106,6 @@
   title: Exporters
   isExpanded: false
 - sections:
-  - local: bettertransformer/overview
-    title: Overview
-  - sections:
-    - local: bettertransformer/tutorials/convert
-      title: Convert Transformers models to use BetterTransformer
-    - local: bettertransformer/tutorials/contribute
-      title: How to add support for new architectures?
-    title: Tutorials
-    isExpanded: false
-  title: BetterTransformer
-  isExpanded: false
-- sections:
   - local: torch_fx/overview
     title: Overview
   - sections:

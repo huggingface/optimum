@@ -24,9 +24,6 @@ Fixes # (issue)
 
 <!--
 For faster review, we strongly recommend you to ping the following people:
-- ONNX / ONNX Runtime : @fxmarty, @echarlaix, @JingyaHuang, @michaelbenayoun
-- ONNX Runtime Training: @JingyaHuang
-- BetterTransformer: @fxmarty
-- GPTQ, quantization: @fxmarty, @SunMarc
-- TFLite export: @michaelbenayoun
+- Exporters (ONNX/TFLite) : @echarlaix, @JingyaHuang, @michaelbenayoun, @IlyasMoutawwakil
+- GPTQ, quantization: @SunMarc, @IlyasMoutawwakil
 -->
