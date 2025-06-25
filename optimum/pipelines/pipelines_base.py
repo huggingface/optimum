@@ -51,11 +51,10 @@ from transformers.pipelines import (
     TOKENIZER_MAPPING,
     check_task,
     get_default_model_and_revision,
-    infer_framework_load_model,
 )
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 
-from ..utils import is_onnxruntime_available, is_transformers_version
+from ..utils import is_onnxruntime_available
 
 
 if is_onnxruntime_available():
