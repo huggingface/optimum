@@ -18,10 +18,25 @@
 from typing import List
 
 from ...utils.normalized_config import NormalizedConfigManager
+from ..tasks import TasksManager
 from .base import QuantizationApproach
 from .config import TextEncoderTFliteConfig, VisionTFLiteConfig
 
 
+register_tasks_manager_tflite = TasksManager.create_register("tflite")
+
+
+COMMON_TEXT_TASKS = [
+    "feature-extraction",
+    "fill-mask",
+    "multiple-choice",
+    "question-answering",
+    "text-classification",
+    "token-classification",
+]
+
+
+@register_tasks_manager_tflite("tflite", *COMMON_TEXT_TASKS)
 class BertTFLiteConfig(TextEncoderTFliteConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("bert")
     # INT8x16 not supported because of the CAST op.
@@ -36,53 +51,65 @@ class BertTFLiteConfig(TextEncoderTFliteConfig):
         return ["input_ids", "attention_mask", "token_type_ids"]
 
 
+@register_tasks_manager_tflite("ablbert", *COMMON_TEXT_TASKS)
 class AlbertTFLiteConfig(BertTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("convbert", *COMMON_TEXT_TASKS)
 class ConvBertTFLiteConfig(BertTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("electra", *COMMON_TEXT_TASKS)
 class ElectraTFLiteConfig(BertTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("roformer", *COMMON_TEXT_TASKS)
 class RoFormerTFLiteConfig(BertTFLiteConfig):
     # INT8x16 not supported because of the CAST and NEG ops.
     pass
 
 
+@register_tasks_manager_tflite("mobilebert", *COMMON_TEXT_TASKS)
 class MobileBertTFLiteConfig(BertTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("xlm", *COMMON_TEXT_TASKS)
 class XLMTFLiteConfig(BertTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("distilbert", *COMMON_TEXT_TASKS)
 class DistilBertTFLiteConfig(BertTFLiteConfig):
     @property
     def inputs(self) -> List[str]:
         return ["input_ids", "attention_mask"]
 
 
+@register_tasks_manager_tflite("mpnet", *COMMON_TEXT_TASKS)
 class MPNetTFLiteConfig(DistilBertTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("roberta", *COMMON_TEXT_TASKS)
 class RobertaTFLiteConfig(DistilBertTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("camembert", *COMMON_TEXT_TASKS)
 class CamembertTFLiteConfig(DistilBertTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("flaubert", *COMMON_TEXT_TASKS)
 class FlaubertTFLiteConfig(BertTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("xlm-roberta", *COMMON_TEXT_TASKS)
 class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
     SUPPORTED_QUANTIZATION_APPROACHES = {
         "default": BertTFLiteConfig.SUPPORTED_QUANTIZATION_APPROACHES,
@@ -101,6 +128,10 @@ class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
 #     pass
 
 
+@register_tasks_manager_tflite(
+    "deberta",
+    *["feature-extraction", "fill-mask", "text-classification", "token-classification", "question-answering"],
+)
 class DebertaTFLiteConfig(BertTFLiteConfig):
     # INT8 quantization is producing a segfault error.
     SUPPORTED_QUANTIZATION_APPROACHES = (QuantizationApproach.INT8_DYNAMIC, QuantizationApproach.FP16)
@@ -114,10 +145,15 @@ class DebertaTFLiteConfig(BertTFLiteConfig):
         return common_inputs
 
 
+@register_tasks_manager_tflite(
+    "deberta-v2",
+    *["feature-extraction", "fill-mask", "text-classification", "token-classification", "question-answering"],
+)
 class DebertaV2TFLiteConfig(DebertaTFLiteConfig):
     pass
 
 
+@register_tasks_manager_tflite("resnet", *["feature-extraction", "image-classification"])
 class ResNetTFLiteConfig(VisionTFLiteConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("resnet")
 
