@@ -64,7 +64,6 @@ DEFAULT_DUMMY_SHAPES = {
     "point_batch_size": 3,
     "nb_points_per_image": 2,
     "visual_seq_length": 16,
-    "visual_embedding_dim": 20,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,
@@ -822,7 +821,6 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         width: int = DEFAULT_DUMMY_SHAPES["width"],
         height: int = DEFAULT_DUMMY_SHAPES["height"],
         visual_seq_length: int = DEFAULT_DUMMY_SHAPES["visual_seq_length"],
-        visual_embedding_dim: int = DEFAULT_DUMMY_SHAPES["visual_embedding_dim"],
         **kwargs,
     ):
         self.task = task
@@ -847,7 +845,7 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         self.batch_size = batch_size
         self.height, self.width = self.image_size
         self.visual_seq_length = visual_seq_length
-        self.visual_embedding_dim = visual_embedding_dim
+        self.visual_embedding_dim = getattr(normalized_config, "visual_embedding_dim", 512)
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "pixel_mask":

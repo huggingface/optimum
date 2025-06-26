@@ -254,12 +254,6 @@ def parse_args_onnx(parser):
         default=DEFAULT_DUMMY_SHAPES["visual_seq_length"],
         help="Visual sequence length",
     )
-    input_group.add_argument(
-        "--visual_embedding_dim",
-        type=int,
-        default=DEFAULT_DUMMY_SHAPES["visual_embedding_dim"],
-        help="Visual embedding dimension",
-    )
 
     # deprecated argument
     parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
