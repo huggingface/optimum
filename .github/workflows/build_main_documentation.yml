@@ -105,7 +105,7 @@ jobs:
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
-          pip install .[onnx]
+          pip install .
           pip install black
           cd ..
 
@@ -157,7 +157,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa executorch --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa executorch onnx --version ${{ env.VERSION }}
           cd ..
 
       - name: Push to repositories

@@ -41,3 +41,6 @@ tpu/index: /docs/optimum-tpu/index
 
 # Optimum ExecuTorch
 docs/optimum-executorch/index: /docs/optimum-executorch/index
+
+# Optimum ONNX
+docs/optimum-onnx/index: /docs/optimum-onnx/index
