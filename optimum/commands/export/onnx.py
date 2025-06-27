@@ -248,6 +248,12 @@ def parse_args_onnx(parser):
         default=DEFAULT_DUMMY_SHAPES["nb_points_per_image"],
         help="For Segment Anything. It corresponds to the number of points per segmentation masks.",
     )
+    input_group.add_argument(
+        "--visual_seq_length",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["visual_seq_length"],
+        help="Visual sequence length",
+    )
 
     # deprecated argument
     parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
