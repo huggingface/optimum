@@ -168,6 +168,7 @@ class TFLiteConfig(ExporterConfig, ABC):
         audio_sequence_length: Optional[int] = None,
         point_batch_size: Optional[int] = None,
         nb_points_per_image: Optional[int] = None,
+        visual_seq_length: Optional[int] = None,
     ):
         self.mandatory_axes = ()
         self._axes: Dict[str, int] = {}
@@ -187,6 +188,7 @@ class TFLiteConfig(ExporterConfig, ABC):
             "audio_sequence_length": audio_sequence_length,
             "point_batch_size": point_batch_size,
             "nb_points_per_image": nb_points_per_image,
+            "visual_seq_length": visual_seq_length,
         }
         for name, value in axes_values.items():
             setattr(self, name, value)
