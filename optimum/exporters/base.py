@@ -74,7 +74,7 @@ class ExportConfig(ABC):
 
 class ExporterConfig(ABC):
     """
-    Base class describing metadata on how to export the model through the ONNX format.
+    Base class describing metadata on how to export the model.
 
     Class attributes:
 
@@ -197,7 +197,7 @@ class ExporterConfig(ABC):
     @property
     def is_transformers_support_available(self) -> bool:
         """
-        Whether the installed version of Transformers allows for the ONNX export.
+        Whether the installed version of Transformers allows the export.
 
         Returns:
             `bool`: Whether the install version of Transformers is compatible with the model.
@@ -208,7 +208,7 @@ class ExporterConfig(ABC):
     @property
     def is_torch_support_available(self) -> bool:
         """
-        Whether the installed version of PyTorch allows for the ONNX export.
+        Whether the installed version of PyTorch allows the export.
 
         Returns:
             `bool`: Whether the installed version of PyTorch is compatible with the model.
@@ -237,17 +237,3 @@ class ExporterConfig(ABC):
                     "the model exporters config."
                 )
         return dummy_inputs
-
-    @classmethod
-    def flatten_inputs(cls, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Flatten nested structure in dummy inputs, e.g `addition_embed_type` of unet model.
-        """
-        flatten = {}
-        for name, value in inputs.items():
-            if isinstance(value, dict):
-                for sub_name, sub_value in value.items():
-                    flatten[sub_name] = sub_value
-            else:
-                flatten[name] = value
-        return flatten

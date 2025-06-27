@@ -72,7 +72,6 @@ EXTRAS_REQUIRE = {
     ],
     "exporters-tf": [
         "onnx",
-        "timm",
         "h5py",
         "tf2onnx",
         "onnxruntime",
