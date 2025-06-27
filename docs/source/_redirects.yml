@@ -41,3 +41,26 @@ tpu/index: /docs/optimum-tpu/index
 
 # Optimum ExecuTorch
 docs/optimum-executorch/index: /docs/optimum-executorch/index
+
+# Optimum ONNX
+docs/optimum-onnx/index: /docs/optimum-onnx/index
+onnxruntime/overview: /docs/optimum-onnx/onnxruntime/overview
+onnxruntime/quickstart: /docs/optimum-onnx/onnxruntime/quickstart
+onnxruntime/usage_guides/pipelines: /docs/optimum-onnx/onnxruntime/usage_guides/pipelines
+onnxruntime/usage_guides/models: /docs/optimum-onnx/onnxruntime/usage_guides/models
+onnxruntime/usage_guides/optimization: /docs/optimum-onnx/onnxruntime/usage_guides/optimization
+onnxruntime/usage_guides/quantization: /docs/optimum-onnx/onnxruntime/usage_guides/quantization
+onnxruntime/usage_guides/trainer: /docs/optimum-onnx/onnxruntime/usage_guides/trainer
+onnxruntime/usage_guides/gpu: /docs/optimum-onnx/onnxruntime/usage_guides/gpu
+onnxruntime/usage_guides/amdgpu: /docs/optimum-onnx/onnxruntime/usage_guides/amdgpu
+onnxruntime/concept_guides/onnx: /docs/optimum-onnx/onnxruntime/concept_guides/onnx
+onnxruntime/package_reference/modeling_ort: /docs/optimum-onnx/onnxruntime/package_reference/modeling_ort
+onnxruntime/package_reference/configuration: /docs/optimum-onnx/onnxruntime/package_reference/configuration
+onnxruntime/package_reference/optimization: /docs/optimum-onnx/onnxruntime/package_reference/optimization
+onnxruntime/package_reference/quantization: /docs/optimum-onnx/onnxruntime/package_reference/quantization
+onnxruntime/package_reference/trainer: /docs/optimum-onnx/onnxruntime/package_reference/trainer
+exporters/onnx/overview: /docs/optimum-onnx/onnx/overview
+exporters/onnx/usage_guides/export_a_model: /docs/optimum-onnx/onnx/usage_guides/export_a_model
+exporters/onnx/usage_guides/contribute: /docs/optimum-onnx/onnx/usage_guides/contribute
+exporters/onnx/package_reference/configuration: /docs/optimum-onnx/onnx/package_reference/configuration
+exporters/onnx/package_reference/export: /docs/optimum-onnx/onnx/package_reference/export
