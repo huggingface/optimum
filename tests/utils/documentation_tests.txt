@@ -1,6 +1,3 @@
-docs/source/bettertransformer/overview.mdx
-docs/source/bettertransformer/tutorials/contribute.mdx
-docs/source/bettertransformer/tutorials/convert.mdx
 docs/source/concept_guides/quantization.mdx
 docs/source/quicktour.mdx
 docs/source/onnxruntime/package_reference/quantization.mdx
@@ -32,11 +29,6 @@ docs/source/torch_fx/concept_guides/symbolic_tracer.mdx
 docs/source/torch_fx/usage_guides/optimization.mdx
 docs/source/torch_fx/overview.mdx
 docs/source/index.mdx
-optimum/bettertransformer/__init__.py
-optimum/bettertransformer/models/__init__.py
-optimum/bettertransformer/models/base.py
-optimum/bettertransformer/models/encoder_models.py
-optimum/bettertransformer/transformation.py
 optimum/modeling_base.py
 optimum/fx/__init__.py
 optimum/fx/optimization/__init__.py

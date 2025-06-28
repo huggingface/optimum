@@ -51,11 +51,10 @@ from transformers.pipelines import (
     TOKENIZER_MAPPING,
     check_task,
     get_default_model_and_revision,
-    infer_framework_load_model,
 )
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 
-from ..utils import is_onnxruntime_available, is_transformers_version
+from ..utils import is_onnxruntime_available
 
 
 if is_onnxruntime_available():
@@ -178,60 +177,6 @@ else:
     ORT_SUPPORTED_TASKS = {}
 
 
-def load_bettertransformer(
-    model,
-    targeted_task,
-    load_tokenizer=None,
-    tokenizer=None,
-    feature_extractor=None,
-    load_feature_extractor=None,
-    image_processor=None,
-    load_image_processor=None,
-    SUPPORTED_TASKS=None,
-    subfolder: str = "",
-    token: Optional[Union[bool, str]] = None,
-    revision: str = "main",
-    model_kwargs: Optional[Dict[str, Any]] = None,
-    config: AutoConfig = None,
-    hub_kwargs: Optional[Dict] = None,
-    **kwargs,
-):
-    from ..bettertransformer import BetterTransformer
-
-    if model_kwargs is None:
-        # the argument was first introduced in 4.36.0 but most models didn't have an sdpa implementation then
-        # see https://github.com/huggingface/transformers/blob/v4.36.0/src/transformers/modeling_utils.py#L1258
-        if is_transformers_version(">=", "4.36.0"):
-            model_kwargs = {"attn_implementation": "eager"}
-        else:
-            model_kwargs = {}
-
-    if isinstance(model, str):
-        model_id = model
-    else:
-        model_id = None
-
-    model_classes = {"pt": SUPPORTED_TASKS[targeted_task]["pt"]}
-    framework, model = infer_framework_load_model(
-        model,
-        model_classes=model_classes,
-        config=config,
-        framework="pt",
-        task=targeted_task,
-        **hub_kwargs,
-        **model_kwargs,
-    )
-
-    if framework == "tf":
-        raise NotImplementedError(
-            "BetterTransormer is PyTorch-specific. It will not work with the provided TensorFlow model."
-        )
-
-    model = BetterTransformer.transform(model, **kwargs)
-
-    return model, model_id, tokenizer, feature_extractor, image_processor
-
-
 def load_ort_pipeline(
     model,
     targeted_task,
@@ -299,7 +244,6 @@ def load_ort_pipeline(
 
 MAPPING_LOADING_FUNC = {
     "ort": load_ort_pipeline,
-    "bettertransformer": load_bettertransformer,
 }
 
 
@@ -324,11 +268,6 @@ def pipeline(
             raise ValueError(
                 f"Task {targeted_task} is not supported for the ONNX Runtime pipeline. Supported tasks are { list(ORT_SUPPORTED_TASKS.keys())}"
             )
-
-    if accelerator not in MAPPING_LOADING_FUNC:
-        raise ValueError(
-            f'Accelerator {accelerator} is not supported. Supported accelerators are "ort" and "bettertransformer".'
-        )
 
     supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
 
