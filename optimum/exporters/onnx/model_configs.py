@@ -54,6 +54,7 @@ from ...utils import (
     DummyXPathSeqInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
+    Gemma2DummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
     LongformerDummyTextInputGenerator,
     MCTCTDummyAudioInputGenerator,
@@ -103,6 +104,7 @@ from .model_patcher import (
     VisionEncoderDecoderPatcher,
     VitPoseModelPatcher,
     WavLMModelPatcher,
+    GemmaModelPatcher
 )
 
 
@@ -467,6 +469,18 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
+class Gemma2OnnxConfig(GemmaOnnxConfig):
+    DEFAULT_ONNX_OPSET = 19
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
+        Gemma2DummyPastKeyValuesGenerator,
+    )
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA.with_args(head_dim="head_dim", allow_new=True)
+    DUMMY_PKV_GENERATOR_CLASS = Gemma2DummyPastKeyValuesGenerator
+
+    def patch_model_for_export(self, model, model_kwargs=None):
+        return GemmaModelPatcher(self, model, model_kwargs)
 
 @register_tasks_manager_onnx("granite", *COMMON_TEXT_GENERATION_TASKS)
 class GraniteOnnxConfig(LlamaOnnxConfig):

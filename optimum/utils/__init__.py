@@ -93,6 +93,7 @@ from .input_generators import (
     DummyXPathSeqInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
+    Gemma2DummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
     LongformerDummyTextInputGenerator,
     MCTCTDummyAudioInputGenerator,

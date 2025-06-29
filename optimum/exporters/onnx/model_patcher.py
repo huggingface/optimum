@@ -27,7 +27,6 @@ from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSp
 from ...utils import is_transformers_version, logging
 from ._traceable_cache import TraceableCache
 
-
 if is_transformers_version(">=", "4.35"):
     from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 if is_transformers_version(">=", "4.36"):
@@ -41,12 +40,10 @@ if is_transformers_version(">=", "4.48"):
     from transformers.integrations.sdpa_attention import repeat_kv, sdpa_attention_forward
     from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
-
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
 
     from .base import OnnxConfig
-
 
 logger = logging.get_logger(__name__)
 
@@ -230,10 +227,10 @@ CACHE_PATCHING_SPEC = [PatchingSpec(transformers.cache_utils, "Cache", Traceable
 
 class ModelPatcher:
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self._model = model
 
@@ -271,9 +268,9 @@ class ModelPatcher:
                     pkv_index = list(signature.parameters.keys()).index("past_key_values")
 
                     if (
-                        pkv_index < len(args)  # pkv is in args
-                        and isinstance(args[pkv_index], (list, tuple))
-                        and isinstance(args[pkv_index][0], (list, tuple))
+                            pkv_index < len(args)  # pkv is in args
+                            and isinstance(args[pkv_index], (list, tuple))
+                            and isinstance(args[pkv_index][0], (list, tuple))
                     ):
                         if len(args[pkv_index][0]) == 2:
                             args[pkv_index] = DynamicCache.from_legacy_cache(args[pkv_index])
@@ -284,9 +281,9 @@ class ModelPatcher:
                                 f"past_key_values should have either 2 or 4 elements, but it has {len(args[pkv_index][0])} elements"
                             )
                     elif (
-                        "past_key_values" in kwargs  # pkv is in kwargs
-                        and isinstance(kwargs["past_key_values"], (list, tuple))
-                        and isinstance(kwargs["past_key_values"][0], (list, tuple))
+                            "past_key_values" in kwargs  # pkv is in kwargs
+                            and isinstance(kwargs["past_key_values"], (list, tuple))
+                            and isinstance(kwargs["past_key_values"][0], (list, tuple))
                     ):
                         if len(kwargs["past_key_values"][0]) == 2:
                             kwargs["past_key_values"] = DynamicCache.from_legacy_cache(kwargs["past_key_values"])
@@ -312,9 +309,9 @@ class ModelPatcher:
                 for name, value in outputs.items():
                     onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                     if (
-                        onnx_output_name in config.outputs
-                        or (allow_past_in_outputs and name.startswith("past_key_values"))
-                        or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                            onnx_output_name in config.outputs
+                            or (allow_past_in_outputs and name.startswith("past_key_values"))
+                            or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
                     ):
                         filtered_outputs[name] = value
             elif isinstance(outputs, (list, tuple)):
@@ -379,10 +376,10 @@ class Seq2SeqModelPatcher(ModelPatcher):
             ALL_ATTENTION_FUNCTIONS["sdpa"] = sdpa_attention_forward
 
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -408,9 +405,9 @@ class Seq2SeqModelPatcher(ModelPatcher):
             for name, value in outputs.items():
                 onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                 if (
-                    onnx_output_name in config.outputs
-                    or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                        onnx_output_name in config.outputs
+                        or (allow_past_in_outputs and name.startswith("past_key_values"))
+                        or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
                 ):
                     if name != "past_key_values":
                         if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
@@ -420,8 +417,8 @@ class Seq2SeqModelPatcher(ModelPatcher):
                             filtered_outputs[name] = value
                     else:
                         if self.real_config._behavior == "monolith" or (
-                            self.real_config._behavior == "decoder"
-                            and (self.real_config.is_merged or not self.real_config.use_past_in_inputs)
+                                self.real_config._behavior == "decoder"
+                                and (self.real_config.is_merged or not self.real_config.use_past_in_inputs)
                         ):
                             filtered_outputs[name] = value
                         elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
@@ -433,15 +430,15 @@ class Seq2SeqModelPatcher(ModelPatcher):
 
 
 def patched_sdpa_attention_forward(
-    module: torch.nn.Module,
-    query: torch.Tensor,
-    key: torch.Tensor,
-    value: torch.Tensor,
-    attention_mask: Optional[torch.Tensor],
-    dropout: float = 0.0,
-    scaling: Optional[float] = None,
-    is_causal: Optional[bool] = None,
-    **kwargs,
+        module: torch.nn.Module,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        attention_mask: Optional[torch.Tensor],
+        dropout: float = 0.0,
+        scaling: Optional[float] = None,
+        is_causal: Optional[bool] = None,
+        **kwargs,
 ) -> Tuple[torch.Tensor, None]:
     if hasattr(module, "num_key_value_groups"):
         key = repeat_kv(key, module.num_key_value_groups)
@@ -479,10 +476,10 @@ def patched_sdpa_attention_forward(
 
 class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
         use_cache = hasattr(self.real_config, "use_past")
@@ -499,17 +496,17 @@ if is_transformers_version(">=", "4.39"):
 else:
 
     def _unmask_unattended_patched(
-        expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
+            expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
     ):
         return expanded_mask
 
 
 def _make_causal_mask_patched(
-    input_ids_shape: torch.Size,
-    dtype: torch.dtype,
-    device: torch.device,
-    past_key_values_length: int = 0,
-    sliding_window: Optional[int] = None,
+        input_ids_shape: torch.Size,
+        dtype: torch.dtype,
+        device: torch.device,
+        past_key_values_length: int = 0,
+        sliding_window: Optional[int] = None,
 ):
     """
     Make causal mask used for bi-directional self-attention.
@@ -538,11 +535,11 @@ def _make_causal_mask_patched(
 
 # Adapted from _prepare_4d_causal_attention_mask
 def _prepare_4d_causal_attention_mask_for_sdpa_patched(
-    attention_mask: Optional[torch.Tensor],
-    input_shape: Union[torch.Size, Tuple, List],
-    inputs_embeds: torch.Tensor,
-    past_key_values_length: int,
-    sliding_window: Optional[int] = None,
+        attention_mask: Optional[torch.Tensor],
+        input_shape: Union[torch.Size, Tuple, List],
+        inputs_embeds: torch.Tensor,
+        past_key_values_length: int,
+        sliding_window: Optional[int] = None,
 ):
     """
     Prepares the correct `attn_mask` argument to be used by `torch.nn.functional.scaled_dot_product_attention`.
@@ -599,10 +596,10 @@ class DecoderModelPatcher(ModelPatcher):
             )
 
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -615,7 +612,7 @@ class DecoderModelPatcher(ModelPatcher):
 
 
 def falcon_build_alibi_tensor_patched(
-    attention_mask: torch.Tensor, num_heads: int, dtype: torch.dtype
+        attention_mask: torch.Tensor, num_heads: int, dtype: torch.dtype
 ) -> torch.Tensor:
     batch_size, seq_length = attention_mask.shape
     closest_power_of_2 = 2 ** math.floor(math.log2(num_heads))
@@ -671,10 +668,10 @@ class FalconModelPatcher(DecoderModelPatcher):
             )
 
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
         self.build_alibi_tensor_original = transformers.models.falcon.modeling_falcon.build_alibi_tensor
@@ -682,10 +679,10 @@ class FalconModelPatcher(DecoderModelPatcher):
 
 class WavLMModelPatcher(ModelPatcher):
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -707,9 +704,9 @@ class WavLMModelPatcher(ModelPatcher):
             for name, value in outputs.items():
                 onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                 if (
-                    onnx_output_name in config.outputs
-                    or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                        onnx_output_name in config.outputs
+                        or (allow_past_in_outputs and name.startswith("past_key_values"))
+                        or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
                 ):
                     filterd_outputs[name] = value
             return filterd_outputs
@@ -719,10 +716,10 @@ class WavLMModelPatcher(ModelPatcher):
 
 class MgpstrModelPatcher(ModelPatcher):
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -745,21 +742,21 @@ class MgpstrModelPatcher(ModelPatcher):
 
 class SAMModelPatcher(ModelPatcher):
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
         def patched_forward(
-            pixel_values=None,
-            input_points=None,
-            input_labels=None,
-            image_embeddings=None,
-            image_positional_embeddings=None,
-            return_dict=True,
-            **kwargs,
+                pixel_values=None,
+                input_points=None,
+                input_labels=None,
+                image_embeddings=None,
+                image_positional_embeddings=None,
+                return_dict=True,
+                **kwargs,
         ):
             if config.variant == "monolith":
                 return self.orig_forward(
@@ -826,9 +823,9 @@ class SAMModelPatcher(ModelPatcher):
 
 
 def patched_speecht5_prenet_forward(
-    self,
-    input_values: torch.Tensor,
-    speaker_embeddings: Optional[torch.Tensor] = None,
+        self,
+        input_values: torch.Tensor,
+        speaker_embeddings: Optional[torch.Tensor] = None,
 ):
     # Dropout is always applied, even when evaluating. See §2.2 in https://arxiv.org/abs/1712.05884.
 
@@ -875,10 +872,10 @@ class SpeechT5ModelPatcher(ModelPatcher):
         )
 
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Dict[str, Any],
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -887,13 +884,13 @@ class SpeechT5ModelPatcher(ModelPatcher):
         model.vocoder = model_kwargs["vocoder_model"].eval()
 
         def patched_forward(
-            input_ids=None,
-            speaker_embeddings=None,
-            encoder_outputs=None,
-            past_key_values=None,
-            output_sequence=None,
-            spectrogram=None,
-            encoder_attention_mask=None,
+                input_ids=None,
+                speaker_embeddings=None,
+                encoder_outputs=None,
+                past_key_values=None,
+                output_sequence=None,
+                spectrogram=None,
+                encoder_attention_mask=None,
         ):
             use_cache = self.real_config.use_past and self.real_config.variant == "with-past"
             if self.real_config._behavior == "encoder":
@@ -977,7 +974,7 @@ class SpeechT5ModelPatcher(ModelPatcher):
                     filterd_outputs[name] = value
                 else:
                     if self.real_config._behavior == "decoder" and (
-                        self.real_config.is_merged or not self.real_config.use_past_in_inputs
+                            self.real_config.is_merged or not self.real_config.use_past_in_inputs
                     ):
                         filterd_outputs[name] = value
                     elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
@@ -993,9 +990,9 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
         if (
-            is_transformers_version(">=", "4.42")
-            and is_transformers_version("<", "4.48")
-            and self.real_config._config.model_type == "mistral"
+                is_transformers_version(">=", "4.42")
+                and is_transformers_version("<", "4.48")
+                and self.real_config._config.model_type == "mistral"
         ):
             self._model[0].auto_model._update_causal_mask = types.MethodType(
                 _update_causal_mask_patched, self._model[0].auto_model
@@ -1004,26 +1001,26 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
         if (
-            is_transformers_version(">=", "4.42")
-            and is_transformers_version("<", "4.48")
-            and self.real_config._config.model_type == "mistral"
+                is_transformers_version(">=", "4.42")
+                and is_transformers_version("<", "4.48")
+                and self.real_config._config.model_type == "mistral"
         ):
             self._model[0].auto_model._update_causal_mask = types.MethodType(
                 self._update_causal_mask_original, self._model[0].auto_model
             )
 
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Dict[str, Any],
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
 
         if (
-            is_transformers_version(">=", "4.42")
-            and is_transformers_version("<", "4.48")
-            and self.real_config._config.model_type == "mistral"
+                is_transformers_version(">=", "4.42")
+                and is_transformers_version("<", "4.48")
+                and self.real_config._config.model_type == "mistral"
         ):
             self._update_causal_mask_original = self._model[0].auto_model._update_causal_mask
 
@@ -1044,10 +1041,10 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
 
 class SentenceTransformersCLIPPatcher(ModelPatcher):
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Dict[str, Any],
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -1100,11 +1097,11 @@ def patched_build_delay_pattern_mask(self, input_ids: torch.Tensor, pad_token_id
     for codebook in range(channel_codebooks):
         if self.config.audio_channels == 1:
             # mono channel - loop over the codebooks one-by-one
-            input_ids_shifted[:, codebook, codebook : seq_len + codebook] = input_ids[:, codebook]
+            input_ids_shifted[:, codebook, codebook: seq_len + codebook] = input_ids[:, codebook]
         else:
             # left/right channels are interleaved in the generated codebooks, so handle one then the other
-            input_ids_shifted[:, 2 * codebook, codebook : seq_len + codebook] = input_ids[:, 2 * codebook]
-            input_ids_shifted[:, 2 * codebook + 1, codebook : seq_len + codebook] = input_ids[:, 2 * codebook + 1]
+            input_ids_shifted[:, 2 * codebook, codebook: seq_len + codebook] = input_ids[:, 2 * codebook]
+            input_ids_shifted[:, 2 * codebook + 1, codebook: seq_len + codebook] = input_ids[:, 2 * codebook + 1]
 
     # construct a pattern mask that indicates the positions of padding tokens for each codebook
     # first fill the upper triangular part (the EOS padding)
@@ -1159,10 +1156,10 @@ class MusicgenModelPatcher(Seq2SeqModelPatcher):
             setattr(self._model, self.orig_forward_name, self.orig_forward)
 
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -1172,12 +1169,12 @@ class MusicgenModelPatcher(Seq2SeqModelPatcher):
             # EncodecModel.forward -> EncodecModel.decode
             @functools.wraps(self.orig_forward)
             def patched_forward(
-                input_values: Optional["torch.Tensor"] = None,
-                padding_mask: Optional["torch.Tensor"] = None,
-                audio_codes: Optional["torch.Tensor"] = None,
-                bandwidth: Optional[float] = None,
-                audio_scales: Optional["torch.Tensor"] = None,
-                return_dict: Optional[bool] = None,
+                    input_values: Optional["torch.Tensor"] = None,
+                    padding_mask: Optional["torch.Tensor"] = None,
+                    audio_codes: Optional["torch.Tensor"] = None,
+                    bandwidth: Optional[float] = None,
+                    audio_scales: Optional["torch.Tensor"] = None,
+                    return_dict: Optional[bool] = None,
             ):
                 chunk_length = self.real_config._config.audio_encoder.chunk_length
                 if chunk_length is None:
@@ -1207,13 +1204,13 @@ class MusicgenModelPatcher(Seq2SeqModelPatcher):
 
 
 def _update_causal_mask_patched(
-    self,
-    attention_mask: torch.Tensor,
-    input_tensor: torch.Tensor,
-    cache_position: torch.Tensor,
-    past_key_values,
-    use_cache: bool,
-    output_attentions: bool,
+        self,
+        attention_mask: torch.Tensor,
+        input_tensor: torch.Tensor,
+        cache_position: torch.Tensor,
+        past_key_values,
+        use_cache: bool,
+        output_attentions: bool,
 ):
     # TODO: As of torch==2.2.0, the `attention_mask` passed to the model in `generate` is 2D and of dynamic length even when the static
     # KV cache is used. This is an issue for torch.compile which then recaptures cudagraphs at each decode steps due to the dynamic shapes.
@@ -1243,16 +1240,16 @@ def _update_causal_mask_patched(
     using_sliding_window_cache = isinstance(past_key_values, SlidingWindowCache)
 
     if (
-        self.config._attn_implementation == "sdpa"
-        and not (using_static_cache or using_sliding_window_cache)
-        and not output_attentions
+            self.config._attn_implementation == "sdpa"
+            and not (using_static_cache or using_sliding_window_cache)
+            and not output_attentions
     ):
         if AttentionMaskConverter._ignore_causal_mask_sdpa(
-            attention_mask,
-            inputs_embeds=input_tensor,
-            past_key_values_length=past_seen_tokens,
-            sliding_window=self.config.sliding_window,
-            is_training=self.training,
+                attention_mask,
+                inputs_embeds=input_tensor,
+                past_key_values_length=past_seen_tokens,
+                sliding_window=self.config.sliding_window,
+                is_training=self.training,
         ):
             return None
 
@@ -1304,10 +1301,10 @@ def _update_causal_mask_patched(
                 )
 
     if (
-        self.config._attn_implementation == "sdpa"
-        and attention_mask is not None
-        and attention_mask.device.type == "cuda"
-        and not output_attentions
+            self.config._attn_implementation == "sdpa"
+            and attention_mask is not None
+            and attention_mask.device.type == "cuda"
+            and not output_attentions
     ):
         # Attend to all tokens in fully masked rows in the causal_mask, for example the relevant first rows when
         # using left padding. This is required by F.scaled_dot_product_attention memory-efficient attention path.
@@ -1341,10 +1338,10 @@ class MistralModelPatcher(DecoderModelPatcher):
                 self._model._update_causal_mask = types.MethodType(self._update_causal_mask_original, self._model)
 
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -1370,10 +1367,10 @@ class CLIPModelPatcher(ModelPatcher):
 
 class VitPoseModelPatcher(ModelPatcher):
     def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+            self,
+            config: "OnnxConfig",
+            model: Union["PreTrainedModel", "TFPreTrainedModel"],
+            model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         # Set dataset_index (defaulting to COCO=0), otherwise we will get an error like:
         # ValueError: dataset_index must be provided when using multiple experts (num_experts=6). Please provide dataset_index to the forward pass.
@@ -1381,3 +1378,52 @@ class VitPoseModelPatcher(ModelPatcher):
             model_kwargs["dataset_index"] = torch.tensor(0, device=model.device)
 
         super().__init__(config, model, model_kwargs)
+
+
+def _ensure_cache_position(kwargs):
+    past_key_values = kwargs.get("past_key_values")
+    inputs_embeds = kwargs.get("inputs_embeds")
+
+    if "cache_position" in kwargs and kwargs["cache_position"] is not None:
+        return
+
+    # --- original heuristics -------------------------------------------------
+    try:
+        past_seen = past_key_values.get_seq_length()
+    except Exception:
+        try:
+            past_seen = next(iter(past_key_values.values())).shape[2]
+        except Exception:
+            past_seen = 0
+
+    if inputs_embeds is not None:
+        seq_len, device = inputs_embeds.shape[1], inputs_embeds.device
+    else:
+        input_ids = kwargs.get("input_ids")
+        seq_len = input_ids.shape[1] if input_ids is not None else 1
+        device = input_ids.device if input_ids is not None else torch.device("cpu")
+
+    kwargs["cache_position"] = torch.arange(
+        past_seen, past_seen + seq_len, dtype=torch.long, device=device
+    )
+
+
+class GemmaModelPatcher(ModelPatcher):
+
+    def patch_model(self, model):
+        if hasattr(model, "_original_forward"):
+            return model  # already patched
+
+        def patched_forward(self, *args, **kwargs):
+            _ensure_cache_position(kwargs)
+            return self._original_forward(*args, **kwargs)
+
+        model._original_forward = model.forward
+        model.forward = patched_forward.__get__(model, model.__class__)
+        return model
+
+    def restore_model(self, model):
+        if hasattr(model, "_original_forward"):
+            model.forward = model._original_forward
+            delattr(model, "_original_forward")
+        return model
