@@ -69,6 +69,14 @@ EXTRAS_REQUIRE = {
         "transformers>=4.36,<4.53.0",
         "onnxruntime-training>=1.11.0",
     ],
+    "onnxruntime-directml": [
+        "torch-directml",
+        "onnx",
+        "datasets>=1.2.1",
+        "onnxruntime-directml>=1.11.0",
+        "protobuf>=3.20.1",
+        "transformers>=4.36,<4.53.0",
+    ],
     "exporters": [
         "onnx",
         "onnxruntime",
@@ -78,6 +86,13 @@ EXTRAS_REQUIRE = {
     "exporters-gpu": [
         "onnx",
         "onnxruntime-gpu",
+        "protobuf>=3.20.1",
+        "transformers>=4.36,<4.53.0",
+    ],
+    "exporters-directml": [
+        "torch-directml",
+        "onnx",
+        "onnxruntime-directml",
         "protobuf>=3.20.1",
         "transformers>=4.36,<4.53.0",
     ],
