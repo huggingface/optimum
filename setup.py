@@ -70,13 +70,12 @@ EXTRAS_REQUIRE = {
         "onnxruntime-training>=1.11.0",
     ],
     "onnxruntime-directml": [
+        "torch-directml",
         "onnx",
-        "onnxruntime-directml>=1.11.0",
         "datasets>=1.2.1",
-        "evaluate",
+        "onnxruntime-directml>=1.11.0",
         "protobuf>=3.20.1",
-        "accelerate",  # ORTTrainer requires it.
-        "transformers>=4.36,<4.48.0",
+        "transformers>=4.36,<4.53.0",
     ],
     "exporters": [
         "onnx",
@@ -94,8 +93,8 @@ EXTRAS_REQUIRE = {
         "torch-directml",
         "onnx",
         "onnxruntime-directml",
-        "timm",
-        "transformers>=4.36,<4.48.0",
+        "protobuf>=3.20.1",
+        "transformers>=4.36,<4.53.0",
     ],
     "exporters-tf": [
         "onnx",
