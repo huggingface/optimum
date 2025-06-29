@@ -63,6 +63,7 @@ DEFAULT_DUMMY_SHAPES = {
     "num_channels": 3,
     "point_batch_size": 3,
     "nb_points_per_image": 2,
+    "visual_seq_length": 16,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,
@@ -806,6 +807,9 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         "pixel_mask",
         "sample",
         "latent_sample",
+        "visual_embeds",
+        "visual_token_type_ids",
+        "visual_attention_mask",
     )
 
     def __init__(
@@ -816,6 +820,7 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
         width: int = DEFAULT_DUMMY_SHAPES["width"],
         height: int = DEFAULT_DUMMY_SHAPES["height"],
+        visual_seq_length: int = DEFAULT_DUMMY_SHAPES["visual_seq_length"],
         **kwargs,
     ):
         self.task = task
@@ -839,6 +844,8 @@ class DummyVisionInputGenerator(DummyInputGenerator):
             self.image_size = (self.image_size, self.image_size)
         self.batch_size = batch_size
         self.height, self.width = self.image_size
+        self.visual_seq_length = visual_seq_length
+        self.visual_embedding_dim = getattr(normalized_config, "visual_embedding_dim", 512)
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "pixel_mask":
@@ -847,6 +854,28 @@ class DummyVisionInputGenerator(DummyInputGenerator):
                 max_value=1,
                 framework=framework,
                 dtype=int_dtype,
+            )
+        elif input_name in "visual_attention_mask":
+            return self.random_mask_tensor(
+                shape=[self.batch_size, self.visual_seq_length],
+                padding_side="right",
+                framework=framework,
+                dtype=int_dtype,
+            )
+
+        elif input_name == "visual_token_type_ids":
+            return self.random_int_tensor(
+                shape=[self.batch_size, self.visual_seq_length],
+                max_value=1,
+                framework=framework,
+                dtype=int_dtype,
+            )
+
+        elif input_name == "visual_embeds":
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.visual_seq_length, self.visual_embedding_dim],
+                framework=framework,
+                dtype=float_dtype,
             )
         else:
             return self.random_float_tensor(

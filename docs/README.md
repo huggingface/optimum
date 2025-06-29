@@ -105,7 +105,7 @@ continue to work.
 
 For an example of a rich moved sections set please see the very end of [the
 `Trainer`
-doc](https://github.com/huggingface/transformers/blob/main/docs/source/main_classes/trainer.mdx)
+doc](https://huggingface.co/docs/transformers/main_classes/trainer)
 in `transformers`.
 
 ## Adding a new tutorial
