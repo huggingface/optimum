@@ -46,29 +46,21 @@ QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
 BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
 EXTRAS_REQUIRE = {
+    "onnx": "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
     "onnxruntime": [
-        "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
-        "onnxruntime>=1.11.0",
+        "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
     ],
     "onnxruntime-gpu": [
-        "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
-        "onnxruntime-gpu>=1.11.0",
+        "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
     ],
     "onnxruntime-training": [
-        "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
-        "evaluate",
-        "torch-ort",
-        "accelerate",
-        "datasets>=1.2.1",
-        "onnxruntime-training>=1.11.0",
+        "optimum-onnx[onnxruntime-training] @ git+https://github.com/huggingface/optimum-onnx.git",
     ],
     "exporters": [
-        "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
-        "onnxruntime",
+        "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
     ],
     "exporters-gpu": [
-        "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
-        "onnxruntime-gpu",
+        "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
     ],
     "exporters-tf": [
         "onnx",
@@ -80,7 +72,6 @@ EXTRAS_REQUIRE = {
         "tensorflow>=2.4,<=2.12.1",
         "transformers>=4.36,<4.38",
     ],
-    "onnx": "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
     "intel": "optimum-intel>=1.23.0",
     "openvino": "optimum-intel[openvino]>=1.23.0",
     "nncf": "optimum-intel[nncf]>=1.23.0",
