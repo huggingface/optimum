@@ -56,6 +56,7 @@ EXTRAS_REQUIRE = {
     "onnxruntime-training": [
         "optimum-onnx[onnxruntime-training] @ git+https://github.com/huggingface/optimum-onnx.git",
     ],
+    # TODO: repove exporters (onnxruntime), exporters-gpu (onnxruntime) and exporter-tf (tflite) in v2.0
     "exporters": [
         "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
     ],
