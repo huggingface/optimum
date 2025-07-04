@@ -341,6 +341,9 @@ def export(
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
         the TFLite configuration.
     """
+
+    logger.warning("The TFLite exporter is deprecated and will be removed in the next major release of Optimum.")
+
     if not is_tf_available():
         raise ImportError("Cannot convert because TensorFlow is not installed. " "Please install TensorFlow first.")
     import tensorflow as tf
