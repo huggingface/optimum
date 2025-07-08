@@ -17,7 +17,7 @@ limitations under the License.
 <h1 align="center"><p>🤗 Optimum</p></h1>
 
 <p align="center">
-<a href="https://pypi.org/project/optimum/"><img alt="PyPI - License" src="https://img.shields.io/pypi/l/optimum"/></a>
+<a href="https://github.com/huggingface/optimum/blob/main/LICENSE"><img alt="PyPI - License" src="https://img.shields.io/pypi/l/optimum"/></a>
 <a href="https://pypi.org/project/optimum/"><img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/optimum"/></a>
 <a href="https://pypi.org/project/optimum/"><img alt="PyPI - Version" src="https://img.shields.io/pypi/v/optimum"/></a>
 <a href="https://pypi.org/project/optimum/"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/optimum"/></a>
