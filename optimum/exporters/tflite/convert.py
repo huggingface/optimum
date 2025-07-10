@@ -67,7 +67,7 @@ def validate_model_outputs(
     """
     if not is_tf_available():
         raise ImportError(
-            "Cannot validate conversion because TensorFlow is not installed. " "Please install TensorFlow first."
+            "Cannot validate conversion because TensorFlow is not installed. Please install TensorFlow first."
         )
     import tensorflow as tf
 
@@ -128,7 +128,7 @@ def validate_model_outputs(
 
     if shape_failures:
         msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (TFLite)" for t in shape_failures)
-        raise ShapeError("Output shapes do not match between reference model and the TFLite exported model:\n" "{msg}")
+        raise ShapeError("Output shapes do not match between reference model and the TFLite exported model:\n{msg}")
 
     if value_failures:
         msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
@@ -341,8 +341,11 @@ def export(
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
         the TFLite configuration.
     """
+
+    logger.warning("The TFLite exporter is deprecated and will be removed in Optimum v2.0.")
+
     if not is_tf_available():
-        raise ImportError("Cannot convert because TensorFlow is not installed. " "Please install TensorFlow first.")
+        raise ImportError("Cannot convert because TensorFlow is not installed. Please install TensorFlow first.")
     import tensorflow as tf
 
     output.parent.mkdir(parents=True, exist_ok=True)
