@@ -41,7 +41,7 @@ if is_transformers_version(">=", "4.48"):
     from transformers.integrations.sdpa_attention import repeat_kv, sdpa_attention_forward
     from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 if is_transformers_version(">=", "4.53"):
-    from transformers.masking_utils import AttentionMaskInterface, _ignore_causal_mask_sdpa, prepare_padding_mask
+    from transformers.masking_utils import ALL_MASK_ATTENTION_FUNCTIONS, _ignore_causal_mask_sdpa, prepare_padding_mask
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
 
 if TYPE_CHECKING:
@@ -225,7 +225,6 @@ def sdpa_mask_without_vmap(
     cache_position: torch.Tensor,
     kv_length: int,
     kv_offset: int = 0,
-    mask_function: Optional[Callable] = None,
     attention_mask: Optional[torch.Tensor] = None,
     local_size: Optional[int] = None,
     allow_is_causal_skip: bool = True,
@@ -278,11 +277,11 @@ def sdpa_mask_without_vmap(
     return causal_mask
 
 
-def eager_mask_with_vmap(*args, **kwargs) -> torch.Tensor:
+def eager_mask_without_vmap(*args, **kwargs) -> Optional[torch.Tensor]:
+    kwargs.pop("allow_torch_fix", None)
     kwargs.pop("allow_is_causal_skip", None)
     dtype = kwargs.get("dtype", torch.float32)
-    mask = sdpa_mask_without_vmap(*args, allow_is_causal_skip=False, allow_torch_fix=False, **kwargs)
-    # this line creates a mask that is filled with 0.0 where the mask is True and -inf where the mask is False
+    mask = sdpa_mask_without_vmap(*args, **kwargs, allow_is_causal_skip=False, allow_torch_fix=False)
     mask = torch.where(mask, torch.tensor(0.0, device=mask.device, dtype=dtype), torch.finfo(dtype).min)
     return mask
 
@@ -426,10 +425,10 @@ class ModelPatcher:
         transformers.cache_utils.Cache = TraceableCache
 
         if is_transformers_version(">=", "4.53"):
-            self.original_sdpa_mask = AttentionMaskInterface["sdpa"]
-            self.original_eager_mask = AttentionMaskInterface["eager_mask"]
-            AttentionMaskInterface.register("sdpa", sdpa_mask_without_vmap)
-            AttentionMaskInterface.register("eager", eager_mask_with_vmap)
+            self.original_sdpa_mask = ALL_MASK_ATTENTION_FUNCTIONS["sdpa"]
+            self.original_eager_mask = ALL_MASK_ATTENTION_FUNCTIONS["eager"]
+            ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", sdpa_mask_without_vmap)
+            ALL_MASK_ATTENTION_FUNCTIONS.register("eager", eager_mask_without_vmap)
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.restore_ops()
@@ -438,8 +437,8 @@ class ModelPatcher:
         transformers.cache_utils.Cache = self.original_cache_class
 
         if is_transformers_version(">=", "4.53"):
-            AttentionMaskInterface.register("sdpa", self.original_sdpa_mask)
-            AttentionMaskInterface.register("eager", self.original_eager_mask)
+            ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", self.original_sdpa_mask)
+            ALL_MASK_ATTENTION_FUNCTIONS.register("eager", self.original_eager_mask)
 
     def __call__(self, *args, **kwargs):
         if getattr(self._model, self.orig_forward_name) is self.orig_forward:
