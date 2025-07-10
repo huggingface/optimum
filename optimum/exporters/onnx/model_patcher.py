@@ -382,14 +382,14 @@ class ModelPatcher:
 class Seq2SeqModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-        if is_transformers_version(">=", "4.48"):
+        if is_transformers_version(">=", "4.48") and is_transformers_version("<", "4.53"):
             # this is required when gpt2 is used as decoder in any
             # encoder-decoder model with cross attention blocks
             ALL_ATTENTION_FUNCTIONS["sdpa"] = patched_sdpa_attention_forward
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if is_transformers_version(">=", "4.48"):
+        if is_transformers_version(">=", "4.48") and is_transformers_version("<", "4.53"):
             ALL_ATTENTION_FUNCTIONS["sdpa"] = sdpa_attention_forward
 
     def __init__(
