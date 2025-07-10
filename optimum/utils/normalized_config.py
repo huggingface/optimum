@@ -191,6 +191,10 @@ SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
     allow_new=True,
 )
 
+Gemma2NormalizedTextConfig = NormalizedTextConfigWithGQA.with_args(
+    head_dim="head_dim"
+)
+
 
 class NormalizedConfigManager:
     """
@@ -253,6 +257,7 @@ class NormalizedConfigManager:
         "electra": NormalizedTextConfig,
         "encoder-decoder": NormalizedEncoderDecoderConfig,
         "gemma": NormalizedTextConfigWithGQA,
+        "gemma2": NormalizedTextConfigWithGQA,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
