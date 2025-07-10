@@ -96,13 +96,13 @@ from .model_patcher import (
     MgpstrModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
+    Qwen3MoeModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
     SpeechT5ModelPatcher,
     VisionEncoderDecoderPatcher,
     VitPoseModelPatcher,
-    WavLMModelPatcher,
 )
 
 
@@ -459,6 +459,7 @@ class Qwen3OnnxConfig(LlamaOnnxConfig):
 )
 class Qwen3MoeOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
+    _MODEL_PATCHER = Qwen3MoeModelPatcher
 
 
 @register_tasks_manager_onnx("gemma", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
@@ -1838,11 +1839,7 @@ class UniSpeechSATOnnxConfig(HubertOnnxConfig):
     ],
 )
 class WavLMOnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
-    # we need to set output_attentions=True in the model input to avoid calling
-    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
-    # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
-    _MODEL_PATCHER = WavLMModelPatcher
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("audio-spectrogram-transformer", *["feature-extraction", "audio-classification"])
