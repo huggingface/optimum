@@ -38,6 +38,7 @@ TESTS_REQUIRE = [
     "sentencepiece",
     "rjieba",
     "hf_xet",
+    # TODO: this forces the latest version of torch for some reason, check why
     "onnxslim>=0.1.53",
 ]
 
@@ -51,14 +52,14 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "protobuf>=3.20.1",
         "onnxruntime>=1.11.0",
-        "transformers>=4.36,<4.53.0",
+        "transformers>=4.36,<4.54.0",
     ],
     "onnxruntime-gpu": [
         "onnx",
         "datasets>=1.2.1",
         "protobuf>=3.20.1",
         "onnxruntime-gpu>=1.11.0",
-        "transformers>=4.36,<4.53.0",
+        "transformers>=4.36,<4.54.0",
     ],
     "onnxruntime-training": [
         "evaluate",
@@ -66,20 +67,20 @@ EXTRAS_REQUIRE = {
         "accelerate",
         "datasets>=1.2.1",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.53.0",
+        "transformers>=4.36,<4.54.0",
         "onnxruntime-training>=1.11.0",
     ],
     "exporters": [
         "onnx",
         "onnxruntime",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.53.0",
+        "transformers>=4.36,<4.54.0",
     ],
     "exporters-gpu": [
         "onnx",
         "onnxruntime-gpu",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.53.0",
+        "transformers>=4.36,<4.54.0",
     ],
     "exporters-tf": [
         "onnx",

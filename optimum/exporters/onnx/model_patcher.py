@@ -225,7 +225,10 @@ UNSUPPORTED_OPS_PATCHING_SPEC = [
     # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
     PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),
 ]
-CACHE_PATCHING_SPEC = [PatchingSpec(transformers.cache_utils, "Cache", TraceableCache, transformers.cache_utils.Cache)]
+
+TRANSFORMERS_PATCHING_SPEC = [
+    PatchingSpec(transformers.cache_utils, "Cache", TraceableCache, transformers.cache_utils.Cache),
+]
 
 
 class ModelPatcher:
@@ -239,7 +242,7 @@ class ModelPatcher:
 
         patching_specs = config.PATCHING_SPECS or []
         patching_specs.extend(UNSUPPORTED_OPS_PATCHING_SPEC)
-        patching_specs.extend(CACHE_PATCHING_SPEC)
+        patching_specs.extend(TRANSFORMERS_PATCHING_SPEC)
 
         self._patching_specs = []
         for spec in patching_specs:
@@ -355,9 +358,20 @@ class ModelPatcher:
         self.patch_ops()
         setattr(self._model, self.orig_forward_name, self.patched_forward)
 
+        if is_transformers_version(">=", "4.53"):
+            from transformers.integrations.executorch import sdpa_mask_without_vmap
+            from transformers.masking_utils import AttentionMaskInterface
+
+            AttentionMaskInterface.register("sdpa", sdpa_mask_without_vmap)
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.restore_ops()
         setattr(self._model, self.orig_forward_name, self.orig_forward)
+
+        if is_transformers_version(">=", "4.53"):
+            from transformers.masking_utils import AttentionMaskInterface, sdpa_mask
+
+            AttentionMaskInterface.register("sdpa", sdpa_mask)
 
     def __call__(self, *args, **kwargs):
         if getattr(self._model, self.orig_forward_name) is self.orig_forward:
