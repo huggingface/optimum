@@ -58,7 +58,7 @@ if is_diffusers_available():
         )
 
 if TYPE_CHECKING:
-    from ..base import ExportConfig
+    from ..base import ExporterConfig
 
     if is_torch_available():
         from transformers.modeling_utils import PreTrainedModel
@@ -230,34 +230,34 @@ def get_diffusion_models_for_export(
     pipeline: "DiffusionPipeline",
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
-) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExportConfig"]]:
+) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExporterConfig"]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="diffusion"))
     return _get_diffusion_models_for_export(pipeline, int_dtype, float_dtype, exporter="onnx")
 
 
-def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
+def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExporterConfig"):
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="sam"))
     return _get_sam_models_for_export(model, config)
 
 
 def get_speecht5_models_for_export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig", model_kwargs: Optional[Dict]
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExporterConfig", model_kwargs: Optional[Dict]
 ):
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="speecht5"))
     return _get_speecht5_models_for_export(model, config)
 
 
 def get_encoder_decoder_models_for_export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"
-) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExporterConfig"
+) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExporterConfig"]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="encoder-decoder"))
     return _get_encoder_decoder_models_for_export(model, config)
 
 
 def get_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    config: "ExportConfig",
+    config: "ExporterConfig",
     legacy: bool = False,
-) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
+) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExporterConfig"]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="decoder"))
     return _get_decoder_models_for_export(model, config, legacy)

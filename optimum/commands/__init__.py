@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+__path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
