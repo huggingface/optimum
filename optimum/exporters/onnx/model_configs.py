@@ -281,6 +281,19 @@ class FlaubertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+@register_tasks_manager_onnx("eurobert", *COMMON_TEXT_TASKS)
+class EurobertOnnxConfig(BertOnnxConfig):
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+
+        return {
+            "input_ids": dynamic_axis,
+            "attention_mask": dynamic_axis,
+            "position_ids": dynamic_axis,
+        }
+
+
 @register_tasks_manager_onnx("ibert", *COMMON_TEXT_TASKS)
 class IBertOnnxConfig(DistilBertOnnxConfig):
     pass
