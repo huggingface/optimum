@@ -1427,6 +1427,7 @@ class VitPoseModelPatcher(ModelPatcher):
         super().__init__(config, model, model_kwargs)
 
 
+# https://github.com/huggingface/transformers/blob/v4.53.0/src/transformers/models/qwen3_moe/modeling_qwen3_moe.py#L228
 def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor:
     batch_size, sequence_length, hidden_dim = hidden_states.shape
     hidden_states = hidden_states.view(-1, hidden_dim)
@@ -1448,7 +1449,8 @@ def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor
     # this will be used to easily index which expert is going to be sollicitated
     expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
 
-    # TODO: we loop over all possible experts to avoid issues in graph execution.
+    # TODO: we loop over all possible experts instead of hitted ones to avoid issues in graph execution.
+    # expert_hitted = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
     # Loop over all available experts in the model and perform the computation on each expert
     for expert_idx in range(self.num_experts):
         expert_layer = self.experts[expert_idx]
