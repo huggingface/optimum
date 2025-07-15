@@ -40,6 +40,7 @@ from optimum.exporters.onnx.model_configs import (
     Qwen2OnnxConfig,
     Qwen3MoeOnnxConfig,
     Qwen3OnnxConfig,
+    SmolLM3OnnxConfig,
 )
 from optimum.exporters.tasks import TasksManager
 from optimum.onnx.utils import has_onnx_input
@@ -105,6 +106,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("qwen3_moe")
     if is_transformers_version(">=", str(InternLM2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("internlm2")
+    if is_transformers_version(">=", str(SmolLM3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("smollm3")
 
     GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}
     BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}

@@ -297,6 +297,7 @@ class NormalizedConfigManager:
         "qwen2": NormalizedTextConfig,
         "qwen3": NormalizedTextConfig,
         "qwen3_moe": NormalizedTextConfig,
+        "smollm3": NormalizedTextConfig,
         "granite": NormalizedTextConfigWithGQA,
     }
 

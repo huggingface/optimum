@@ -210,7 +210,16 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             self.embed_size_per_head = self.normalized_config.head_dim
         else:
             self.embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
-        if self.config.model_type in {"gemma", "mistral", "llama", "qwen2", "qwen3", "qwen3_moe", "granite"}:
+        if self.config.model_type in {
+            "gemma",
+            "mistral",
+            "llama",
+            "qwen2",
+            "qwen3",
+            "qwen3_moe",
+            "granite",
+            "smollm3",
+        }:
             self.num_key_value_heads = self.normalized_config.num_key_value_heads
         elif self.config.model_type == "falcon":
             self.num_key_value_heads = (

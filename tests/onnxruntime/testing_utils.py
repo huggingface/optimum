@@ -115,6 +115,7 @@ MODEL_NAMES = {
     "sew": "hf-internal-testing/tiny-random-SEWModel",
     "sew-d": "asapp/sew-d-tiny-100k-ft-ls100h",
     "siglip": "hf-internal-testing/tiny-random-SiglipModel",
+    "smollm3": "onnx-internal-testing/tiny-random-SmolLM3ForCausalLM",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "speech_to_text": "optimum-internal-testing/tiny-random-Speech2TextModel",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",

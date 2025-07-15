@@ -433,6 +433,11 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
+@register_tasks_manager_onnx("smollm3", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
+class SmolLM3OnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+
 @register_tasks_manager_onnx("olmo", *COMMON_TEXT_GENERATION_TASKS)
 class OlmoOnnxConfig(LlamaOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
