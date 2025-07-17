@@ -170,6 +170,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "siglip": "hf-internal-testing/tiny-random-SiglipModel",
     "siglip_vision_model": "hf-internal-testing/tiny-random-SiglipVisionModel",
+    "smollm3": "onnx-internal-testing/tiny-random-SmolLM3ForCausalLM",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
