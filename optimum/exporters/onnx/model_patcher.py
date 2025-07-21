@@ -24,7 +24,7 @@ import torch
 import transformers
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
-from ...utils import is_torch_version, is_transformers_version, logging
+from ...utils import is_transformers_version, logging
 from ._traceable_cache import TraceableCache
 
 
@@ -45,6 +45,7 @@ if is_transformers_version(">=", "4.53"):
         ALL_MASK_ATTENTION_FUNCTIONS,
         _ignore_causal_mask_sdpa,
         and_masks,
+        causal_mask_function,
         padding_mask_function,
         prepare_padding_mask,
     )
@@ -232,7 +233,7 @@ def sdpa_mask_without_vmap(
     cache_position: torch.Tensor,
     kv_length: int,
     kv_offset: int = 0,
-    mask_function: Optional[Callable] = None,
+    mask_function: Callable = causal_mask_function,
     attention_mask: Optional[torch.Tensor] = None,
     local_size: Optional[int] = None,
     allow_is_causal_skip: bool = True,
