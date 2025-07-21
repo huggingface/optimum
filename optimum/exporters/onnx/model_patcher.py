@@ -226,6 +226,7 @@ def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None
     return original_linal_norm(x, ord=ord, dim=dim, keepdim=keepdim, dtype=dtype, out=out)
 
 
+# Custom vectorized implementation of sdpa_mask without using vmap
 def sdpa_mask_without_vmap(
     batch_size: int,
     cache_position: torch.Tensor,
@@ -235,7 +236,6 @@ def sdpa_mask_without_vmap(
     attention_mask: Optional[torch.Tensor] = None,
     local_size: Optional[int] = None,
     allow_is_causal_skip: bool = True,
-    allow_torch_fix: bool = True,
     **kwargs,
 ) -> Optional[torch.Tensor]:
     q_length = cache_position.shape[0]
@@ -261,19 +261,14 @@ def sdpa_mask_without_vmap(
     # Expand the mask to match batch size and query length if they weren't used in the mask function
     causal_mask = causal_mask.expand(batch_size, 1, q_length, kv_length)
 
-    # Due to a bug in some older torch version, we need to update the mask in case a query is not attending to any
-    # tokens (due to padding). See details in https://github.com/pytorch/pytorch/issues/110213
-    if is_torch_version("<", "2.5") and allow_torch_fix:
-        causal_mask = causal_mask | torch.all(~causal_mask, dim=-1, keepdim=True)
-
     return causal_mask
 
 
+# Adapted from https://github.com/huggingface/transformers/blob/v4.53.0/src/transformers/masking_utils.py#L433
 def eager_mask_without_vmap(*args, **kwargs) -> Optional[torch.Tensor]:
-    kwargs.pop("allow_torch_fix", None)
     kwargs.pop("allow_is_causal_skip", None)
     dtype = kwargs.get("dtype", torch.float32)
-    mask = sdpa_mask_without_vmap(*args, **kwargs, allow_is_causal_skip=False, allow_torch_fix=False)
+    mask = sdpa_mask_without_vmap(*args, allow_is_causal_skip=False, **kwargs)
     mask = torch.where(mask, torch.tensor(0.0, device=mask.device, dtype=dtype), torch.finfo(dtype).min)
     return mask
 
