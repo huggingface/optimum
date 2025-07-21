@@ -426,6 +426,8 @@ class ModelPatcher:
 
             ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", sdpa_mask_without_vmap)
             ALL_MASK_ATTENTION_FUNCTIONS.register("eager", eager_mask_without_vmap)
+
+        if is_transformers_version(">=", "4.53.1"):
             transformers.masking_utils.find_packed_sequence_indices = find_packed_sequence_indices_patched
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -438,6 +440,8 @@ class ModelPatcher:
         if is_transformers_version(">=", "4.53"):
             ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", self.original_sdpa_mask)
             ALL_MASK_ATTENTION_FUNCTIONS.register("eager", self.original_eager_mask)
+
+        if is_transformers_version(">=", "4.53.1"):
             transformers.masking_utils.find_packed_sequence_indices = self.original_find_packed_sequence_indices
 
     def __call__(self, *args, **kwargs):
