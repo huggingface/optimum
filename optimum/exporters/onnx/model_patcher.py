@@ -50,6 +50,8 @@ if is_transformers_version(">=", "4.53"):
         prepare_padding_mask,
     )
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
+else:
+    causal_mask_function = None
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
