@@ -208,9 +208,6 @@ def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None, output_si
 
 
 # Custom implementation of torch.linalg.matrix_norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
-original_linal_norm = torch.linalg.norm
-
-
 def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None, out=None) -> torch.Tensor:
     if ord != 2:
         raise ValueError(
