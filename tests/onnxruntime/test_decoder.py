@@ -614,7 +614,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # TODO: remove once legacy export is removed
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_merged_and_not_merged_models_outputs(self, model_arch: str):
-        model_arch = "internlm2"
         trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
 
         with tempfile.TemporaryDirectory() as tmpdir:
