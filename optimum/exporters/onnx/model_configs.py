@@ -482,16 +482,14 @@ class GraniteOnnxConfig(LlamaOnnxConfig):
 
 @register_tasks_manager_onnx("phi", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
+    DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
 
 
 @register_tasks_manager_onnx("phi3", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
 class Phi3OnnxConfig(PhiOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        MistralDummyPastKeyValuesGenerator,
-    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
@@ -505,7 +503,7 @@ class InternLM2OnnxConfig(LlamaOnnxConfig):
 @register_tasks_manager_onnx("mistral", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     # This is because of the patching of torch.triu in AttentionMaskConverter, that exists from transformers>=4.35
-    MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.35.0")
 
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
@@ -520,9 +518,7 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 @register_tasks_manager_onnx("mpt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"])
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
-    DEFAULT_ONNX_OPSET = 13
-    # TODO: fix inference for transformers < v4.41 for beam_search > 1
-    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
     )

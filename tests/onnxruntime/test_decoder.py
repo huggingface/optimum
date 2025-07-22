@@ -122,23 +122,22 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     # INTEGRATION TESTS
     def test_find_untested_architectures(self):
-        tested_models = set(self.SUPPORTED_ARCHITECTURES)
-
-        if len(tested_models) != len(set(self.SUPPORTED_ARCHITECTURES)):
+        if len(self.SUPPORTED_ARCHITECTURES) != len(set(self.SUPPORTED_ARCHITECTURES)):
             raise ValueError(
                 f"For the task `{self.TASK}`, some architectures are duplicated in the list of tested architectures: "
                 f"{self.SUPPORTED_ARCHITECTURES}.\n"
             )
 
-        supported_transformers_models = set(CONFIG_MAPPING_NAMES.keys())
-        supported_export_models = set(TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"))
-        supported_export_models = supported_export_models & supported_transformers_models
-        untested_models = supported_export_models - tested_models
+        tested_architectures = set(self.SUPPORTED_ARCHITECTURES)
+        transformers_architectures = set(CONFIG_MAPPING_NAMES.keys())
+        onnx_architectures = set(TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"))
+        supported_architectures = onnx_architectures & transformers_architectures
+        untested_architectures = supported_architectures - tested_architectures
 
-        if len(untested_models) > 0:
+        if len(untested_architectures) > 0:
             raise ValueError(
-                f"For the task `{self.TASK}`, the ONNX exporter supports {supported_export_models} but some of them are not "
-                f"tested: {untested_models}.\n"
+                f"For the task `{self.TASK}`, the ONNX exporter supports {supported_architectures} but some of them are not "
+                f"tested: {untested_architectures}.\n"
             )
 
     def test_load_model_which_is_not_supported(self):
@@ -262,6 +261,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
+        set_seed(SEED)
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
@@ -317,6 +317,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
+        set_seed(SEED)
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
@@ -348,6 +349,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
+        set_seed(SEED)
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
@@ -617,12 +619,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            set_seed(SEED)
             inputs = self.get_inputs()
             task = "text-generation-with-past"
             model_id = MODEL_NAMES[model_arch]
             tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
             tokens = tokenizer(inputs, return_tensors="pt")
             model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=trust_remote_code).eval()
+
+            set_seed(SEED)
             main_export(
                 model_id,
                 output=tmpdir,
