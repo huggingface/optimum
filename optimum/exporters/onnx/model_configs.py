@@ -484,7 +484,7 @@ class GraniteOnnxConfig(LlamaOnnxConfig):
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    MIN_TRANSFORMERS_VERSION = version.parse("4.42.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
 
 @register_tasks_manager_onnx("phi3", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
@@ -494,7 +494,7 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
-    MIN_TRANSFORMERS_VERSION = version.parse("4.50.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
 
 @register_tasks_manager_onnx("internlm2", *["text-generation", "text-generation-with-past"])
