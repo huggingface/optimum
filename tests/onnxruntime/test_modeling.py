@@ -3071,6 +3071,39 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         self.assertIn("only supports the tasks", str(context.exception))
 
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        self._setup(model_args)
+
+        model_ids = self._get_model_ids(model_arch)
+        for model_id in model_ids:
+            if (
+                model_arch == "encoder-decoder"
+                and use_cache is True
+                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
+            ):
+                continue
+
+            onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
+            model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
+
+            tokenizer = get_preprocessor(model_id)
+            text = "This is a sample output"
+            tokens = tokenizer(text, return_tensors="pt")
+
+            # General case
+            outputs = model.generate(**tokens)
+            res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            self.assertIsInstance(res[0], str)
+
+            # With input ids
+            outputs = model.generate(input_ids=tokens["input_ids"])
+            res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            self.assertIsInstance(res[0], str)
+
+        gc.collect()
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
         if "text2text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
@@ -3732,6 +3765,24 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         self.assertIn("only supports the tasks", str(context.exception))
 
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name])
+        processor = get_preprocessor(model_id)
+
+        data = self._generate_random_audio_data()
+        features = processor.feature_extractor(data, return_tensors="pt")
+
+        outputs = model.generate(inputs=features["input_features"])
+        res = processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        self.assertIsInstance(res[0], str)
+
+        gc.collect()
+
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if use_cache is False and use_merged is True:
@@ -4155,6 +4206,22 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_generate_utils(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForImageToImage.from_pretrained(self.onnx_model_dirs[model_arch])
+        image_processor = self._get_preprocessors(model_id)
+
+        data = self._get_sample_image()
+        features = image_processor(data, return_tensors="pt")
+
+        outputs = onnx_model(**features)
+        self.assertIsInstance(outputs, ImageSuperResolutionOutput)
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_pipeline_image_to_image(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -4253,6 +4320,24 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
 
         self.assertIn("only supports the tasks", str(context.exception))
+
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
+
+        data = self._get_sample_image()
+        features = image_processor(data, return_tensors="pt")
+
+        outputs = model.generate(inputs=features["pixel_values"])
+        res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        self.assertIsInstance(res[0], str)
+
+        gc.collect()
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
