@@ -40,4 +40,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/onnx/test_export.py -vvvv --durations=0 -n auto
+          pytest tests/exporters/onnx/test_export.py -vvvv --durations=0
