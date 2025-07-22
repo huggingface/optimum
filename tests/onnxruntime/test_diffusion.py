@@ -32,7 +32,6 @@ from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
-from transformers.testing_utils import TemporaryHubRepo
 
 from optimum.onnxruntime import (
     ORTDiffusionPipeline,
@@ -43,7 +42,13 @@ from optimum.onnxruntime import (
 from optimum.onnxruntime.modeling_diffusion import ORTTextEncoder, ORTUnet, ORTVae, ORTVaeDecoder, ORTVaeEncoder
 from optimum.onnxruntime.utils import get_device_for_provider
 from optimum.utils import is_tensorrt_available, is_transformers_version
-from optimum.utils.testing_utils import grid_parameters, remove_directory, require_diffusers, require_hf_token
+from optimum.utils.testing_utils import (
+    TemporaryHubRepo,
+    grid_parameters,
+    remove_directory,
+    require_diffusers,
+    require_hf_token,
+)
 
 
 PROVIDERS = ["CPUExecutionProvider"]
