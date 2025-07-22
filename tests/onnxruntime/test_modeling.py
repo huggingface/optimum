@@ -4440,6 +4440,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             model=onnx_model,
             tokenizer=tokenizer,
             image_processor=image_processor,
+            feature_extractor=image_processor,  # for older versions of transformers
         )
         data = self._get_sample_image()
         outputs = pipe(data, max_new_tokens=10)
