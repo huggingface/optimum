@@ -54,7 +54,7 @@ from optimum.onnxruntime import (
 from optimum.pipelines import pipeline
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.logging import get_logger
-from optimum.utils.testing_utils import grid_parameters, require_hf_token
+from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
 
 
 logger = get_logger(__name__)
@@ -172,7 +172,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_save_load_model_with_external_data(self, use_cache: bool, use_merged: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model_id = MODEL_NAMES["gpt2"]
-            # bevcause there's a folder with onnx model in hf-internal-testing/tiny-random-GPT2LMHeadModel
+            # export=True because there's a folder with onnx model in hf-internal-testing/tiny-random-GPT2LMHeadModel
             model = self.ORTMODEL_CLASS.from_pretrained(
                 model_id, use_cache=use_cache, use_merged=use_merged, export=True
             )
@@ -184,6 +184,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # verify loading from local folder works
             model = self.ORTMODEL_CLASS.from_pretrained(tmpdirname, use_cache=use_cache, use_merged=use_merged)
             model.generate(**self.GEN_KWARGS)
+            remove_directory(tmpdirname)
 
     @require_hf_token
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
@@ -198,6 +199,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # verify pulling from hub works
             model = ORTModelForCausalLM.from_pretrained(repo_dir, token=token, export=False)
             model.generate(**self.GEN_KWARGS)
+            remove_directory(tmpdirname)
 
     def test_trust_remote_code(self):
         model_id = "optimum-internal-testing/tiny-testing-gpt2-remote-code"

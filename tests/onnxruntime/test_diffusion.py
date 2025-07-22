@@ -186,6 +186,7 @@ class ORTDiffusionPipelineTest(TestCase):
             # verify reloading without export
             pipe = ORTDiffusionPipeline.from_pretrained(tmpdirname, export=False)
             self.assert_pipeline_sanity(pipe)
+            remove_directory(tmpdirname)
 
     @require_hf_token
     @require_diffusers
