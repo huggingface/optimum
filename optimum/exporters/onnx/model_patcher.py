@@ -227,6 +227,14 @@ def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None
 
     return norm
 
+def onnx_compatible_aten__ior_(x, y):
+    """
+    Custom implementation of torch._C._VariableFunctions.aten__ior_ not using torch._C._VariableFunctions.aten__ior_.
+    It only handles the case of inplace or operation, otherwise it uses the original implementation.
+    """
+    if isinstance(x, torch.Tensor) and isinstance(y, torch.Tensor):
+        return x | y
+    return x.__ior__(y)
 
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
@@ -234,6 +242,7 @@ UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch.Tensor, "repeat_interleave", onnx_compatible_repeat_interleave, torch.Tensor.repeat_interleave),
     # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
     PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),
+    PatchingSpec(torch.Tensor, "__ior__", onnx_compatible_aten__ior_, torch.Tensor.__ior__),
 ]
 
 
