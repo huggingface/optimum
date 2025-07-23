@@ -4382,7 +4382,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         inputs["decoder_input_ids"] = tokenizer("This is a sample output", return_tensors="pt").input_ids
 
         with torch.no_grad():
-            transformers_outputs = transformers_model(**inputs, use_cache=True)
+            transformers_outputs = transformers_model(**inputs, use_cache=use_cache)
 
         for input_type in ["pt", "np"]:
             inputs = image_processor(data, return_tensors=input_type)
@@ -4440,6 +4440,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             model=onnx_model,
             tokenizer=tokenizer,
             image_processor=image_processor,
+            feature_extractor=image_processor,  # for older versions of transformers
         )
         data = self._get_sample_image()
         outputs = pipe(data, max_new_tokens=10)

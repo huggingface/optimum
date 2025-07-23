@@ -87,7 +87,7 @@ jobs:
   
       - name: Test with pytest (in parallel)
         run: |
-          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv -n auto
+          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv
         env:
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
           RUN_SLOW: 1

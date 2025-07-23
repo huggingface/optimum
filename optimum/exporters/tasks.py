@@ -33,7 +33,7 @@ from ..utils.import_utils import is_diffusers_available, is_onnx_available
 
 
 if TYPE_CHECKING:
-    from .base import ExportConfig
+    from .base import ExporterConfig
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -58,7 +58,7 @@ if is_diffusers_available():
         AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
     )
 
-ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
+ExportConfigConstructor = Callable[[PretrainedConfig], "ExporterConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
 
@@ -84,7 +84,7 @@ def supported_tasks_mapping(
     *supported_tasks: Union[str, Tuple[str, Tuple[str, ...]]], **exporters: str
 ) -> Dict[str, TaskNameToExportConfigDict]:
     """
-    Generates the mapping between supported tasks and their corresponding `ExportConfig` for a given model, for
+    Generates the mapping between supported tasks and their corresponding `ExporterConfig` for a given model, for
     every backend.
 
     Args:
@@ -108,7 +108,7 @@ def supported_tasks_mapping(
             ```
 
     Returns:
-        `Dict[str, TaskNameToExportConfigDict]`: The dictionary mapping a task to an `ExportConfig` constructor.
+        `Dict[str, TaskNameToExportConfigDict]`: The dictionary mapping a task to an `ExporterConfig` constructor.
     """
     mapping = {}
     for backend, config_cls_name in exporters.items():
@@ -1318,7 +1318,7 @@ class TasksManager:
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
-            `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExportConfig`
+            `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExporterConfig`
             constructor.
         """
         if library_name is None:
@@ -2256,7 +2256,7 @@ class TasksManager:
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
-            `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
+            `ExportConfigConstructor`: The `ExporterConfig` constructor for the requested backend.
         """
         if library_name is None:
             logger.warning(

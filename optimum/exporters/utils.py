@@ -57,7 +57,7 @@ if is_diffusers_available():
 
 
 if TYPE_CHECKING:
-    from .base import ExportConfig
+    from .base import ExporterConfig
 
     if is_torch_available():
         from transformers.modeling_utils import PreTrainedModel
@@ -218,19 +218,19 @@ def _get_submodels_for_export_encoder_decoder(
 
 
 def get_encoder_decoder_models_for_export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"
-) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExporterConfig"
+) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExporterConfig"]]:
     """
     Returns the encoder and decoder parts of the model and their subsequent export configs.
 
     Args:
         model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
             The model to export.
-        config ([`~exporters.base.ExportConfig`]):
+        config ([`~exporters.base.ExporterConfig`]):
             The export configuration associated with the exported model.
 
     Returns:
-        `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `ExportConfig`]: A Dict containing the model and
+        `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `ExporterConfig`]: A Dict containing the model and
         export configs for the encoder and decoder parts of the model.
     """
     models_for_export = _get_submodels_for_export_encoder_decoder(model, use_past=config.use_past)
@@ -253,9 +253,9 @@ def get_encoder_decoder_models_for_export(
 
 def get_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    config: "ExportConfig",
+    config: "ExporterConfig",
     legacy: bool = False,
-) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
+) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExporterConfig"]]:
     """
     Returns two versions of the decoder that can be used together to perform fast generation:
 
@@ -267,11 +267,11 @@ def get_decoder_models_for_export(
     Args:
         model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
             The model to export.
-        config ([`~exporters.base.ExportConfig`]):
+        config ([`~exporters.base.ExporterConfig`]):
             The export configuration associated with the exported model.
 
     Returns:
-        `Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], ExportConfig]]: A Dict containing the model and
+        `Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], ExporterConfig]]: A Dict containing the model and
         export configs for the encoder and decoder parts of the model.
     """
 
@@ -322,7 +322,7 @@ def get_diffusion_models_for_export(
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
     exporter: str = "onnx",
-) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExportConfig"]]:
+) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExporterConfig"]]:
     """
     Returns the components of a Diffusion model and their subsequent export configs.
 
@@ -335,7 +335,7 @@ def get_diffusion_models_for_export(
             The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
 
     Returns:
-        `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `ExportConfig`]: A Dict containing the model and
+        `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `ExporterConfig`]: A Dict containing the model and
         export configs for the different components of the model.
     """
 
@@ -421,7 +421,7 @@ def get_diffusion_models_for_export(
     return models_for_export
 
 
-def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
+def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExporterConfig"):
     models_for_export = {
         "text_encoder": model.text_encoder,
         "encodec_decode": model.audio_encoder,
@@ -478,7 +478,7 @@ def _get_submodels_for_export_sam(model, variant):
     return models_for_export
 
 
-def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
+def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExporterConfig"):
     models_for_export = _get_submodels_for_export_sam(model, config.variant)
 
     if config.variant == "monolith":
@@ -501,7 +501,7 @@ def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel
 
 
 def get_speecht5_models_for_export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig", model_kwargs: Optional[Dict]
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExporterConfig", model_kwargs: Optional[Dict]
 ):
     if model_kwargs is None or "vocoder" not in model_kwargs:
         raise ValueError(

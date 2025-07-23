@@ -16,10 +16,12 @@
 import shutil
 import tempfile
 import unittest
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Optional
 
 import numpy as np
 import torch
+from huggingface_hub import create_repo, delete_repo
 from transformers import set_seed
 
 
@@ -115,6 +117,7 @@ MODEL_NAMES = {
     "sew": "hf-internal-testing/tiny-random-SEWModel",
     "sew-d": "asapp/sew-d-tiny-100k-ft-ls100h",
     "siglip": "hf-internal-testing/tiny-random-SiglipModel",
+    "smollm3": "onnx-internal-testing/tiny-random-SmolLM3ForCausalLM",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "speech_to_text": "optimum-internal-testing/tiny-random-Speech2TextModel",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
@@ -209,3 +212,36 @@ class ORTModelTestMixin(unittest.TestCase):
                     shutil.rmtree(sec_dir_path)
             else:
                 shutil.rmtree(dir_path)
+
+
+# Copied from https://github.com/huggingface/transformers/blob/3bc726b381592601cd9dd0fdcff5edcb02f3a85b/src/transformers/testing_utils.py#L1922C1-L1951C86
+class TemporaryHubRepo:
+    """Create a temporary Hub repository and return its `RepoUrl` object. This is similar to
+    `tempfile.TemporaryDirectory` and can be used as a context manager. For example:
+
+        with TemporaryHubRepo(token=self._token) as temp_repo:
+            ...
+
+    Upon exiting the context, the repository and everything contained in it are removed.
+
+    Example:
+
+    ```python
+    with TemporaryHubRepo(token=self._token) as temp_repo:
+        model.push_to_hub(tmp_repo.repo_id, token=self._token)
+    ```
+    """
+
+    def __init__(self, namespace: Optional[str] = None, token: Optional[str] = None) -> None:
+        self.token = token
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_id = Path(tmp_dir).name
+            if namespace is not None:
+                repo_id = f"{namespace}/{repo_id}"
+            self.repo_url = create_repo(repo_id, token=self.token)
+
+    def __enter__(self):
+        return self.repo_url
+
+    def __exit__(self, exc, value, tb):
+        delete_repo(repo_id=self.repo_url.repo_id, token=self.token, missing_ok=True)

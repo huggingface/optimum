@@ -40,6 +40,7 @@ from optimum.exporters.onnx.model_configs import (
     Qwen2OnnxConfig,
     Qwen3MoeOnnxConfig,
     Qwen3OnnxConfig,
+    SmolLM3OnnxConfig,
 )
 from optimum.exporters.tasks import TasksManager
 from optimum.onnx.utils import has_onnx_input
@@ -53,7 +54,7 @@ from optimum.onnxruntime import (
 from optimum.pipelines import pipeline
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.logging import get_logger
-from optimum.utils.testing_utils import grid_parameters, require_hf_token
+from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
 
 
 logger = get_logger(__name__)
@@ -105,6 +106,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("qwen3_moe")
     if is_transformers_version(">=", str(InternLM2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("internlm2")
+    if is_transformers_version(">=", str(SmolLM3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("smollm3")
 
     GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}
     BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}
@@ -119,23 +122,22 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     # INTEGRATION TESTS
     def test_find_untested_architectures(self):
-        tested_models = set(self.SUPPORTED_ARCHITECTURES)
-
-        if len(tested_models) != len(set(self.SUPPORTED_ARCHITECTURES)):
+        if len(self.SUPPORTED_ARCHITECTURES) != len(set(self.SUPPORTED_ARCHITECTURES)):
             raise ValueError(
                 f"For the task `{self.TASK}`, some architectures are duplicated in the list of tested architectures: "
                 f"{self.SUPPORTED_ARCHITECTURES}.\n"
             )
 
-        supported_transformers_models = set(CONFIG_MAPPING_NAMES.keys())
-        supported_export_models = set(TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"))
-        supported_export_models = supported_export_models & supported_transformers_models
-        untested_models = supported_export_models - tested_models
+        tested_architectures = set(self.SUPPORTED_ARCHITECTURES)
+        transformers_architectures = set(CONFIG_MAPPING_NAMES.keys())
+        onnx_architectures = set(TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"))
+        supported_architectures = onnx_architectures & transformers_architectures
+        untested_architectures = supported_architectures - tested_architectures
 
-        if len(untested_models) > 0:
+        if len(untested_architectures) > 0:
             raise ValueError(
-                f"For the task `{self.TASK}`, the ONNX exporter supports {supported_export_models} but some of them are not "
-                f"tested: {untested_models}.\n"
+                f"For the task `{self.TASK}`, the ONNX exporter supports {supported_architectures} but some of them are not "
+                f"tested: {untested_architectures}.\n"
             )
 
     def test_load_model_which_is_not_supported(self):
@@ -169,7 +171,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_save_load_model_with_external_data(self, use_cache: bool, use_merged: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model_id = MODEL_NAMES["gpt2"]
-            # bevcause there's a folder with onnx model in hf-internal-testing/tiny-random-GPT2LMHeadModel
+            # export=True because there's a folder with onnx model in hf-internal-testing/tiny-random-GPT2LMHeadModel
             model = self.ORTMODEL_CLASS.from_pretrained(
                 model_id, use_cache=use_cache, use_merged=use_merged, export=True
             )
@@ -181,6 +183,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # verify loading from local folder works
             model = self.ORTMODEL_CLASS.from_pretrained(tmpdirname, use_cache=use_cache, use_merged=use_merged)
             model.generate(**self.GEN_KWARGS)
+            remove_directory(tmpdirname)
 
     @require_hf_token
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
@@ -195,6 +198,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # verify pulling from hub works
             model = ORTModelForCausalLM.from_pretrained(repo_dir, token=token, export=False)
             model.generate(**self.GEN_KWARGS)
+            remove_directory(tmpdirname)
 
     def test_trust_remote_code(self):
         model_id = "optimum-internal-testing/tiny-testing-gpt2-remote-code"
@@ -257,6 +261,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
+        set_seed(SEED)
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
@@ -312,6 +317,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
+        set_seed(SEED)
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
@@ -343,6 +349,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
+        set_seed(SEED)
         inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
@@ -609,16 +616,18 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # TODO: remove once legacy export is removed
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_merged_and_not_merged_models_outputs(self, model_arch: str):
-        model_arch = "internlm2"
         trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            set_seed(SEED)
             inputs = self.get_inputs()
             task = "text-generation-with-past"
             model_id = MODEL_NAMES[model_arch]
             tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
             tokens = tokenizer(inputs, return_tensors="pt")
             model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=trust_remote_code).eval()
+
+            set_seed(SEED)
             main_export(
                 model_id,
                 output=tmpdir,
