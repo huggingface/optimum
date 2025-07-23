@@ -23,6 +23,7 @@ from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
+from ...utils.import_utils import is_transformers_version
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.import_utils import (
     is_diffusers_available,
@@ -472,6 +473,9 @@ def main():
         library_name=args.library_name,
         legacy=args.legacy,
         do_constant_folding=not args.no_constant_folding,
+        use_dynamo=args.use_dynamo,
+        verify_accuracy=args.verify_accuracy,
+        debug_reports=args.debug_reports,
         **input_shapes,
     )
 
