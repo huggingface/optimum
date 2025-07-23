@@ -46,13 +46,14 @@ if is_transformers_version(">=", "4.53"):
         _ignore_causal_mask_sdpa,
         and_masks,
         causal_mask_function,
-        find_packed_sequence_indices,
+        eager_mask,
         padding_mask_function,
         prepare_padding_mask,
+        sdpa_mask,
     )
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
-else:
-    causal_mask_function = None
+if is_transformers_version(">=", "4.53.1"):
+    from transformers.masking_utils import find_packed_sequence_indices
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
@@ -420,14 +421,11 @@ class ModelPatcher:
             transformers.cache_utils.Cache = TraceableCache
 
         if is_transformers_version(">=", "4.53"):
-            self.original_sdpa_mask = ALL_MASK_ATTENTION_FUNCTIONS["sdpa"]
-            self.original_eager_mask = ALL_MASK_ATTENTION_FUNCTIONS["eager"]
-            self.original_find_packed_sequence_indices = find_packed_sequence_indices
-
             ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", sdpa_mask_without_vmap)
             ALL_MASK_ATTENTION_FUNCTIONS.register("eager", eager_mask_without_vmap)
 
         if is_transformers_version(">=", "4.53.1"):
+            self.original_find_packed_sequence_indices = find_packed_sequence_indices
             transformers.masking_utils.find_packed_sequence_indices = find_packed_sequence_indices_patched
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -438,8 +436,8 @@ class ModelPatcher:
             transformers.cache_utils.Cache = self.original_cache_class
 
         if is_transformers_version(">=", "4.53"):
-            ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", self.original_sdpa_mask)
-            ALL_MASK_ATTENTION_FUNCTIONS.register("eager", self.original_eager_mask)
+            ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", sdpa_mask)
+            ALL_MASK_ATTENTION_FUNCTIONS.register("eager", eager_mask)
 
         if is_transformers_version(">=", "4.53.1"):
             transformers.masking_utils.find_packed_sequence_indices = self.original_find_packed_sequence_indices
@@ -660,9 +658,12 @@ class DecoderModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
         if is_transformers_version(">=", "4.35"):
+            self.original_make_causal_mask = AttentionMaskConverter._make_causal_mask
             AttentionMaskConverter._make_causal_mask = staticmethod(_make_causal_mask_patched)
 
         if is_transformers_version(">=", "4.36"):
+            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
+            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
             AttentionMaskConverter._unmask_unattended = staticmethod(_unmask_unattended_patched)
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa",
@@ -682,21 +683,6 @@ class DecoderModelPatcher(ModelPatcher):
                 self.original_prepare_4d_causal_attention_mask_for_sdpa,
                 module_name_prefix="transformers",
             )
-
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        if is_transformers_version(">=", "4.35"):
-            self.original_make_causal_mask = AttentionMaskConverter._make_causal_mask
-
-        if is_transformers_version(">=", "4.36"):
-            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
-            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
 
 
 def falcon_build_alibi_tensor_patched(
