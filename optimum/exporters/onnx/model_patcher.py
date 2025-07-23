@@ -249,12 +249,15 @@ def sdpa_mask_without_vmap(
     cache_position: torch.Tensor,
     kv_length: int,
     kv_offset: int = 0,
-    mask_function: Callable = causal_mask_function,
+    mask_function: Optional[Callable] = None,
     attention_mask: Optional[torch.Tensor] = None,
     local_size: Optional[int] = None,
     allow_is_causal_skip: bool = True,
     **kwargs,
 ) -> Optional[torch.Tensor]:
+    if mask_function is None:
+        mask_function = causal_mask_function
+
     q_length = cache_position.shape[0]
     # Potentially pad the 2D mask, and slice it correctly
     padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset, _slice=False)
