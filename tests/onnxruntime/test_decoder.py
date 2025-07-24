@@ -61,7 +61,7 @@ logger = get_logger(__name__)
 
 
 class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "codegen",
         "falcon",
         "gpt2",
@@ -109,16 +109,26 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     if is_transformers_version(">=", str(SmolLM3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("smollm3")
 
-    GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}
-    BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}
+    GEN_KWARGS = {"do_sample": False, "max_new_tokens": 10, "min_new_tokens": 10}  # noqa: RUF012
+    TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
 
-    MODEL_TRUST_REMOTE_CODE = {"internlm2"}
     TASK = "text-generation"
     ORTMODEL_CLASS = ORTModelForCausalLM
     AUTOMODEL_CLASS = AutoModelForCausalLM
 
-    def get_inputs(self, batch_size=1):
-        return ["This is a sample input"] + ["This is another sample input"] * (batch_size - 1)
+    def get_simple_inputs(self):
+        return ["This is a simple text"]
+
+    def get_batched_inputs(self):
+        return ["Today is a nice day and I am longer", "This is me"]
+
+    def get_tokenizer(self, model_id: str, model_arch: str | None = None):
+        trust_remote_code = model_arch is not None and model_arch in self.TRUST_REMOTE_CODE_MODELS
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.padding_side = "left"
+        return tokenizer
 
     # INTEGRATION TESTS
     def test_find_untested_architectures(self):
@@ -201,11 +211,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             remove_directory(tmpdirname)
 
     def test_trust_remote_code(self):
+        # todo: update the remote code to use cache position
         model_id = "optimum-internal-testing/tiny-testing-gpt2-remote-code"
 
-        inputs = self.get_inputs()
-        tokenizer = get_preprocessor(model_id)
-        inputs = tokenizer(inputs, return_tensors="pt")
+        inputs = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id)
+        inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
         model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=True).eval()
         ort_model = self.ORTMODEL_CLASS.from_pretrained(model_id, export=True, trust_remote_code=True)
@@ -252,7 +263,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # SANITY TESTS
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
-        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -261,12 +272,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        set_seed(SEED)
-        inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-        tokenizer.pad_token = tokenizer.eos_token
-        tokens = tokenizer(inputs, return_tensors="pt")
+        inputs = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokens = tokenizer(inputs, return_tensors="pt", padding=True)
+
+        set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
             model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
         ).eval()
@@ -308,7 +319,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_generation_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
-        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -317,19 +328,19 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        set_seed(SEED)
-        inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-        tokenizer.pad_token = tokenizer.eos_token
-        tokens = tokenizer(inputs, return_tensors="pt")
+        inputs = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokens = tokenizer(inputs, return_tensors="pt", padding=True)
 
+        set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
             model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
         ).eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
         )
+
         self.assertEqual(model.config.use_cache, use_cache)
         self.assertEqual(onnx_model.use_cache, use_cache)
 
@@ -340,7 +351,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # beam search is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_beam_search_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
-        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -349,23 +360,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        set_seed(SEED)
-        inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-        tokenizer.pad_token = tokenizer.eos_token
-        tokens = tokenizer(inputs, return_tensors="pt")
+        inputs = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokens = tokenizer(inputs, return_tensors="pt", padding=True)
+
+        set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
             model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
         ).eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
         )
+
         self.assertEqual(model.config.use_cache, use_cache)
         self.assertEqual(onnx_model.use_cache, use_cache)
 
         # beam search with random sampling
-        gen_config = GenerationConfig(**self.BEAM_KWARGS, do_sample=True)
+        gen_config = GenerationConfig(num_beams=2, max_new_tokens=10, min_new_tokens=10, do_sample=True)
         set_seed(SEED)
         outputs = model.generate(**tokens, generation_config=gen_config)
         set_seed(SEED)
@@ -376,7 +388,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model.generation_config.do_sample = False  # some models have hardcoded generation configs
         onnx_model.generation_config.do_sample = False  # some models have hardcoded generation configs
         gen_config = GenerationConfig(
-            **self.BEAM_KWARGS,
+            num_beams=4,
+            max_new_tokens=10,
+            min_new_tokens=10,
             diversity_penalty=0.0001,
             num_beam_groups=2,
             do_sample=False,
@@ -387,7 +401,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_with_and_without_past_key_values(self, model_arch):
-        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         model_args = {
             "test_name": model_arch + "_False",
             "model_arch": model_arch,
@@ -403,10 +417,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-        tokens = tokenizer(inputs, return_tensors="pt")
+        inputs = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokens = tokenizer(inputs, return_tensors="pt", padding=True)
+
         with_pkv_dir = self.onnx_model_dirs[model_arch + "_True"]
         without_pkv_dir = self.onnx_model_dirs[model_arch + "_False"]
         model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(
@@ -425,10 +440,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + new_tokens)
         torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, atol=self.ATOL, rtol=self.RTOL)
 
-    # TODO: remove when io binding is the default
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
-        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -437,10 +451,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-        tokens = tokenizer(inputs, return_tensors="pt")
+        inputs = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokens = tokenizer(inputs, return_tensors="pt", padding=True)
+
         model_dir = self.onnx_model_dirs[test_name]
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             model_dir,
@@ -491,20 +506,19 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_generation_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
-        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         model_args = {
             "test_name": test_name,
-            "model_arch": model_arch,
             "use_cache": use_cache,
+            "model_arch": model_arch,
             "trust_remote_code": trust_remote_code,
         }
         self._setup(model_args)
 
-        inputs = self.get_inputs()
         model_id = MODEL_NAMES[model_arch]
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-        tokenizer.pad_token = tokenizer.eos_token
-        tokens = tokenizer(inputs, return_tensors="pt")
+        inputs = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokens = tokenizer(inputs, return_tensors="pt", padding=True)
 
         model_dir = self.onnx_model_dirs[test_name]
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
@@ -578,8 +592,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             local_pipe_outputs = pipe(text)
             self.assertEqual(outputs[0]["generated_text"], local_pipe_outputs[0]["generated_text"])
 
-    @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}))
-    def test_pipeline_with_hub_model_id(self, test_name: str, model_arch: str, use_cache: bool):
+    @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}, add_test_name=False))
+    def test_pipeline_with_hub_model_id(self, model_arch: str, use_cache: bool):
         text = "The capital of France is"
         model_id = MODEL_NAMES[model_arch]
         pipe = pipeline("text-generation", model=model_id, accelerator="ort", model_kwargs={"use_cache": use_cache})
@@ -599,11 +613,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand([(False,), (True,)])
     def test_inference_with_old_onnx_model(self, use_cache):
-        tokenizer = get_preprocessor("gpt2")
-        inputs = self.get_inputs(batch_size=2)
-        tokens = tokenizer(inputs, return_tensors="pt")
+        inputs = self.get_simple_inputs()
+        tokenizer = self.get_tokenizer("gpt2")
+        tokens = tokenizer(inputs, return_tensors="pt", padding=True)
 
-        model = AutoModelForCausalLM.from_pretrained("gpt2")
+        model = self.AUTOMODEL_CLASS.from_pretrained("gpt2").eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained("optimum/gpt2", use_cache=use_cache)
 
         self.assertEqual(onnx_model.use_cache, use_cache)
@@ -613,18 +627,18 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_outputs = onnx_model.generate(**tokens, **self.GEN_KWARGS)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
-    # TODO: remove once legacy export is removed
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_merged_and_not_merged_models_outputs(self, model_arch: str):
-        trust_remote_code = model_arch in self.MODEL_TRUST_REMOTE_CODE
+        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            set_seed(SEED)
-            inputs = self.get_inputs()
-            task = "text-generation-with-past"
+            inputs = self.get_simple_inputs()
             model_id = MODEL_NAMES[model_arch]
-            tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-            tokens = tokenizer(inputs, return_tensors="pt")
+            task = "text-generation-with-past"
+            tokenizer = self.get_tokenizer(model_id, model_arch)
+            tokens = tokenizer(inputs, return_tensors="pt", padding=True)
+
+            set_seed(SEED)
             model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=trust_remote_code).eval()
 
             set_seed(SEED)
