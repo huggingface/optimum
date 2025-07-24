@@ -286,8 +286,17 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # Flattens the past_key_values to a single tuple
             past_key_values = sum(past_key_values, ())
 
-        if "position_ids" in self.input_names and position_ids is None:
-            if attention_mask is not None:
+        if position_ids is None and "position_ids" in self.input_names:
+            if self.config.model_type == "opt" and attention_mask is not None:
+                # OPT models use a different way to infer position_ids from attention_mask
+                paset_seq_len = past_key_values[0].shape[2] if past_key_values is not None else 0
+                position_ids = torch.cumsum(attention_mask, dim=1) * attention_mask - 1
+                position_ids = position_ids[:, paset_seq_len:]
+            elif self.config.model_type in MODEL_TYPES_REQUIRING_POSITION_IDS:
+                # Create position_ids from input_ids
+                batch_size, seq_len = input_ids.shape
+                position_ids = torch.arange(seq_len, device=input_ids.device).unsqueeze(0).expand(batch_size, -1)
+            elif attention_mask is not None:
                 # Create position_ids from attention_mask
                 position_ids = attention_mask.cumsum(-1) - 1
                 position_ids.masked_fill_(attention_mask == 0, 1)
@@ -307,7 +316,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if past_key_values is None and len(self.key_value_input_names) > 0:
             # Generates the input pkv for the first forward of the model (merged or with past)
             batch_size, seq_len = input_ids.shape
-
             if self.config.model_type == "gpt_bigcode":
                 k_shape = v_shape = (batch_size, 0, self.embed_size_per_head * 2)
             elif self.config.model_type == "bloom" and self.old_bloom_modeling:
@@ -315,7 +323,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 v_shape = (batch_size * self.num_key_value_heads, 0, self.embed_size_per_head)
             else:
                 k_shape = v_shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
-
             k_tensor = torch.zeros(k_shape, dtype=self.dtype, device=self.device)
             v_tensor = torch.zeros(v_shape, dtype=self.dtype, device=self.device)
             past_key_values = tuple(k_tensor if ".key" in name else v_tensor for name in self.key_value_input_names)
