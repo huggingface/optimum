@@ -15,6 +15,7 @@
 import os
 import tempfile
 import unittest
+from typing import Optional
 
 import torch
 from onnxruntime import InferenceSession
@@ -122,7 +123,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def get_batched_inputs(self):
         return ["Today is a nice day and I am longer", "This is me"]
 
-    def get_tokenizer(self, model_id: str, model_arch: str | None = None):
+    def get_tokenizer(self, model_id: str, model_arch: Optional[str] = None):
         trust_remote_code = model_arch is not None and model_arch in self.TRUST_REMOTE_CODE_MODELS
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         if tokenizer.pad_token is None:
