@@ -211,7 +211,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             remove_directory(tmpdirname)
 
     def test_trust_remote_code(self):
-        model_id = "tiny-testing-gpt2-remote-code"
+        model_id = "optimum-internal-testing/tiny-testing-gpt2-remote-code"
 
         inputs = self.get_simple_inputs()
         tokenizer = self.get_tokenizer(model_id)
