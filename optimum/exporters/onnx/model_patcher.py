@@ -272,14 +272,15 @@ def sdpa_mask_without_vmap(
 
     # Create broadcatable indices
     device = cache_position.device
-    batch_indices = torch.arange(batch_size, device=device)[:, None, None, None]  # [batch_size, 1, 1, 1]
-    head_indices = torch.zeros(1, 1, 1, 1, device=device, dtype=torch.long)  # [1, 1, 1, 1] (head_idx=0)
-    q_indices = cache_position[None, None, :, None]  # [1, 1, q_length, 1]
-    kv_indices = torch.arange(kv_length, device=device)[None, None, None, :] + kv_offset  # [1, 1, 1, kv_length]
+    q_indices = cache_position[None, None, :, None]
+    head_indices = torch.arange(1, dtype=torch.long, device=device)[None, :, None, None]
+    batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)[:, None, None, None]
+    kv_indices = torch.arange(kv_length, dtype=torch.long, device=device)[None, None, None, :] + kv_offset
+
     # Apply mask function element-wise through broadcasting
     causal_mask = mask_function(batch_indices, head_indices, q_indices, kv_indices)
     # Expand the mask to match batch size and query length if they weren't used in the mask function
-    causal_mask = causal_mask.expand(batch_size, 1, q_length, kv_length)
+    causal_mask = causal_mask.expand(batch_size, -1, q_length, kv_length)
 
     return causal_mask
 
