@@ -318,9 +318,9 @@ if is_transformers_version(">=", "4.53"):
         scale: torch._C.Value | None = None,
         enable_gqa: bool = False,
     ):
-        assert (not is_causal) or (is_causal and symbolic_helper._is_none(attn_mask)), (
-            "is_causal and attn_mask cannot be set at the same time"
-        )
+        assert (not is_causal) or (
+            is_causal and symbolic_helper._is_none(attn_mask)
+        ), "is_causal and attn_mask cannot be set at the same time"
         assert not enable_gqa, "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
 
         if symbolic_helper._is_none(scale):
