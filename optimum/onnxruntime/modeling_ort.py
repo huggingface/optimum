@@ -299,6 +299,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         use_io_binding: Optional[bool] = None,
         # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        library_name: Optional[str] = None,
     ) -> "ORTModel":
         defaut_file_name = file_name or "model.onnx"
         onnx_files = find_files_matching_pattern(
@@ -403,6 +404,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: Optional[Union[bool, str]] = None,
         # other arguments
+        library_name: Optional[str] = None,
         **kwargs,
     ) -> "ORTModel":
         # this is garanteed to work since we it uses a mapping from model classes to task names
@@ -431,6 +433,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
+            library_name=library_name,
         )
         maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
 
