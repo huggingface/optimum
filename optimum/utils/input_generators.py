@@ -430,7 +430,13 @@ class DummyTextInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         min_value = 0
-        max_value = 2 if input_name != "input_ids" else self.vocab_size
+
+        if input_name == "position_ids":
+            max_value = self.sequence_length
+        elif input_name == "input_ids":
+            max_value = self.vocab_size
+        else:
+            max_value = 2
 
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]

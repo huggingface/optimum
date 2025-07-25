@@ -84,10 +84,9 @@ def generate_prompts(batch_size=1):
 
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        image = load_image(
-            "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
-            "/in_paint/overture-creations-5sI6fQgYIuo.png"
-        ).resize((width, height))
+        image = load_image("https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png").resize(
+            (width, height)
+        )
     elif input_type == "np":
         image = np.random.rand(height, width, channel)
     elif input_type == "pt":

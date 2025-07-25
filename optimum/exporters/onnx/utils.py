@@ -75,7 +75,6 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "falcon",
     "gemma",
     "gpt2",
-    "gpt_bigcode",
     "gpt_neo",
     "gpt_neox",
     "gptj",
@@ -89,6 +88,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "qwen3",
     "qwen3_moe",
     "granite",
+    "smollm3",
 }
 
 
