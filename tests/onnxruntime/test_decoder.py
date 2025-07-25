@@ -121,7 +121,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         return ["This is a simple text"]
 
     def get_batched_inputs(self):
-        return ["Today is a nice day and I am longer", "This is me"]
+        return ["This is me", "Today is a nice day and I am longer"]
 
     def get_tokenizer(self, model_id: str, model_arch: Optional[str] = None):
         trust_remote_code = model_arch is not None and model_arch in self.TRUST_REMOTE_CODE_MODELS
@@ -214,8 +214,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_trust_remote_code(self):
         model_id = "optimum-internal-testing/tiny-testing-gpt2-remote-code"
 
-        inputs = self.get_simple_inputs()
-        tokenizer = self.get_tokenizer(model_id)
+        inputs = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id, "gpt2")
         inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
         model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=True).eval()
@@ -613,7 +613,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand([(False,), (True,)])
     def test_inference_with_old_onnx_model(self, use_cache):
-        inputs = self.get_simple_inputs()
+        inputs = self.get_simple_inputs()  # old onnx model can't handle batched inputs (missing position_ids)
         tokenizer = self.get_tokenizer("gpt2")
         tokens = tokenizer(inputs, return_tensors="pt", padding=True)
 
@@ -632,7 +632,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            inputs = self.get_simple_inputs()
+            inputs = self.get_simple_inputs()  # legacy models can't handle batched inputs (missing position_ids)
             model_id = MODEL_NAMES[model_arch]
             task = "text-generation-with-past"
             tokenizer = self.get_tokenizer(model_id, model_arch)
@@ -657,10 +657,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             not_merged_without_cache_file = os.path.join(tmpdir, ONNX_DECODER_NAME)
             self.assertFalse(has_onnx_input(not_merged_without_cache_file, "use_cache_branch"))
             not_merged_without_cache_model = self.ORTMODEL_CLASS.from_pretrained(
-                tmpdir,
-                use_cache=False,
-                use_merged=False,
-                trust_remote_code=trust_remote_code,
+                tmpdir, use_cache=False, use_merged=False, trust_remote_code=trust_remote_code
             )
             self.assertFalse(not_merged_without_cache_model.generation_config.use_cache)
             self.assertFalse(not_merged_without_cache_model.config.use_cache)

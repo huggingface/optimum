@@ -268,6 +268,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         position_ids: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
+        cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> CausalLMOutputWithPast:
         use_torch = isinstance(input_ids, torch.Tensor)
@@ -292,6 +293,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 paset_seq_len = past_key_values[0].shape[2] if past_key_values is not None else 0
                 position_ids = torch.cumsum(attention_mask, dim=1) * attention_mask - 1
                 position_ids = position_ids[:, paset_seq_len:]
+            elif cache_position is not None:
+                # Create position_ids from cache_position
+                position_ids = cache_position.unsqueeze(0).expand(input_ids.shape[0], -1)
             elif self.config.model_type in MODEL_TYPES_REQUIRING_POSITION_IDS:
                 # Create position_ids from input_ids
                 batch_size, seq_len = input_ids.shape
@@ -351,7 +355,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             else:
                 num_key_value_heads, pkv_seq_len, embed_size_per_head = past_key_values[0].shape[1:]
                 k_shape = v_shape = (batch_size, num_key_value_heads, pkv_seq_len + seq_len, embed_size_per_head)
-
             known_output_shapes = {
                 name: k_shape if ".key" in name else v_shape for name in self.key_value_output_names
             }
@@ -410,6 +413,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         attention_mask=None,
         past_key_values=None,
         token_type_ids=None,
+        cache_position=None,
         position_ids=None,
         use_cache=None,
         **kwargs,
@@ -434,6 +438,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "attention_mask": attention_mask,
             "past_key_values": past_key_values,
             "token_type_ids": token_type_ids,
+            "cache_position": cache_position,
             "position_ids": position_ids,
             "use_cache": use_cache,
         }

@@ -84,7 +84,6 @@ from .config import (
     EncoderDecoderBaseOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
-    TextDecoderWithPositionIdsOnnxConfig,
     TextEncoderOnnxConfig,
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
@@ -352,7 +351,7 @@ class EsmOnnxConfig(TextEncoderOnnxConfig):
 
 
 @register_tasks_manager_onnx("gpt2", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"])
-class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+class GPT2OnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
@@ -398,35 +397,25 @@ class DecisionTransformerOnnxConfig(OnnxConfig):
 
 
 @register_tasks_manager_onnx("gpt_neo", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
-class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 14
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
 
 @register_tasks_manager_onnx("gpt_neox", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
-class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+class GPTNeoXOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-# OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
-if is_transformers_version(">=", "4.46.0"):
-
-    @register_tasks_manager_onnx("opt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "question-answering"])
-    class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
-        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-else:
-
-    @register_tasks_manager_onnx("opt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "question-answering"])
-    class OPTOnnxConfig(TextDecoderOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
-        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+@register_tasks_manager_onnx("opt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "question-answering"])
+class OPTOnnxConfig(TextDecoderOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 @register_tasks_manager_onnx("llama", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
-class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+class LlamaOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Llama now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
@@ -481,7 +470,7 @@ class GraniteOnnxConfig(LlamaOnnxConfig):
 
 
 @register_tasks_manager_onnx("phi", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
-class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+class PhiOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
@@ -501,7 +490,7 @@ class InternLM2OnnxConfig(LlamaOnnxConfig):
 
 
 @register_tasks_manager_onnx("mistral", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
-class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+class MistralOnnxConfig(TextDecoderOnnxConfig):
     # This is because of the patching of torch.triu in AttentionMaskConverter, that exists from transformers>=4.35
     MIN_TRANSFORMERS_VERSION = version.parse("4.35.0")
 
@@ -555,7 +544,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
 @register_tasks_manager_onnx(
     "gpt_bigcode", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"]
 )
-class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         GPTBigCodeDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
@@ -634,10 +623,8 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
     def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = super().inputs
 
-        if not self.legacy and not self._config.alibi and self.task in ["text-generation", "feature-extraction"]:
-            # When alibi is used, position_ids are not used in Falcon.
-            # Reference: https://github.com/huggingface/transformers/blob/v4.34.0/src/transformers/models/falcon/modeling_falcon.py#L1116
-            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        if self._config.alibi:
+            common_inputs.pop("position_ids", None)
 
         return common_inputs
 
@@ -868,7 +855,7 @@ class BigBirdPegasusOnnxConfig(BartOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         inputs = super().inputs
-        if self._config.attention_type == "block_sparse":
+        if self._config.attention_type == "block_sparse" and self.task != "text-generation":
             # BigBirdPegasusEncoder creates its own attention_mask internally
             # https://github.com/huggingface/transformers/blob/v4.48.0/src/transformers/models/bigbird_pegasus/modeling_bigbird_pegasus.py#L1875
             inputs.pop("attention_mask", None)
