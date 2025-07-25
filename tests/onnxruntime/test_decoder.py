@@ -273,7 +273,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        inputs = self.get_batched_inputs()
+        inputs = self.get_simple_inputs()
         tokenizer = self.get_tokenizer(model_id, model_arch)
         tokens = tokenizer(inputs, return_tensors="pt", padding=True)
 
@@ -452,7 +452,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        inputs = self.get_batched_inputs()
+        inputs = self.get_simple_inputs()
         tokenizer = self.get_tokenizer(model_id, model_arch)
         tokens = tokenizer(inputs, return_tensors="pt", padding=True)
 
