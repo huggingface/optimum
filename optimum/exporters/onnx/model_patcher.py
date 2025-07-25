@@ -312,10 +312,10 @@ if is_transformers_version(">=", "4.53"):
         query: torch._C.Value,
         key: torch._C.Value,
         value: torch._C.Value,
-        attn_mask: torch._C.Value | None = None,
+        attn_mask: Optional[torch._C.Value] = None,
         dropout_p: float = 0.0,
         is_causal: bool = False,
-        scale: torch._C.Value | None = None,
+        scale: Optional[torch._C.Value] = None,
         enable_gqa: bool = False,
     ):
         assert (not is_causal) or (
