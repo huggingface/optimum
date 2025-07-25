@@ -425,7 +425,7 @@ class ModelPatcher:
             transformers.cache_utils.Cache = TraceableCache
 
         if is_transformers_version(">=", "4.53"):
-            ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", sdpa_mask_without_vmap)
+            ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", eager_mask_without_vmap)
             ALL_MASK_ATTENTION_FUNCTIONS.register("eager", eager_mask_without_vmap)
 
         if is_transformers_version(">=", "4.53.1"):
