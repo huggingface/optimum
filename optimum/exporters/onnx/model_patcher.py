@@ -745,11 +745,14 @@ def _prepare_4d_causal_attention_mask_for_sdpa_patched(
 class DecoderModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-        if is_transformers_version(">=", "4.35"):
+
+        # TODO: check the exact version range for the patching
+        if is_transformers_version(">=", "4.35") and is_transformers_version("<", "4.53"):
             self.original_make_causal_mask = AttentionMaskConverter._make_causal_mask
             AttentionMaskConverter._make_causal_mask = staticmethod(_make_causal_mask_patched)
 
-        if is_transformers_version(">=", "4.36"):
+        # TODO: check the exact version range for the patching
+        if is_transformers_version(">=", "4.36") and is_transformers_version("<", "4.53"):
             self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
             self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
             AttentionMaskConverter._unmask_unattended = staticmethod(_unmask_unattended_patched)
@@ -761,10 +764,10 @@ class DecoderModelPatcher(ModelPatcher):
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if is_transformers_version(">=", "4.35"):
+        if is_transformers_version(">=", "4.35") and is_transformers_version("<", "4.53"):
             AttentionMaskConverter._make_causal_mask = staticmethod(self.original_make_causal_mask)
 
-        if is_transformers_version(">=", "4.36"):
+        if is_transformers_version(">=", "4.36") and is_transformers_version("<", "4.53"):
             AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa",
