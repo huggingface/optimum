@@ -466,7 +466,6 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
 @register_tasks_manager_onnx("granite", *COMMON_TEXT_GENERATION_TASKS)
 class GraniteOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
-    MIN_TORCH_VERSION = version.parse("2.5.0")
 
 
 @register_tasks_manager_onnx("phi", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
@@ -576,8 +575,7 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
 
 @register_tasks_manager_onnx("falcon", *COMMON_TEXT_GENERATION_TASKS + ["question-answering", "token-classification"])
 class FalconOnnxConfig(TextDecoderOnnxConfig):
-    # This is due to the cache refactoring for Falcon in 4.36
-    MIN_TRANSFORMERS_VERSION = version.parse("4.35.99")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
         FalconDummyPastKeyValuesGenerator,
@@ -823,7 +821,6 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
 )
 class BartOnnxConfig(M2M100OnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Bart now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
-    MIN_TORCH_VERSION = version.parse("2.1.2")
 
 
 @register_tasks_manager_onnx(
@@ -875,7 +872,6 @@ class MarianOnnxConfig(BartOnnxConfig):
 @register_tasks_manager_onnx("vit", *["feature-extraction", "image-classification", "masked-im"])
 class ViTOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
-    MIN_TORCH_VERSION = version.parse("1.11")
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
@@ -1561,7 +1557,6 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     # Sets the absolute tolerance to when validating the exported ONNX model against the
     # reference model.
     ATOL_FOR_VALIDATION = 1e-4
-    MIN_TORCH_VERSION = version.parse("2.1")
 
     # needs einsum operator support, available since opset 12
     DEFAULT_ONNX_OPSET = 12
@@ -1633,7 +1628,6 @@ class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
     "layoutlmv3", *["feature-extraction", "question-answering", "text-classification", "token-classification"]
 )
 class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
-    MIN_TORCH_VERSION = version.parse("1.12")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         allow_new=True,
         MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
@@ -2557,8 +2551,6 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 @register_tasks_manager_onnx("sam", *["feature-extraction"])
 class SamOnnxConfig(OnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.29.0.dev0")
-    # Since ransformers 4.32.0, SAM uses repeat_interleave op that is broken in PyTorch 2.0.1: https://github.com/pytorch/pytorch/issues/100429
-    MIN_TORCH_VERSION = version.parse("2.0.99")
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator, DummyVisionEmbeddingsGenerator)
     DEFAULT_ONNX_OPSET = 13  # Opset 12 for repeat_interleave falls back on the opset 9 implem, that raises Unsupported: ONNX export of repeat_interleave in opset 9.

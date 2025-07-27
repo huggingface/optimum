@@ -27,7 +27,7 @@ from packaging import version
 
 logger = getLogger(__name__)
 
-TORCH_MINIMUM_VERSION = version.parse("1.11.0")
+TORCH_MINIMUM_VERSION = version.parse("2.1.0")
 TRANSFORMERS_MINIMUM_VERSION = version.parse("4.36.0")
 DIFFUSERS_MINIMUM_VERSION = version.parse("0.22.0")
 AUTOGPTQ_MINIMUM_VERSION = version.parse("0.4.99")  # Allows 0.5.0.dev0
