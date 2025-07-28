@@ -90,7 +90,7 @@ def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="
         global IMAGE
         if IMAGE is None:
             # Load a sample image from the Hugging Face Hub
-            image = load_image(
+            IMAGE = load_image(
                 "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main/in_paint/overture-creations-5sI6fQgYIuo.png"
             )
         image = IMAGE.resize((width, height))
