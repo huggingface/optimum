@@ -557,15 +557,12 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
             decoder_sequence_name = "past_sequence_length"
             name = "past_key_values"
         else:
-            decoder_sequence_name = "past_sequence_length + 1"
+            decoder_sequence_name = "past_sequence_length + sequence_length"
             name = "present"
 
         for i in range(self._normalized_config.num_layers):
             # No dim for `n_head` when using multi-query attention
-            inputs_or_outputs[f"{name}.{i}.key_value"] = {
-                0: "batch_size",
-                1: decoder_sequence_name,
-            }
+            inputs_or_outputs[f"{name}.{i}.key_value"] = {0: "batch_size", 1: decoder_sequence_name}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key_value"] = t

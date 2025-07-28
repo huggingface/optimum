@@ -300,20 +300,29 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue("past_key_values" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.past_key_values, tuple)
             for i in range(len(onnx_outputs.past_key_values)):
-                if model_arch == "gpt_bigcode" and model.config.multi_query:
+                if model_arch == "gpt_bigcode" and onnx_model.config.multi_query:
                     self.assertIsInstance(onnx_outputs.past_key_values[i], torch.Tensor)
-                    past_key_values = outputs.past_key_values[i] * tokens["attention_mask"].unsqueeze(-1)
-                    onnx_past_key_values = onnx_outputs.past_key_values[i] * tokens["attention_mask"].unsqueeze(-1)
+                    mask = tokens["attention_mask"].unsqueeze(-1)
+                    past_key_values = outputs.past_key_values[i] * mask
+                    onnx_past_key_values = onnx_outputs.past_key_values[i] * mask
                     torch.testing.assert_close(onnx_past_key_values, past_key_values, atol=self.ATOL, rtol=self.RTOL)
+                elif model_arch == "bloom" and onnx_model.old_bloom_modeling:
+                    self.assertIsInstance(onnx_outputs.past_key_values[i][0], torch.Tensor)
+                    num_key_value_heads = onnx_model.num_key_value_heads
+                    key_mask = tokens["attention_mask"].repeat_interleave(num_key_value_heads, dim=0).unsqueeze(1)
+                    value_mask = tokens["attention_mask"].repeat_interleave(num_key_value_heads, dim=0).unsqueeze(-1)
+                    past_keys = outputs.past_key_values[i][0] * key_mask
+                    past_values = outputs.past_key_values[i][1] * value_mask
+                    onnx_past_keys = onnx_outputs.past_key_values[i][0] * key_mask
+                    onnx_past_values = onnx_outputs.past_key_values[i][1] * value_mask
+                    torch.testing.assert_close(onnx_past_keys, past_keys, atol=self.ATOL, rtol=self.RTOL)
+                    torch.testing.assert_close(onnx_past_values, past_values, atol=self.ATOL, rtol=self.RTOL)
                 else:
                     for j in range(len(onnx_outputs.past_key_values[i])):
                         self.assertIsInstance(onnx_outputs.past_key_values[i][j], torch.Tensor)
-                        past_key_values = outputs.past_key_values[i][j] * tokens["attention_mask"].unsqueeze(
-                            1
-                        ).unsqueeze(-1)
-                        onnx_past_key_values = onnx_outputs.past_key_values[i][j] * tokens["attention_mask"].unsqueeze(
-                            1
-                        ).unsqueeze(-1)
+                        mask = tokens["attention_mask"].unsqueeze(1).unsqueeze(-1)
+                        past_key_values = outputs.past_key_values[i][j] * mask
+                        onnx_past_key_values = onnx_outputs.past_key_values[i][j] * mask
                         torch.testing.assert_close(
                             onnx_past_key_values, past_key_values, atol=self.ATOL, rtol=self.RTOL
                         )
