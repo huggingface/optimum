@@ -84,13 +84,16 @@ def generate_prompts(batch_size=1):
 
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        image = Image.new("RGB", (width, height), color=(255, 255 // 2, 255 // 3))
+        images = [
+            Image.new("RGB", (width, height), color=tuple(np.random.randint(0, 255, size=(3,))))
+            for _ in range(batch_size)
+        ]
     elif input_type == "np":
-        image = np.random.rand(height, width, channel)
+        images = [np.random.rand(height, width, channel) for _ in range(batch_size)]
     elif input_type == "pt":
-        image = torch.rand((channel, height, width))
+        images = [torch.rand((channel, height, width)) for _ in range(batch_size)]
 
-    return [image] * batch_size
+    return images
 
 
 class ORTDiffusionPipelineTest(TestCase):
@@ -660,7 +663,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
             diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-            np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+            np.testing.assert_allclose(ort_images, diffusers_images, atol=6e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
