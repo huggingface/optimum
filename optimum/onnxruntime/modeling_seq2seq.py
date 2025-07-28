@@ -1280,6 +1280,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
+            library_name=cls._library_name,
         )
         maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
 
