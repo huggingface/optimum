@@ -62,6 +62,7 @@ MODEL_NAMES = {
     },
     "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
     "falcon": "fxmarty/really-tiny-falcon-testing",
+    "falcon-alibi": "fxmarty/tiny-testing-falcon-alibi",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "flux": "optimum-internal-testing/tiny-random-flux",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",

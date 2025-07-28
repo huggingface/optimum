@@ -254,11 +254,17 @@ def traceable_scaled_dot_product_attention(*args, **kwargs) -> torch.Tensor:
     return original_scaled_dot_product_attention(*args, **kwargs)
 
 
+# No-op bfloat16 casting to avoid issues with legacy ONNX export which cast to complex128
+def noop_bfloat16_casting(self):
+    return self
+
+
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch, "tril", onnx_compatible_tril, torch.tril),
     PatchingSpec(torch, "triu", onnx_compatible_triu, torch.triu),
     PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
     PatchingSpec(torch.linalg, "norm", onnx_compatible_linalg_norm, torch.linalg.norm),
+    PatchingSpec(torch.Tensor, "bfloat16", noop_bfloat16_casting, torch.Tensor.bfloat16),
     PatchingSpec(torch.Tensor, "repeat_interleave", onnx_compatible_repeat_interleave, torch.Tensor.repeat_interleave),
     # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
     PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),
@@ -351,9 +357,9 @@ def scaled_dot_product_attention(
     scale: Optional[torch._C.Value] = None,
     enable_gqa: bool = False,
 ):
-    assert (not is_causal) or (
-        is_causal and symbolic_helper._is_none(attn_mask)
-    ), "is_causal and attn_mask cannot be set at the same time"
+    assert (not is_causal) or (is_causal and symbolic_helper._is_none(attn_mask)), (
+        "is_causal and attn_mask cannot be set at the same time"
+    )
     assert not enable_gqa, "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
 
     if symbolic_helper._is_none(scale):

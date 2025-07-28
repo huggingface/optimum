@@ -65,6 +65,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "codegen",
         "falcon",
+        "falcon-alibi",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",
