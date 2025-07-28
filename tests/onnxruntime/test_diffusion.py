@@ -27,10 +27,10 @@ from diffusers import (
     AutoPipelineForText2Image,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
-from diffusers.utils import load_image
 from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
+from PIL import Image
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin, TemporaryHubRepo
 
 from optimum.onnxruntime import (
@@ -84,9 +84,7 @@ def generate_prompts(batch_size=1):
 
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        image = load_image("https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png").resize(
-            (width, height)
-        )
+        image = Image.new("RGB", (width, height), color=(255, 255 // 2, 255 // 3))
     elif input_type == "np":
         image = np.random.rand(height, width, channel)
     elif input_type == "pt":
