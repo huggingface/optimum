@@ -27,10 +27,10 @@ from diffusers import (
     AutoPipelineForText2Image,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
+from diffusers.utils import load_image
 from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
-from PIL import Image
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin, TemporaryHubRepo
 
 from optimum.onnxruntime import (
@@ -82,9 +82,18 @@ def generate_prompts(batch_size=1):
     return inputs
 
 
+IMAGE = None
+
+
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        image = Image.new("RGB", (width, height), color=(255, 255, 255))
+        global IMAGE
+        if IMAGE is None:
+            # Load a sample image from the Hugging Face Hub
+            image = load_image(
+                "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main/in_paint/overture-creations-5sI6fQgYIuo.png"
+            )
+        image = IMAGE.resize((width, height))
     elif input_type == "np":
         image = np.random.rand(height, width, channel)
     elif input_type == "pt":
