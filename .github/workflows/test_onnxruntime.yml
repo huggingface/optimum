@@ -63,9 +63,9 @@ jobs:
       - name: Install transformers ${{ matrix.transformers-version }}
         run: |
           if [ "${{ matrix.transformers_version }}" == '4.36.*' ]; then
-            pip install "transformers==${{ matrix.transformers-version }}" "diffusers<0.32.0"
+            pip install "transformers==4.36.*" "diffusers<0.32.0"
           elif [ "${{ matrix.transformers_version }}" == '4.45.*' ]; then
-            pip install "transformers==${{ matrix.transformers-version }}" "diffusers<0.33.0"
+            pip install "transformers==4.45.*" "diffusers<0.33.0"
           else
             pip install transformers;
           fi

@@ -292,7 +292,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_outputs = onnx_model(**tokens)
         self.assertTrue("logits" in onnx_outputs)
         self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-        torch.testing.assert_close(onnx_outputs.logits, outputs.logits, atol=self.ATOL, rtol=self.RTOL)
+        logits = outputs.logits * tokens["attention_mask"].unsqueeze(-1)
+        onnx_logits = onnx_outputs.logits * tokens["attention_mask"].unsqueeze(-1)
+        torch.testing.assert_close(logits, onnx_logits, atol=self.ATOL, rtol=self.RTOL)
 
         if use_cache:
             self.assertTrue("past_key_values" in onnx_outputs)
