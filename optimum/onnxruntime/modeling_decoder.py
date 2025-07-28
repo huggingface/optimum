@@ -300,7 +300,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if self.config.model_type == "opt":
                 if attention_mask is not None:
                     # OPT models use a different way to infer position_ids from attention_mask
-                    position_ids = attention_mask.cumsum(-1)
+                    position_ids = attention_mask.cumsum(-1) - 1
                     position_ids.masked_fill_(attention_mask == 0, -1)
                     position_ids = position_ids[:, pkv_seq_len:]
                 else:
@@ -310,7 +310,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     )
             elif self.config.model_type == "gpt_bigcode":
                 if attention_mask is not None:
-                    # Create position_ids from attention_mask
+                    # GPT BigCode models use a different way to infer position_ids from attention_mask
                     position_ids = attention_mask.cumsum(-1) - 1
                     position_ids.masked_fill_(attention_mask == 0, 1)
                     position_ids = position_ids[:, pkv_seq_len:]

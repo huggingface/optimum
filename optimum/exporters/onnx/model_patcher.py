@@ -663,22 +663,6 @@ class DecoderModelPatcher(ModelPatcher):
         super().__exit__(exc_type, exc_value, traceback)
 
 
-class FalconModelPatcher(DecoderModelPatcher):
-    def __enter__(self):
-        super().__enter__()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        super().__exit__(exc_type, exc_value, traceback)
-
-
-class MistralModelPatcher(DecoderModelPatcher):
-    def __enter__(self):
-        super().__enter__()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        super().__exit__(exc_type, exc_value, traceback)
-
-
 class MgpstrModelPatcher(ModelPatcher):
     def __init__(
         self,
@@ -952,12 +936,6 @@ class SpeechT5ModelPatcher(ModelPatcher):
 
 
 class SentenceTransformersTransformerPatcher(ModelPatcher):
-    def __enter__(self):
-        super().__enter__()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        super().__exit__(exc_type, exc_value, traceback)
-
     def __init__(
         self,
         config: "OnnxConfig",

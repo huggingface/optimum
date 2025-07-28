@@ -22,6 +22,7 @@ from onnxruntime import InferenceSession
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
+from transformers.cache_utils import Cache
 from transformers.generation import GenerationConfig
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from transformers.onnx.utils import get_preprocessor
@@ -129,9 +130,48 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         trust_remote_code = model_arch is not None and model_arch in self.TRUST_REMOTE_CODE_MODELS
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
+            if tokenizer.eos_token is not None:
+                tokenizer.pad_token = tokenizer.eos_token
+            elif tokenizer.bos_token is not None:
+                tokenizer.pad_token = tokenizer.bos_token
+            else:
+                raise ValueError(
+                    f"Tokenizer for model {model_id} does not have a defined `pad_token`, `eos_token`, or `bos_token`."
+                )
         tokenizer.padding_side = "left"
         return tokenizer
+
+    def mask_logits(self, logits, attention_mask):
+        """
+        Mask the logits based on the attention mask.
+        """
+        mask = attention_mask.unsqueeze(-1)
+        logits.masked_fill_(mask == 0, 0)
+        return logits
+
+    def mask_past_key_values(self, onnx_model, past_key_values, attention_mask):
+        """
+        Mask the past key values based on the attention mask.
+        """
+        if onnx_model.config.model_type == "gpt_bigcode":
+            if onnx_model.config.multi_query:
+                mask = attention_mask.unsqueeze(-1)
+            else:
+                mask = attention_mask.unsqueeze(1).unsqueeze(-1)
+            for i in range(len(past_key_values)):
+                past_key_values[i].masked_fill_(mask == 0, 0)
+        elif onnx_model.config.model_type == "bloom" and onnx_model.old_bloom_modeling:
+            num_key_value_heads = onnx_model.num_key_value_heads
+            key_mask = attention_mask.repeat_interleave(num_key_value_heads, dim=0).unsqueeze(1)
+            value_mask = attention_mask.repeat_interleave(num_key_value_heads, dim=0).unsqueeze(-1)
+            for i in range(len(past_key_values)):
+                past_key_values[i][0].masked_fill_(key_mask == 0, 0)
+                past_key_values[i][1].masked_fill_(value_mask == 0, 0)
+        else:
+            mask = attention_mask.unsqueeze(1).unsqueeze(-1)
+            for i in range(len(past_key_values)):
+                past_key_values[i][0].masked_fill_(mask == 0, 0)
+                past_key_values[i][1].masked_fill_(mask == 0, 0)
 
     # INTEGRATION TESTS
     def test_find_untested_architectures(self):
@@ -275,9 +315,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        inputs = self.get_batched_inputs()
+        texts = self.get_batched_inputs()
         tokenizer = self.get_tokenizer(model_id, model_arch)
-        tokens = tokenizer(inputs, return_tensors="pt", padding=True)
+        inputs = tokenizer(texts, return_tensors="pt", padding=True)
 
         set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
@@ -290,54 +330,40 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertEqual(onnx_model.use_cache, use_cache)
         self.assertEqual(model.config.use_cache, use_cache)
 
-        outputs = model(**tokens)
-        onnx_outputs = onnx_model(**tokens)
+        with torch.no_grad():
+            outputs = model(**inputs)
+        onnx_outputs = onnx_model(**inputs)
         self.assertTrue("logits" in onnx_outputs)
         self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-        logits = outputs.logits * tokens["attention_mask"].unsqueeze(-1)
-        onnx_logits = onnx_outputs.logits * tokens["attention_mask"].unsqueeze(-1)
-        torch.testing.assert_close(logits, onnx_logits, atol=self.ATOL, rtol=self.RTOL)
+
+        if is_transformers_version("<", "4.39.0"):
+            # before 4.39.0, transformers used different masking strategies depending on whether
+            # torch.jit.is_tracing() is True or False, resulting in different logits
+            # for the masked tokens.
+            self.mask_logits(outputs.logits, inputs.attention_mask)
+            self.mask_logits(onnx_outputs.logits, inputs.attention_mask)
+
+        torch.testing.assert_close(onnx_outputs.logits, outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         if use_cache:
             self.assertTrue("past_key_values" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.past_key_values, tuple)
 
-            if model_arch.startswith("gpt_bigcode"):
-                self.assertIsInstance(onnx_outputs.past_key_values[0], torch.Tensor)
-                if onnx_model.config.multi_query:
-                    mask = tokens["attention_mask"].unsqueeze(-1)
-                else:
-                    mask = tokens["attention_mask"].unsqueeze(1).unsqueeze(-1)
-                for i in range(len(onnx_outputs.past_key_values)):
-                    past_key_values = outputs.past_key_values[i] * mask
-                    onnx_past_key_values = onnx_outputs.past_key_values[i] * mask
-                    torch.testing.assert_close(onnx_past_key_values, past_key_values, atol=self.ATOL, rtol=self.RTOL)
-            elif model_arch == "bloom" and onnx_model.old_bloom_modeling:
-                self.assertIsInstance(onnx_outputs.past_key_values[0], tuple)
-                self.assertIsInstance(onnx_outputs.past_key_values[0][0], torch.Tensor)
-                num_key_value_heads = onnx_model.num_key_value_heads
-                key_mask = tokens["attention_mask"].repeat_interleave(num_key_value_heads, dim=0).unsqueeze(1)
-                value_mask = tokens["attention_mask"].repeat_interleave(num_key_value_heads, dim=0).unsqueeze(-1)
-                for i in range(len(onnx_outputs.past_key_values)):
-                    past_keys = outputs.past_key_values[i][0] * key_mask
-                    past_values = outputs.past_key_values[i][1] * value_mask
-                    onnx_past_keys = onnx_outputs.past_key_values[i][0] * key_mask
-                    onnx_past_values = onnx_outputs.past_key_values[i][1] * value_mask
-                    torch.testing.assert_close(onnx_past_keys, past_keys, atol=self.ATOL, rtol=self.RTOL)
-                    torch.testing.assert_close(onnx_past_values, past_values, atol=self.ATOL, rtol=self.RTOL)
-            else:
-                self.assertIsInstance(onnx_outputs.past_key_values[0], tuple)
-                self.assertIsInstance(onnx_outputs.past_key_values[0][0], torch.Tensor)
-                mask = tokens["attention_mask"].unsqueeze(1).unsqueeze(-1)
-                for i in range(len(onnx_outputs.past_key_values)):
-                    for j in range(len(onnx_outputs.past_key_values[i])):
-                        past_key_values = outputs.past_key_values[i][j] * mask
-                        onnx_past_key_values = onnx_outputs.past_key_values[i][j] * mask
-                        torch.testing.assert_close(
-                            onnx_past_key_values, past_key_values, atol=self.ATOL, rtol=self.RTOL
-                        )
+            if isinstance(outputs.past_key_values, Cache):
+                outputs.past_key_values = outputs.past_key_values.to_legacy_cache()
 
-    # generation is slow without pkv, and we do compare with/without pkv in a different test
+            if is_transformers_version("<", "4.39.0"):
+                # before 4.39.0, transformers used different masking strategies depending on whether
+                # torch.jit.is_tracing() is True or False, resulting in different past key values
+                # for the masked tokens.
+                self.mask_past_key_values(onnx_model, outputs.past_key_values, inputs.attention_mask)
+                self.mask_past_key_values(onnx_model, onnx_outputs.past_key_values, inputs.attention_mask)
+
+            torch.testing.assert_close(
+                onnx_outputs.past_key_values, outputs.past_key_values, atol=self.ATOL, rtol=self.RTOL
+            )
+
+    # generation is slow without pkv, and we do compare with/without pkv in a different test, so only use_cache=True
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_generation_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS

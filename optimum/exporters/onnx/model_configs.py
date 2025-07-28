@@ -91,9 +91,7 @@ from .config import (
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
     CLIPModelPatcher,
-    FalconModelPatcher,
     MgpstrModelPatcher,
-    MistralModelPatcher,
     MusicgenModelPatcher,
     Qwen3MoeModelPatcher,
     SAMModelPatcher,
@@ -500,7 +498,6 @@ class MistralOnnxConfig(TextDecoderOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
-    _MODEL_PATCHER = MistralModelPatcher
 
 
 @register_tasks_manager_onnx("mpt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"])
@@ -581,10 +578,6 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Falcon uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DUMMY_PKV_GENERATOR_CLASS = FalconDummyPastKeyValuesGenerator
-
-    # we need to set output_attentions=True in the model input to avoid calling
-    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
-    _MODEL_PATCHER = FalconModelPatcher
 
     def __init__(
         self,
