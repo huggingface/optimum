@@ -32,7 +32,7 @@ from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin, TemporaryHubRepo
-
+from PIL import Image
 from optimum.onnxruntime import (
     ORTDiffusionPipeline,
     ORTPipelineForImage2Image,
@@ -84,9 +84,7 @@ def generate_prompts(batch_size=1):
 
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        image = load_image("https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png").resize(
-            (width, height)
-        )
+        image = Image.new("RGB", (width, height), color=(255, 255, 255))
     elif input_type == "np":
         image = np.random.rand(height, width, channel)
     elif input_type == "pt":
