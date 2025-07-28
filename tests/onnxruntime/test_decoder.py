@@ -300,22 +300,22 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue("past_key_values" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.past_key_values, tuple)
             for i in range(len(onnx_outputs.past_key_values)):
-                if model_arch == "gpt_bigcode":
+                if model_arch == "gpt_bigcode" and model.config.multi_query:
                     self.assertIsInstance(onnx_outputs.past_key_values[i], torch.Tensor)
-                    torch.testing.assert_close(
-                        onnx_outputs.past_key_values[i],
-                        outputs.past_key_values[i],
-                        atol=self.ATOL,
-                        rtol=self.RTOL,
-                    )
+                    past_key_values = outputs.past_key_values[i] * tokens["attention_mask"].unsqueeze(-1)
+                    onnx_past_key_values = onnx_outputs.past_key_values[i] * tokens["attention_mask"].unsqueeze(-1)
+                    torch.testing.assert_close(onnx_past_key_values, past_key_values, atol=self.ATOL, rtol=self.RTOL)
                 else:
                     for j in range(len(onnx_outputs.past_key_values[i])):
                         self.assertIsInstance(onnx_outputs.past_key_values[i][j], torch.Tensor)
+                        past_key_values = outputs.past_key_values[i][j] * tokens["attention_mask"].unsqueeze(
+                            1
+                        ).unsqueeze(-1)
+                        onnx_past_key_values = onnx_outputs.past_key_values[i][j] * tokens["attention_mask"].unsqueeze(
+                            1
+                        ).unsqueeze(-1)
                         torch.testing.assert_close(
-                            onnx_outputs.past_key_values[i][j],
-                            outputs.past_key_values[i][j],
-                            atol=self.ATOL,
-                            rtol=self.RTOL,
+                            onnx_past_key_values, past_key_values, atol=self.ATOL, rtol=self.RTOL
                         )
 
     # generation is slow without pkv, and we do compare with/without pkv in a different test

@@ -301,6 +301,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 # OPT models use a different way to infer position_ids from attention_mask
                 position_ids = torch.cumsum(attention_mask, dim=1) * attention_mask - 1
                 position_ids = position_ids[:, past_seq_len:]
+            elif cache_position is not None:
+                # Create position_ids from cache_position
+                position_ids = cache_position.unsqueeze(0).expand(batch_size, -1)
             elif self.config.model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and self.config.model_type not in {
                 "gpt_bigcode"
             }:
