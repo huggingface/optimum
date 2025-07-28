@@ -207,6 +207,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         if self.config.model_type == "gemma":
             self.embed_size_per_head = self.config.head_dim
+        elif self.config.model_type == "gpt_bigcode":
+            self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads * 2
         else:
             self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads
 
@@ -222,11 +224,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         }:
             self.num_key_value_heads = self.config.num_key_value_heads
         elif self.config.model_type == "falcon":
-            self.num_key_value_heads = (
-                self.config.num_kv_heads
-                if (self.config.new_decoder_architecture or not self.config.multi_query)
-                else 1
-            )
+            if self.config.new_decoder_architecture or not self.config.multi_query:
+                self.num_key_value_heads = self.config.num_kv_heads
+            else:
+                self.num_key_value_heads = 1
         else:
             self.num_key_value_heads = self.config.num_attention_heads
 
@@ -335,7 +336,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if past_key_values is None:
                 # Generates the input pkv for the first forward of the model (merged or with past)
                 if self.config.model_type == "gpt_bigcode" and self.config.multi_query:
-                    k_shape = v_shape = (batch_size, 0, self.embed_size_per_head * 2)
+                    k_shape = v_shape = (batch_size, 0, self.embed_size_per_head)
                 elif self.config.model_type == "bloom" and self.old_bloom_modeling:
                     k_shape = (batch_size * self.num_key_value_heads, self.embed_size_per_head, 0)
                     v_shape = (batch_size * self.num_key_value_heads, 0, self.embed_size_per_head)
@@ -365,8 +366,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # Infers the shape of the output pkv
             batch_size, seq_len = input_ids.shape
             if self.config.model_type == "gpt_bigcode" and self.config.multi_query:
-                embed_size_per_head_2 = past_key_values[0].shape[-1]
-                k_shape = v_shape = (batch_size, pkv_seq_len + seq_len, embed_size_per_head_2)
+                embed_size_per_head = past_key_values[0].shape[-1]
+                k_shape = v_shape = (batch_size, pkv_seq_len + seq_len, embed_size_per_head)
             elif self.config.model_type == "bloom" and self.old_bloom_modeling:
                 num_key_value_heads_batch_size, embed_size_per_head = past_key_values[0].shape[:2]
                 k_shape = (num_key_value_heads_batch_size, embed_size_per_head, pkv_seq_len + seq_len)
