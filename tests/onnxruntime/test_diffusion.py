@@ -27,10 +27,10 @@ from diffusers import (
     AutoPipelineForText2Image,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
+from diffusers.utils import load_image
 from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
-from PIL import Image
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin, TemporaryHubRepo
 
 from optimum.onnxruntime import (
@@ -84,16 +84,15 @@ def generate_prompts(batch_size=1):
 
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        images = [
-            Image.new("RGB", (width, height), color=tuple(np.random.randint(0, 255, size=(3,))))
-            for _ in range(batch_size)
-        ]
+        image = load_image("https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png").resize(
+            (width, height)
+        )
     elif input_type == "np":
-        images = [np.random.rand(height, width, channel) for _ in range(batch_size)]
+        image = np.random.rand(height, width, channel)
     elif input_type == "pt":
-        images = [torch.rand((channel, height, width)) for _ in range(batch_size)]
+        image = torch.rand((channel, height, width))
 
-    return images
+    return [image] * batch_size
 
 
 class ORTDiffusionPipelineTest(TestCase):
@@ -663,7 +662,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
             diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-            np.testing.assert_allclose(ort_images, diffusers_images, atol=6e-4, rtol=1e-2)
+            np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
