@@ -27,12 +27,12 @@ from diffusers import (
     AutoPipelineForText2Image,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
-from diffusers.utils import load_image
 from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
-from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin, TemporaryHubRepo
 from PIL import Image
+from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin, TemporaryHubRepo
+
 from optimum.onnxruntime import (
     ORTDiffusionPipeline,
     ORTPipelineForImage2Image,
