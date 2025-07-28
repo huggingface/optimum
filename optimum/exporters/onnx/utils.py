@@ -77,6 +77,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gpt2",
     "gpt_neo",
     "gpt_neox",
+    "gpt_bigcode",
     "gptj",
     "imagegpt",
     "internlm2",
