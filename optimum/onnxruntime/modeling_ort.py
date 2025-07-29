@@ -1286,7 +1286,6 @@ class ORTModelForImageClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForImageClassification
-    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
