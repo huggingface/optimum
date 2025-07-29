@@ -435,7 +435,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         inputs_embeds=None,
         cache_position=None,
         position_ids=None,
-        use_cache=True,
+        use_cache=None,
         **kwargs,
     ):
         if past_key_values is not None:
