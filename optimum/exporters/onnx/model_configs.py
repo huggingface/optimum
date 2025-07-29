@@ -408,17 +408,11 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 @register_tasks_manager_onnx("opt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "question-answering"])
-class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+class OPTOnnxConfig(
+    TextDecoderWithPositionIdsOnnxConfig if is_transformers_version(">=", "4.46.0") else TextDecoderOnnxConfig
+):
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-    @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
-        if is_transformers_version("<", "4.46.0"):
-            # before transformers 4.46.0, OPT did not have position_ids input
-            common_inputs.pop("position_ids", None)
-        return common_inputs
 
 
 @register_tasks_manager_onnx("llama", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
@@ -2462,9 +2456,9 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
             # for Speech2text, we need to name the second axis as
             # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
             # used for dummy input generation
-            common_outputs["last_hidden_state"][
-                1
-            ] = f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            common_outputs["last_hidden_state"][1] = (
+                f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            )
         return common_outputs
 
 
