@@ -244,14 +244,29 @@ original_scaled_dot_product_attention = torch.nn.functional.scaled_dot_product_a
 
 # A version of `torch.nn.functional.scaled_dot_product_attention` that doesn't fail during tracing
 # from passing `is_causal` as a tensor (which is usually obtained with tensor shapes comparisons).
-def traceable_scaled_dot_product_attention(*args, **kwargs) -> torch.Tensor:
-    if len(args) >= 6 and isinstance(args[5], torch.Tensor):
-        args = list(args)
-        args[5] = args[5].item()
-    elif "is_causal" in kwargs and isinstance(kwargs["is_causal"], torch.Tensor):
-        kwargs["is_causal"] = kwargs["is_causal"].item()
+# And also fixes the issue with NaN values in the attention weights when the attention mask is boolean.
+def safe_scaled_dot_product_attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: Optional[torch.Tensor] = None,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    **kwargs,
+) -> torch.Tensor:
+    if isinstance(is_causal, torch.Tensor):
+        is_causal = is_causal.item()
 
-    return original_scaled_dot_product_attention(*args, **kwargs)
+    attn_weights = original_scaled_dot_product_attention(
+        query=query, key=key, value=value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, **kwargs
+    )
+
+    if attn_mask is not None and attn_mask.dtype == torch.bool:
+        # If the attention mask is boolean, the onnx exporter will convert it to a float tensor.
+        # sometimes resulting in one row with all -inf values, which leads to nan values in the softmax.
+        attn_weights.masked_fill(attn_weights.isnan(), 0.0)
+
+    return attn_weights
 
 
 # No-op bfloat16 casting to avoid issues with legacy ONNX export which cast to complex128
@@ -271,7 +286,7 @@ UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(
         torch.nn.functional,
         "scaled_dot_product_attention",
-        traceable_scaled_dot_product_attention,
+        safe_scaled_dot_product_attention,
         torch.nn.functional.scaled_dot_product_attention,
     ),
 ]
@@ -334,86 +349,7 @@ def eager_mask_without_vmap(*args, **kwargs) -> Optional[torch.Tensor]:
     return mask
 
 
-from torch.onnx.symbolic_opset14 import (  # noqa: E402
-    _attention_scale,
-    _causal_attention_mask,
-    _onnx_symbolic,
-    _type_utils,
-    jit_utils,
-    symbolic_helper,
-)
-
-
-@_onnx_symbolic("aten::scaled_dot_product_attention")
-@symbolic_helper.parse_args("v", "v", "v", "v", "f", "b", "v", "b")
-def scaled_dot_product_attention(
-    g: jit_utils.GraphContext,
-    query: torch._C.Value,
-    key: torch._C.Value,
-    value: torch._C.Value,
-    attn_mask: Optional[torch._C.Value] = None,
-    dropout_p: float = 0.0,
-    is_causal: bool = False,
-    scale: Optional[torch._C.Value] = None,
-    enable_gqa: bool = False,
-):
-    assert (not is_causal) or (
-        is_causal and symbolic_helper._is_none(attn_mask)
-    ), "is_causal and attn_mask cannot be set at the same time"
-    assert not enable_gqa, "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
-
-    if symbolic_helper._is_none(scale):
-        scale = _attention_scale(g, query)
-
-    if is_causal:
-        attn_mask = _causal_attention_mask(g, query, key)
-
-    # Swap the last two axes of key
-    # NOTE: onnx-script has different logic here, because the attribute perms in
-    # transpose needs list of ints
-    key_shape_builtin = symbolic_helper._get_tensor_rank(key)
-    key_transposed_axes = list(range(key_shape_builtin))
-    key_transposed_axes[-1], key_transposed_axes[-2] = (
-        key_transposed_axes[-2],
-        key_transposed_axes[-1],
-    )
-    key_transposed = g.op("Transpose", key, perm_i=key_transposed_axes)
-
-    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
-    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
-    query_scaled = g.op("Mul", query, g.op("Sqrt", scale))
-    key_transposed_scaled = g.op("Mul", key_transposed, g.op("Sqrt", scale))
-    mul_qk = g.op("MatMul", query_scaled, key_transposed_scaled)
-
-    if symbolic_helper._is_none(attn_mask):
-        mul_qk_add = mul_qk
-    elif _type_utils.JitScalarType.from_value(attn_mask) == _type_utils.JitScalarType.BOOL:
-        # Turn the Boolean mask to float: attn_mask.masked_fill(not attn_mask, -float('inf'))
-        const_zero = g.op("Constant", value_t=torch.tensor([0.0]))
-        const_neg_inf = g.op("Constant", value_t=torch.tensor([-float("inf")]))
-        attn_mask = g.op("Where", attn_mask, const_zero, const_neg_inf)
-        mul_qk_add = g.op("Add", mul_qk, attn_mask)
-    elif _type_utils.JitScalarType.from_value(attn_mask) in (
-        _type_utils.JitScalarType.FLOAT,
-        _type_utils.JitScalarType.HALF,
-        _type_utils.JitScalarType.BFLOAT16,
-    ):
-        mul_qk_add = g.op("Add", mul_qk, attn_mask)
-    else:
-        raise ValueError(f"Unsupported type for attn_mask: {_type_utils.JitScalarType.from_value(attn_mask)}")
-
-    attn_weight = g.op("Softmax", mul_qk_add, axis_i=-1)
-    # when using scaled dot product attention with a boolean mask, we replace NaN values in attn_weight with 0.0
-    attn_weight = g.op("Where", g.op("IsNaN", attn_weight), g.op("Constant", value_t=torch.tensor([0.0])), attn_weight)
-
-    if dropout_p != 0:
-        attn_weight = g.op(
-            "Dropout",
-            attn_weight,
-            g.op("Constant", value_t=torch.tensor(dropout_p, dtype=torch.float)),
-        )
-
-    return g.op("MatMul", attn_weight, value)
+from torch.onnx.symbolic_opset14 import _onnx_symbolic, jit_utils, symbolic_helper  # noqa: E402
 
 
 @_onnx_symbolic("aten::__ior_")
