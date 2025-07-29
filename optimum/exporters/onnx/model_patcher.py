@@ -264,7 +264,8 @@ def safe_scaled_dot_product_attention(
     if attn_mask is not None and attn_mask.dtype == torch.bool:
         # If the attention mask is boolean, the onnx exporter will convert it to a float tensor.
         # sometimes resulting in one row with all -inf values, which leads to nan values in the softmax.
-        attn_weights.masked_fill(attn_weights.isnan(), 0.0)
+        # To match pytorch behavior, we replace NaN values in the attention weights with 0.0.
+        attn_weights.masked_fill_(attn_weights.isnan(), 0.0)
 
     return attn_weights
 
