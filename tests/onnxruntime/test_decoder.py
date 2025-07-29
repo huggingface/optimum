@@ -28,6 +28,7 @@ from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from transformers.onnx.utils import get_preprocessor
 
 from optimum.exporters.onnx import main_export
+from optimum.exporters.onnx.config import TextDecoderWithPositionIdsOnnxConfig
 from optimum.exporters.onnx.model_configs import (
     BloomOnnxConfig,
     GemmaOnnxConfig,
@@ -44,6 +45,7 @@ from optimum.exporters.onnx.model_configs import (
     Qwen3OnnxConfig,
     SmolLM3OnnxConfig,
 )
+from optimum.exporters.onnx.utils import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.exporters.tasks import TasksManager
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
@@ -192,6 +194,19 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                 f"For the task `{self.TASK}`, the ONNX exporter supports {supported_architectures} but some of them are not "
                 f"tested: {untested_architectures}.\n"
             )
+
+    def test_all_models_requiring_postion_ids(self):
+        for model_type in TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"):
+            model_type_requires_position_ids = model_type in MODEL_TYPES_REQUIRING_POSITION_IDS
+            onnx_config_class = TasksManager._SUPPORTED_MODEL_TYPE[model_type]["onnx"][self.TASK].func
+            onnx_config_class_with_position_ids = issubclass(onnx_config_class, TextDecoderWithPositionIdsOnnxConfig)
+
+            if model_type_requires_position_ids ^ onnx_config_class_with_position_ids:
+                raise ValueError(
+                    f"Model type {model_type} {'requires' if model_type_requires_position_ids else 'does not require'} position ids, "
+                    f"but the ONNX config class {onnx_config_class} {'is' if onnx_config_class_with_position_ids else 'is not'} "
+                    f"subclassed from TextDecoderWithPositionIdsOnnxConfig.\n"
+                )
 
     def test_load_model_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:

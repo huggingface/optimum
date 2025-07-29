@@ -90,6 +90,8 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "qwen3_moe",
     "granite",
     "smollm3",
+    "olmo2",
+    "olmo",
 }
 
 

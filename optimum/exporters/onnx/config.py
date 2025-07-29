@@ -34,7 +34,6 @@ from ...utils import (
 )
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-from .utils import MODEL_TYPES_REQUIRING_POSITION_IDS
 
 
 # TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
@@ -102,15 +101,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
                 "input_ids": {0: "batch_size", 1: "sequence_length"},
                 "attention_mask": {0: "batch_size", 1: "sequence_length"},
             }
-
-        # Decoders based on GPT2 require a position_ids input to avoid generating wrong position_ids in the model itself:
-        # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
-        if (
-            not self.legacy
-            and self.task in ["text-generation", "feature-extraction"]
-            and self._config.model_type in MODEL_TYPES_REQUIRING_POSITION_IDS
-        ):
-            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_inputs
 
