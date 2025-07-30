@@ -27,6 +27,7 @@ jobs:
       matrix:
         python-version: [3.9]
         runs-on: [ubuntu-22.04]
+        transformers_version: [latest, 4.36.*, 4.45.*]
         test_file:
           [
             test_timm.py,
@@ -59,13 +60,26 @@ jobs:
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,onnxruntime] diffusers
 
-      - name: Test with pytest (in series)
-        if: matrix.test_file == 'test_modeling.py'
+      - name: Install transformers ${{ matrix.transformers-version }}
         run: |
-          pytest tests/onnxruntime/test_modeling.py -m "run_in_series" --durations=0 -vvvv
+          if [ "${{ matrix.transformers_version }}" == '4.36.*' ]; then
+            pip install "transformers==4.36.*" "diffusers<0.32.0"
+          elif [ "${{ matrix.transformers_version }}" == '4.45.*' ]; then
+            pip install "transformers==4.45.*" "diffusers<0.33.0"
+          else
+            pip install transformers;
+          fi
 
       - name: Test with pytest (in parallel)
+        if: matrix.test_file != 'test_diffusion.py'
         run: |
-          pytest tests/onnxruntime/${{ matrix.test_file }} -m "not run_in_series" --durations=0 -vvvv -n auto
+          pytest tests/onnxruntime/${{ matrix.test_file }} --durations=0 -vvvv -n auto
+        env:
+          HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
+
+      - name: Test with pytest (in series)
+        if: matrix.test_file == 'test_diffusion.py'
+        run: |
+          pytest tests/onnxruntime/${{ matrix.test_file }} --durations=0 -vvvv
         env:
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}

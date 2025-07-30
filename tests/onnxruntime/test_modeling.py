@@ -1345,7 +1345,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForMaskedLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         MASK_TOKEN = tokenizer.mask_token
-        pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer, device=0)
+        pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer)
         text = f"The capital of France is {MASK_TOKEN}."
         outputs = pipe(text)
 

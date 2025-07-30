@@ -36,9 +36,6 @@ jobs:
         python-version: [3.9]
         transformers-version: [latest]
         runs-on: [ubuntu-22.04, windows-2022]
-        include:
-          - {python-version: 3.9, transformers-version: 4.36.*, runs-on: ubuntu-22.04}
-          - {python-version: 3.9, transformers-version: 4.45.*, runs-on: ubuntu-22.04}
 
     runs-on: ${{ matrix.runs-on }}
 
@@ -46,6 +43,8 @@ jobs:
       - name: Free Disk Space (Ubuntu)
         if: matrix.runs-on == 'ubuntu-22.04'
         uses: jlumbroso/free-disk-space@main
+        with:
+          swap-storage: false
 
       - name: Free Disk Space (macOS)
         if: matrix.runs-on == 'macos-15'
@@ -69,22 +68,12 @@ jobs:
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,onnxruntime] diffusers
 
-      - name: Install transformers ${{ matrix.transformers-version }}
-        if: ${{ matrix.transformers-version == '4.36.*' }}
-        run: |
-          pip install "transformers==${{ matrix.transformers-version }}" "diffusers<0.32.0"
-
-      - name: Install transformers ${{ matrix.transformers-version }}
-        if: ${{ matrix.transformers-version == '4.45.*' }}
-        run: |
-          pip install "transformers==${{ matrix.transformers-version }}" "diffusers<0.33.0"
-  
       - name: Test with pytest (in series)
         run: |
           pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv
         env:
           RUN_SLOW: 1
-  
+
       - name: Test with pytest (in parallel)
         run: |
           pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv
