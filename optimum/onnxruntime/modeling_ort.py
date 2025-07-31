@@ -148,6 +148,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
 
     model_type = "onnx_model"
     auto_model_class = AutoModel
+    _library_name: Optional[str] = None
 
     def __init__(
         self,
@@ -431,6 +432,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
+            library_name=cls._library_name,
         )
         maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
 
@@ -628,6 +630,7 @@ class ORTModelForFeatureExtraction(ORTModel):
     """
 
     auto_model_class = AutoModel
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -753,6 +756,7 @@ class ORTModelForMaskedLM(ORTModel):
     """
 
     auto_model_class = AutoModelForMaskedLM
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -855,6 +859,7 @@ class ORTModelForQuestionAnswering(ORTModel):
     """
 
     auto_model_class = AutoModelForQuestionAnswering
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -974,6 +979,7 @@ class ORTModelForSequenceClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForSequenceClassification
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1077,6 +1083,7 @@ class ORTModelForTokenClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForTokenClassification
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1173,6 +1180,7 @@ class ORTModelForMultipleChoice(ORTModel):
     """
 
     auto_model_class = AutoModelForMultipleChoice
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1376,6 +1384,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
     """
 
     auto_model_class = AutoModelForSemanticSegmentation
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
@@ -1479,6 +1488,7 @@ class ORTModelForAudioClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForAudioClassification
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1577,6 +1587,7 @@ class ORTModelForCTC(ORTModel):
     """
 
     auto_model_class = AutoModelForCTC
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1681,6 +1692,7 @@ class ORTModelForAudioXVector(ORTModel):
     """
 
     auto_model_class = AutoModelForAudioXVector
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1770,6 +1782,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForAudioFrameClassification
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1850,6 +1863,7 @@ class ORTModelForImageToImage(ORTModel):
     """
 
     auto_model_class = AutoModelForImageToImage
+    _library_name: Optional[str] = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")

@@ -64,7 +64,6 @@ DEFAULT_DUMMY_SHAPES = {
     "point_batch_size": 3,
     "nb_points_per_image": 2,
     "visual_seq_length": 16,
-    "visual_embedding_dim": 20,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,
@@ -431,7 +430,13 @@ class DummyTextInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         min_value = 0
-        max_value = 2 if input_name != "input_ids" else self.vocab_size
+
+        if input_name == "position_ids":
+            max_value = self.sequence_length
+        elif input_name == "input_ids":
+            max_value = self.vocab_size
+        else:
+            max_value = 2
 
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
@@ -822,7 +827,6 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         width: int = DEFAULT_DUMMY_SHAPES["width"],
         height: int = DEFAULT_DUMMY_SHAPES["height"],
         visual_seq_length: int = DEFAULT_DUMMY_SHAPES["visual_seq_length"],
-        visual_embedding_dim: int = DEFAULT_DUMMY_SHAPES["visual_embedding_dim"],
         **kwargs,
     ):
         self.task = task
@@ -847,7 +851,7 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         self.batch_size = batch_size
         self.height, self.width = self.image_size
         self.visual_seq_length = visual_seq_length
-        self.visual_embedding_dim = visual_embedding_dim
+        self.visual_embedding_dim = getattr(normalized_config, "visual_embedding_dim", 512)
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "pixel_mask":
@@ -857,7 +861,6 @@ class DummyVisionInputGenerator(DummyInputGenerator):
                 framework=framework,
                 dtype=int_dtype,
             )
-
         elif input_name in "visual_attention_mask":
             return self.random_mask_tensor(
                 shape=[self.batch_size, self.visual_seq_length],
@@ -880,7 +883,6 @@ class DummyVisionInputGenerator(DummyInputGenerator):
                 framework=framework,
                 dtype=float_dtype,
             )
-
         else:
             return self.random_float_tensor(
                 shape=[self.batch_size, self.num_channels, self.height, self.width],
@@ -1115,16 +1117,48 @@ class DummyPix2StructInputGenerator(DummyInputGenerator):
 
 
 class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        past_key_value_shape = (
-            self.batch_size,
-            self.sequence_length,
-            self.hidden_size // self.num_attention_heads * 2,  # GPT BigCode has a fused KV cache.
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            **kwargs,
         )
-        return [
-            self.random_float_tensor(past_key_value_shape, framework=framework, dtype=float_dtype)
-            for _ in range(self.num_layers)
-        ]
+        self.multi_query = normalized_config.multi_query
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if self.multi_query:
+            past_key_value_shape = (
+                self.batch_size,
+                self.sequence_length,
+                self.hidden_size // self.num_attention_heads * 2,
+            )
+            return [
+                self.random_float_tensor(past_key_value_shape, framework=framework, dtype=float_dtype)
+                for _ in range(self.num_layers)
+            ]
+        else:
+            shape = (
+                self.batch_size,
+                self.num_attention_heads,
+                self.sequence_length,
+                self.hidden_size // self.num_attention_heads * 2,
+            )
+            return [
+                self.random_float_tensor(shape, framework=framework, dtype=float_dtype) for _ in range(self.num_layers)
+            ]
 
 
 class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):

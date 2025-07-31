@@ -69,7 +69,12 @@ GENERATE_DUMMY_DOCSTRING = r"""
 
 
 class ExportConfig(ABC):
-    pass
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        logger.warning(
+            "The `ExportConfig` class is deprecated and will be removed in a future version. "
+            "Please use `ExporterConfig` instead."
+        )
 
 
 class ExporterConfig(ABC):

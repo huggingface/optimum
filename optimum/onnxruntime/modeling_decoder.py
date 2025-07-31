@@ -34,7 +34,7 @@ from onnxruntime import InferenceSession, SessionOptions
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from ..exporters.tasks import TasksManager
 from ..onnx.utils import check_model_uses_external_data
-from ..utils import NormalizedConfigManager, is_transformers_version
+from ..utils import is_transformers_version
 from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_save_preprocessors
 from .constants import (
@@ -182,7 +182,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         ## END OF DEPRECATED BEHAVIOR
         super().__init__(config=config, session=session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
 
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
         self.can_use_cache = len(self.key_value_input_names) > 0 and len(self.key_value_output_names) > 0
@@ -207,19 +206,36 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         if self.config.model_type == "gemma":
-            self.embed_size_per_head = self.normalized_config.head_dim
+            self.embed_size_per_head = self.config.head_dim
+        elif self.config.model_type == "gpt_bigcode":
+            self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads * 2
         else:
-            self.embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
-        if self.config.model_type in {"gemma", "mistral", "llama", "qwen2", "qwen3", "qwen3_moe", "granite"}:
-            self.num_key_value_heads = self.normalized_config.num_key_value_heads
+            self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads
+
+        if self.config.model_type in {
+            "gemma",
+            "mistral",
+            "llama",
+            "qwen2",
+            "qwen3",
+            "qwen3_moe",
+            "granite",
+            "smollm3",
+        }:
+            self.num_key_value_heads = self.config.num_key_value_heads
         elif self.config.model_type == "falcon":
-            self.num_key_value_heads = (
-                self.config.num_kv_heads
-                if (self.config.new_decoder_architecture or not self.config.multi_query)
-                else 1
-            )
+            if self.config.new_decoder_architecture or not self.config.multi_query:
+                self.num_key_value_heads = self.config.num_kv_heads
+            else:
+                self.num_key_value_heads = 1
         else:
-            self.num_key_value_heads = self.normalized_config.num_attention_heads
+            self.num_key_value_heads = self.config.num_attention_heads
+
+        self.old_bloom_modeling = (
+            self.input_shapes.get("past_key_values.0.key", None) is not None
+            and self.input_shapes.get("past_key_values.0.value", None) is not None
+            and self.input_shapes["past_key_values.0.key"] != self.input_shapes["past_key_values.0.value"]
+        )
 
     @property
     def use_cache(self):
@@ -267,21 +283,48 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "To re-export your model, simply set `export=True` in the `from_pretrained` method."
             )
 
-        if past_key_values is not None and isinstance(past_key_values[0], tuple):
-            # Flattens the past_key_values to a single tuple
-            past_key_values = sum(past_key_values, ())
-
-        if "position_ids" in self.input_names and position_ids is None:
-            if attention_mask is not None:
-                # Create position_ids from attention_mask
-                position_ids = attention_mask.cumsum(-1) - 1
-                position_ids.masked_fill_(attention_mask == 0, 1)
-                if past_key_values is not None:
-                    position_ids = position_ids[:, -1].unsqueeze(-1)
+        # Compute dimensions that will be used afterwards
+        batch_size, seq_len = input_ids.shape
+        if past_key_values is not None:
+            if self.config.model_type == "gpt_bigcode":
+                if self.config.multi_query:
+                    pkv_seq_len = past_key_values[0].shape[1]
+                else:
+                    pkv_seq_len = past_key_values[0].shape[2]
             else:
-                raise ValueError(
-                    "The model requires position_ids for batched generation but none were provided. "
-                    "Please provide position_ids or attention_mask (from which position_ids can be inferred)."
+                pkv_seq_len = past_key_values[0][0].shape[2]
+        else:
+            pkv_seq_len = 0
+
+        if position_ids is None and "position_ids" in self.input_names:
+            if self.config.model_type == "opt":
+                if attention_mask is not None:
+                    # OPT models use a different way to infer position_ids from attention_mask
+                    position_ids = attention_mask.cumsum(-1) - 1
+                    position_ids.masked_fill_(attention_mask == 0, -1)
+                    position_ids = position_ids[:, pkv_seq_len:]
+                else:
+                    raise ValueError(
+                        "The model OPT requires position_ids for batched generation but none were provided. "
+                        "Please provide position_ids or attention_mask (from which position_ids can be inferred)."
+                    )
+            elif self.config.model_type == "gpt_bigcode":
+                if attention_mask is not None:
+                    # GPT BigCode models use a different way to infer position_ids from attention_mask
+                    position_ids = attention_mask.cumsum(-1) - 1
+                    position_ids.masked_fill_(attention_mask == 0, 1)
+                    position_ids = position_ids[:, pkv_seq_len:]
+                else:
+                    raise ValueError(
+                        "The model gpt_bigcode requires position_ids for batched generation but none were provided. "
+                        "Please provide position_ids or attention_mask (from which position_ids can be inferred)."
+                    )
+            else:
+                # Create position_ids from input_ids
+                position_ids = (
+                    torch.arange(pkv_seq_len, pkv_seq_len + seq_len, dtype=torch.long, device=input_ids.device)
+                    .unsqueeze(0)
+                    .expand(batch_size, -1)
                 )
 
         use_cache_branch = None
@@ -289,15 +332,24 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # Uses cache branch of merged decoders depending on whether real past key values are passed
             use_cache_branch = torch.full((1,), past_key_values is not None, dtype=torch.bool, device=self.device)
 
-        if past_key_values is None and len(self.key_value_input_names) > 0:
-            # Generates the input pkv for the first forward of the model (merged or with past)
-            batch_size, seq_len = input_ids.shape
-            if self.config.model_type == "gpt_bigcode":
-                shape = (batch_size, 0, self.embed_size_per_head * 2)
-            else:
-                shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
-            tensor = torch.empty(shape, dtype=self.dtype, device=self.device)
-            past_key_values = tuple(tensor for _ in range(len(self.key_value_input_names)))
+        if len(self.key_value_input_names) > 0:
+            if past_key_values is None:
+                # Generates the input pkv for the first forward of the model (merged or with past)
+                if self.config.model_type == "gpt_bigcode" and self.config.multi_query:
+                    k_shape = v_shape = (batch_size, 0, self.embed_size_per_head)
+                elif self.config.model_type == "bloom" and self.old_bloom_modeling:
+                    k_shape = (batch_size * self.num_key_value_heads, self.embed_size_per_head, 0)
+                    v_shape = (batch_size * self.num_key_value_heads, 0, self.embed_size_per_head)
+                else:
+                    k_shape = v_shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
+                k_tensor = torch.zeros(k_shape, dtype=self.dtype, device=self.device)
+                v_tensor = torch.zeros(v_shape, dtype=self.dtype, device=self.device)
+                past_key_values = tuple(
+                    k_tensor if ".key" in name else v_tensor for name in self.key_value_input_names
+                )
+            elif isinstance(past_key_values[0], tuple):
+                # Flattens the past_key_values to a single tuple if it is a tuple of tuples
+                past_key_values = sum(past_key_values, ())
 
         model_inputs = {
             "input_ids": input_ids,
@@ -310,18 +362,24 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         known_output_shapes = None
         outputs_to_not_bind = None
-        if use_cache:
+        if use_cache and self.use_io_binding:
             # Infers the shape of the output pkv
             batch_size, seq_len = input_ids.shape
-            if self.config.model_type == "gpt_bigcode":
-                pkv_seq_len, embed_size_per_head_2 = past_key_values[0].shape[1:]
-                pkv_output_shape = (batch_size, pkv_seq_len + seq_len, embed_size_per_head_2)
+            if self.config.model_type == "gpt_bigcode" and self.config.multi_query:
+                embed_size_per_head = past_key_values[0].shape[-1]
+                k_shape = v_shape = (batch_size, pkv_seq_len + seq_len, embed_size_per_head)
+            elif self.config.model_type == "bloom" and self.old_bloom_modeling:
+                num_key_value_heads_batch_size, embed_size_per_head = past_key_values[0].shape[:2]
+                k_shape = (num_key_value_heads_batch_size, embed_size_per_head, pkv_seq_len + seq_len)
+                v_shape = (num_key_value_heads_batch_size, pkv_seq_len + seq_len, embed_size_per_head)
             else:
-                num_key_value_heads, pkv_seq_len, embed_size_per_head = past_key_values[0].shape[1:]
-                pkv_output_shape = (batch_size, num_key_value_heads, pkv_seq_len + seq_len, embed_size_per_head)
-            known_output_shapes = dict.fromkeys(self.key_value_output_names, pkv_output_shape)
+                embed_size_per_head = past_key_values[0].shape[-1]
+                k_shape = v_shape = (batch_size, self.num_key_value_heads, pkv_seq_len + seq_len, embed_size_per_head)
+            known_output_shapes = {
+                name: k_shape if ".key" in name else v_shape for name in self.key_value_output_names
+            }
         else:
-            # Don't bind the output pkv if not used/returned
+            # Don't bind the output pkv if not necessary
             outputs_to_not_bind = self.key_value_output_names
 
         if self.use_io_binding:
@@ -368,13 +426,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         else:
             return super().prepare_inputs_for_generation(*args, **kwargs)
 
-    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
+    # Adapted from transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeForCausalLM.prepare_inputs_for_generation
     def _prepare_inputs_for_generation_legacy(
         self,
         input_ids,
-        attention_mask=None,
         past_key_values=None,
-        token_type_ids=None,
+        attention_mask=None,
+        inputs_embeds=None,
+        cache_position=None,
         position_ids=None,
         use_cache=None,
         **kwargs,
@@ -382,23 +441,33 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if past_key_values is not None:
             if self.config.model_type == "gpt_bigcode":
                 if self.config.multi_query:
-                    past_length = past_key_values[0].shape[1]
+                    pkv_seq_len = past_key_values[0].shape[1]
                 else:
-                    past_length = past_key_values[0].shape[2]
+                    pkv_seq_len = past_key_values[0].shape[2]
             else:
-                past_length = past_key_values[0][0].shape[2]
+                pkv_seq_len = past_key_values[0][0].shape[2]
 
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
+            if input_ids.shape[1] > pkv_seq_len:
+                remove_prefix_length = pkv_seq_len
             else:
                 remove_prefix_length = input_ids.shape[1] - 1
             input_ids = input_ids[:, remove_prefix_length:]
+
+        # falcon, gpt_bigcode, and other models used to override the prepare_inputs_for_generation method to add this logic
+        # https://github.com/huggingface/transformers/blob/v4.40.0/src/transformers/models/gpt_bigcode/modeling_gpt_bigcode.py#L1186
+        if "position_ids" in self.input_names and position_ids is None and attention_mask is not None:
+            # create position_ids on the fly for batch generation
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+            if past_key_values:
+                position_ids = position_ids[:, -1].unsqueeze(-1)
 
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "past_key_values": past_key_values,
-            "token_type_ids": token_type_ids,
+            "cache_position": cache_position,
+            "inputs_embeds": inputs_embeds,
             "position_ids": position_ids,
             "use_cache": use_cache,
         }
@@ -408,11 +477,30 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         past_key_values: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor
     ) -> Tuple[Tuple[torch.Tensor]]:
         if isinstance(past_key_values, tuple) and isinstance(past_key_values[0], tuple):
-            # GPT2 style
-            return tuple(
-                tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
-                for layer_past in past_key_values
-            )
+            if past_key_values[0][0].shape != past_key_values[0][1].shape:
+                batch_size_times_num_heads, head_dim, seq_length = past_key_values[0][0].shape
+                num_heads = batch_size_times_num_heads // beam_idx.shape[0]
+                batch_size = beam_idx.shape[0]
+
+                return tuple(
+                    (
+                        layer_past[0]
+                        .view(batch_size, num_heads, head_dim, seq_length)
+                        .index_select(0, beam_idx.to(layer_past[0].device))
+                        .view(batch_size * num_heads, head_dim, seq_length),
+                        layer_past[1]
+                        .view(batch_size, num_heads, seq_length, head_dim)
+                        .index_select(0, beam_idx.to(layer_past[1].device))
+                        .view(batch_size * num_heads, seq_length, head_dim),
+                    )
+                    for layer_past in past_key_values
+                )
+            else:
+                # GPT2 style
+                return tuple(
+                    tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
+                    for layer_past in past_key_values
+                )
         elif isinstance(past_key_values, tuple) and isinstance(past_key_values[0], torch.Tensor):
             # GPT BigCode style
             return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)

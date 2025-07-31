@@ -92,17 +92,15 @@ from .config import (
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
     CLIPModelPatcher,
-    FalconModelPatcher,
     MgpstrModelPatcher,
-    MistralModelPatcher,
     MusicgenModelPatcher,
+    Qwen3MoeModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
     SpeechT5ModelPatcher,
     VisionEncoderDecoderPatcher,
     VitPoseModelPatcher,
-    WavLMModelPatcher,
 )
 
 
@@ -409,20 +407,12 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-# OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
-if is_transformers_version(">=", "4.46.0"):
-
-    @register_tasks_manager_onnx("opt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "question-answering"])
-    class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
-        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-else:
-
-    @register_tasks_manager_onnx("opt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "question-answering"])
-    class OPTOnnxConfig(TextDecoderOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
-        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+@register_tasks_manager_onnx("opt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "question-answering"])
+class OPTOnnxConfig(
+    TextDecoderWithPositionIdsOnnxConfig if is_transformers_version(">=", "4.46.0") else TextDecoderOnnxConfig
+):
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 @register_tasks_manager_onnx("llama", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
@@ -431,6 +421,11 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+
+@register_tasks_manager_onnx("smollm3", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
+class SmolLM3OnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
 
 
 @register_tasks_manager_onnx("olmo", *COMMON_TEXT_GENERATION_TASKS)
@@ -459,6 +454,7 @@ class Qwen3OnnxConfig(LlamaOnnxConfig):
 )
 class Qwen3MoeOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
+    _MODEL_PATCHER = Qwen3MoeModelPatcher
 
 
 @register_tasks_manager_onnx("gemma", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
@@ -471,24 +467,21 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
 @register_tasks_manager_onnx("granite", *COMMON_TEXT_GENERATION_TASKS)
 class GraniteOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
-    MIN_TORCH_VERSION = version.parse("2.5.0")
 
 
 @register_tasks_manager_onnx("phi", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
+    DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    MIN_TRANSFORMERS_VERSION = version.parse("4.42.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
 
 
 @register_tasks_manager_onnx("phi3", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
 class Phi3OnnxConfig(PhiOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        MistralDummyPastKeyValuesGenerator,
-    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
-    MIN_TRANSFORMERS_VERSION = version.parse("4.50.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
 
 @register_tasks_manager_onnx("internlm2", *["text-generation", "text-generation-with-past"])
@@ -498,25 +491,17 @@ class InternLM2OnnxConfig(LlamaOnnxConfig):
 
 @register_tasks_manager_onnx("mistral", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    # This is because of the patching of torch.triu in AttentionMaskConverter, that exists from transformers>=4.35
-    MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
-
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        MistralDummyPastKeyValuesGenerator,
-    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
-    _MODEL_PATCHER = MistralModelPatcher
 
 
-@register_tasks_manager_onnx("mpt", *["text-generation", "text-generation-with-past", "text-classification"])
+@register_tasks_manager_onnx("mpt", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"])
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
-    DEFAULT_ONNX_OPSET = 13
-    # TODO: fix inference for transformers < v4.41 for beam_search > 1
-    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
     )
@@ -525,23 +510,36 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
 @register_tasks_manager_onnx("bloom", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"])
 class BloomOnnxConfig(TextDecoderOnnxConfig):
     # Bloom does not require position_ids input.
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        BloomDummyPastKeyValuesGenerator,
-    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
-
     DEFAULT_ONNX_OPSET = 14  # Bloom uses F.scaled_dot_product_attention
-    MIN_TRANSFORMERS_VERSION = version.parse("4.44.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
     DUMMY_PKV_GENERATOR_CLASS = BloomDummyPastKeyValuesGenerator
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, BloomDummyPastKeyValuesGenerator)
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
+
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
+        if is_transformers_version(">=", "4.44"):
+            super().add_past_key_values(inputs_or_outputs, direction)
+        else:
+            if direction not in ["inputs", "outputs"]:
+                raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+            if direction == "inputs":
+                decoder_sequence_name = "past_sequence_length"
+                name = "past_key_values"
+            else:
+                decoder_sequence_name = "past_sequence_length + 1"
+                name = "present"
+
+            for i in range(self._normalized_config.num_layers):
+                inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size * num_heads", 2: decoder_sequence_name}
+                inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size * num_heads", 1: decoder_sequence_name}
 
 
 @register_tasks_manager_onnx(
     "gpt_bigcode", *COMMON_TEXT_GENERATION_TASKS + ["text-classification", "token-classification"]
 )
 class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        GPTBigCodeDummyPastKeyValuesGenerator,
-    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GPTBigCodeDummyPastKeyValuesGenerator)
     DEFAULT_ONNX_OPSET = 14  # GPT BigCode now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("gpt_bigcode")
@@ -554,35 +552,28 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
             decoder_sequence_name = "past_sequence_length"
             name = "past_key_values"
         else:
-            decoder_sequence_name = "past_sequence_length + 1"
+            decoder_sequence_name = "past_sequence_length + sequence_length"
             name = "present"
 
         for i in range(self._normalized_config.num_layers):
-            # No dim for `n_head` when using multi-query attention
-            inputs_or_outputs[f"{name}.{i}.key_value"] = {
-                0: "batch_size",
-                1: decoder_sequence_name,
-            }
+            if self._normalized_config.multi_query:
+                # No dim for `n_head` when using multi-query attention
+                inputs_or_outputs[f"{name}.{i}.key_value"] = {0: "batch_size", 1: decoder_sequence_name}
+            else:
+                inputs_or_outputs[f"{name}.{i}.key_value"] = {0: "batch_size", 2: decoder_sequence_name}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key_value"] = t
 
 
 @register_tasks_manager_onnx("falcon", *COMMON_TEXT_GENERATION_TASKS + ["question-answering", "token-classification"])
-class FalconOnnxConfig(TextDecoderOnnxConfig):
-    # This is due to the cache refactoring for Falcon in 4.36
-    MIN_TRANSFORMERS_VERSION = version.parse("4.35.99")
+class FalconOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        FalconDummyPastKeyValuesGenerator,
-    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, FalconDummyPastKeyValuesGenerator)
     DEFAULT_ONNX_OPSET = 14  # Falcon uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DUMMY_PKV_GENERATOR_CLASS = FalconDummyPastKeyValuesGenerator
-
-    # we need to set output_attentions=True in the model input to avoid calling
-    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
-    _MODEL_PATCHER = FalconModelPatcher
 
     def __init__(
         self,
@@ -617,10 +608,8 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
     def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = super().inputs
 
-        if not self.legacy and not self._config.alibi and self.task in ["text-generation", "feature-extraction"]:
-            # When alibi is used, position_ids are not used in Falcon.
-            # Reference: https://github.com/huggingface/transformers/blob/v4.34.0/src/transformers/models/falcon/modeling_falcon.py#L1116
-            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        if self._config.alibi:
+            common_inputs.pop("position_ids", None)
 
         return common_inputs
 
@@ -819,7 +808,6 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
 )
 class BartOnnxConfig(M2M100OnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Bart now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
-    MIN_TORCH_VERSION = version.parse("2.1.2")
 
 
 @register_tasks_manager_onnx(
@@ -851,7 +839,7 @@ class BigBirdPegasusOnnxConfig(BartOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         inputs = super().inputs
-        if self._config.attention_type == "block_sparse":
+        if self._config.attention_type == "block_sparse" and self.task != "text-generation":
             # BigBirdPegasusEncoder creates its own attention_mask internally
             # https://github.com/huggingface/transformers/blob/v4.48.0/src/transformers/models/bigbird_pegasus/modeling_bigbird_pegasus.py#L1875
             inputs.pop("attention_mask", None)
@@ -871,7 +859,6 @@ class MarianOnnxConfig(BartOnnxConfig):
 @register_tasks_manager_onnx("vit", *["feature-extraction", "image-classification", "masked-im"])
 class ViTOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
-    MIN_TORCH_VERSION = version.parse("1.11")
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
@@ -1557,7 +1544,6 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     # Sets the absolute tolerance to when validating the exported ONNX model against the
     # reference model.
     ATOL_FOR_VALIDATION = 1e-4
-    MIN_TORCH_VERSION = version.parse("2.1")
 
     # needs einsum operator support, available since opset 12
     DEFAULT_ONNX_OPSET = 12
@@ -1629,7 +1615,6 @@ class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
     "layoutlmv3", *["feature-extraction", "question-answering", "text-classification", "token-classification"]
 )
 class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
-    MIN_TORCH_VERSION = version.parse("1.12")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         allow_new=True,
         MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
@@ -1838,11 +1823,7 @@ class UniSpeechSATOnnxConfig(HubertOnnxConfig):
     ],
 )
 class WavLMOnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
-    # we need to set output_attentions=True in the model input to avoid calling
-    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
-    # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
-    _MODEL_PATCHER = WavLMModelPatcher
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("audio-spectrogram-transformer", *["feature-extraction", "audio-classification"])
@@ -2557,8 +2538,6 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 @register_tasks_manager_onnx("sam", *["feature-extraction"])
 class SamOnnxConfig(OnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.29.0.dev0")
-    # Since ransformers 4.32.0, SAM uses repeat_interleave op that is broken in PyTorch 2.0.1: https://github.com/pytorch/pytorch/issues/100429
-    MIN_TORCH_VERSION = version.parse("2.0.99")
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator, DummyVisionEmbeddingsGenerator)
     DEFAULT_ONNX_OPSET = 13  # Opset 12 for repeat_interleave falls back on the opset 9 implem, that raises Unsupported: ONNX export of repeat_interleave in opset 9.
