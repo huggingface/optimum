@@ -38,6 +38,7 @@ TESTS_REQUIRE = [
     "sentencepiece",
     "rjieba",
     "hf_xet",
+    # TODO: this forces the latest version of torch for some reason, check why
     "onnxslim>=0.1.53",
 ]
 
@@ -47,22 +48,11 @@ BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision",
 
 EXTRAS_REQUIRE = {
     "onnx": "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
-    "onnxruntime": [
-        "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
-    ],
-    "onnxruntime-gpu": [
-        "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
-    ],
-    "onnxruntime-training": [
-        "optimum-onnx[onnxruntime-training] @ git+https://github.com/huggingface/optimum-onnx.git",
-    ],
+    "onnxruntime": "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
+    "onnxruntime-gpu": "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
     # TODO: repove exporters (onnxruntime), exporters-gpu (onnxruntime) and exporter-tf (tflite) in v2.0
-    "exporters": [
-        "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
-    ],
-    "exporters-gpu": [
-        "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
-    ],
+    "exporters": "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
+    "exporters-gpu": "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
     "exporters-tf": [
         "onnx",
         "h5py",
