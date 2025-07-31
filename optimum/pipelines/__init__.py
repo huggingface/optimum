@@ -16,7 +16,6 @@
 from .pipelines_base import (
     MAPPING_LOADING_FUNC,
     ORT_SUPPORTED_TASKS,
-    load_bettertransformer,
     load_ort_pipeline,
     pipeline,
 )
