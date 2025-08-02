@@ -40,7 +40,7 @@ If you'd like to use the accelerator-specific features of Optimum, you can check
 
 | Accelerator                                                                         | Installation                                                                |
 | :---------------------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
-| [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)            | `pip install --upgrade --upgrade-strategy eager optimum[onnxruntime]`       |
+| [ONNX](https://huggingface.co/docs/optimum-onnx/en/index)                           | `pip install --upgrade --upgrade-strategy eager optimum[onnx]`              |
 | [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)          | `pip install --upgrade --upgrade-strategy eager optimum[neural-compressor]` |
 | [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                         | `pip install --upgrade --upgrade-strategy eager optimum[openvino]`          |
 | [IPEX](https://huggingface.co/docs/optimum/intel/ipex/inference)                    | `pip install --upgrade --upgrade-strategy eager optimum[ipex]`              |
@@ -68,7 +68,7 @@ python -m pip install optimum[onnxruntime]@git+https://github.com/huggingface/op
 
 Optimum provides multiple tools to export and run optimized models on various ecosystems:
 
-- [ONNX](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model) / [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/models), one of the most popular open formats for model export, and a high-performance inference engine for deployment.
+- [ONNX](https://huggingface.co/docs/optimum-onnx/en/onnx/usage_guides/export_a_model) / [ONNX Runtime](https://huggingface.co/docs/optimum-onnx/en/onnxruntime/usage_guides/models), one of the most popular open formats for model export, and a high-performance inference engine for deployment.
 - [OpenVINO](https://huggingface.co/docs/optimum/intel/inference), a toolkit for optimizing, quantizing and deploying deep learning models on Intel hardware.
 - [ExecuTorch](https://huggingface.co/docs/optimum-executorch/guides/export), PyTorch’s native solution for on-device inference across mobile and edge devices.
 - [TensorFlow Lite](https://huggingface.co/docs/optimum/exporters/tflite/usage_guides/export_a_model), a lightweight solution for running TensorFlow models on mobile and edge.
@@ -80,19 +80,23 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### ONNX + ONNX Runtime
 
+🚨🚨🚨 ONNX integration moving to [`optimum-onnx`](https://github.com/huggingface/optimum-onnx) so make sure to follow the installation instructions 🚨🚨🚨
+
 Before you begin, make sure you have all the necessary libraries installed :
 
 ```bash
-pip install optimum[exporters,onnxruntime]
+pip install --upgrade --upgrade-strategy eager optimum[onnx]
 ```
 
-It is possible to export Transformers and Diffusers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily.
+It is possible to export Transformers, Diffusers, Sentence Transformers and timm models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily.
 
-For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model).
+For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum-onnx/en/onnx/usage_guides/export_a_model).
 
 Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend.
 
-More details on how to run ONNX models with `ORTModelForXXX` classes [here](https://huggingface.co/docs/optimum/main/en/onnxruntime/usage_guides/models).
+For this make sure you have ONNX Runtime installed, fore more information check out the [installation instructions](https://onnxruntime.ai/docs/install/).
+
+More details on how to run ONNX models with `ORTModelForXXX` classes [here](https://huggingface.co/docs/optimum-onnx/en/onnxruntime/usage_guides/models).
 
 ### Intel (OpenVINO + Neural Compressor + IPEX)
 

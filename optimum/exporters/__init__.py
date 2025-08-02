@@ -14,5 +14,5 @@
 # limitations under the License.
 __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
-from .tasks import TasksManager  # noqa
-from .base import ExporterConfig  # noqa
+from .base import ExporterConfig
+from .tasks import TasksManager
