@@ -641,7 +641,7 @@ class AutoQuantizationConfig:
             is_static=True,
             format=format,
             mode=mode,
-            activations_dtype=QuantType.QInt8,
+            activations_dtype=QuantType.QUInt8,
             activations_symmetric=True,  # TRT only supports symmetric
             weights_dtype=QuantType.QInt8,
             weights_symmetric=True,  # TRT only supports symmetric
