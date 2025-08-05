@@ -451,6 +451,7 @@ class ModelPatcher:
             self._patching_specs.append(final_spec)
 
         self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
+        self.orig_forward_is_instance_attr = self.orig_forward_name in model.__dict__
         self.orig_forward = getattr(self._model, self.orig_forward_name)
 
         self.model_kwargs = model_kwargs if model_kwargs is not None else {}
@@ -571,7 +572,10 @@ class ModelPatcher:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.restore_ops()
-        setattr(self._model, self.orig_forward_name, self.orig_forward)
+        if self.orig_forward_is_instance_attr:
+            setattr(self._model, self.orig_forward_name, self.orig_forward)
+        else:
+            del self._model.__dict__[self.orig_forward_name]
 
         if is_transformers_version(">=", "4.44") and is_transformers_version("<", "4.50"):
             transformers.cache_utils.Cache = self.original_cache_class
