@@ -1291,13 +1291,14 @@ class MistralDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             random_sequence_length_range=random_sequence_length_range,
         )
         self.num_key_value_heads = normalized_config.num_key_value_heads
+        self.head_dim = getattr(normalized_config, "head_dim", self.hidden_size // self.num_attention_heads)
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = (
             self.batch_size,
             self.num_key_value_heads,
             self.sequence_length,
-            self.hidden_size // self.num_attention_heads,
+            self.head_dim,
         )
         return [
             (
