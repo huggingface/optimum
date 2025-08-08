@@ -1139,7 +1139,6 @@ class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         self.multi_query = normalized_config.multi_query
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-
         if is_transformers_version("<", "4.54"):
             if self.multi_query:
                 shape = (
@@ -1157,7 +1156,7 @@ class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             pkv = [
                 self.random_float_tensor(shape, framework=framework, dtype=float_dtype) for _ in range(self.num_layers)
             ]
-        
+
         else:
             shape = (
                 self.batch_size,
@@ -1166,15 +1165,15 @@ class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
                 self.hidden_size // self.num_attention_heads,
             )
             pkv = [
-            (
-                self.random_float_tensor(shape, framework=framework, dtype=float_dtype),
-                self.random_float_tensor(shape, framework=framework, dtype=float_dtype),
-            )
-            for _ in range(self.num_layers)
+                (
+                    self.random_float_tensor(shape, framework=framework, dtype=float_dtype),
+                    self.random_float_tensor(shape, framework=framework, dtype=float_dtype),
+                )
+                for _ in range(self.num_layers)
             ]
 
         return pkv
-            
+
 
 class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
@@ -1257,7 +1256,11 @@ class FalconDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             random_sequence_length_range=random_sequence_length_range,
             **kwargs,
         )
-        self.num_kv_heads = normalized_config.num_kv_heads if (normalized_config.new_decoder_architecture or not normalized_config.multi_query) else 1
+        self.num_kv_heads = (
+            normalized_config.num_kv_heads
+            if (normalized_config.new_decoder_architecture or not normalized_config.multi_query)
+            else 1
+        )
         self.head_dim = self.hidden_size // self.num_attention_heads
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
