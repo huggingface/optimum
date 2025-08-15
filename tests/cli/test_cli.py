@@ -55,7 +55,6 @@ class TestCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             commands = [
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vision_perceiver_conv --task image-classification {tempdir}/onnx",
-                f"optimum-cli export tflite --model hf-internal-testing/tiny-random-bert --task text-classification --sequence_length 128 {tempdir}/tflite",
             ]
 
             for command in commands:

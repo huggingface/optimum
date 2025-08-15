@@ -16,7 +16,6 @@
 
 from .. import BaseOptimumCLICommand, CommandInfo
 from .onnx import ONNXExportCommand
-from .tflite import TFLiteExportCommand
 
 
 class ExportCommand(BaseOptimumCLICommand):
@@ -29,10 +28,5 @@ class ExportCommand(BaseOptimumCLICommand):
             name="onnx",
             help="Export PyTorch and TensorFlow to ONNX.",
             subcommand_class=ONNXExportCommand,
-        ),
-        CommandInfo(
-            name="tflite",
-            help="Export TensorFlow to TensorFlow Lite.",
-            subcommand_class=TFLiteExportCommand,
         ),
     )

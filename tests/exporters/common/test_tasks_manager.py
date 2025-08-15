@@ -75,9 +75,6 @@ class TasksManagerTestCase(TestCase):
     def test_all_onnx_models_are_registered(self):
         return self._check_all_models_are_registered("onnx", "OnnxConfig")
 
-    def test_all_tflite_models_are_registered(self):
-        return self._check_all_models_are_registered("tflite", "TFLiteConfig")
-
     def test_register(self):
         # Case 1: We try to register a config that was already registered, it should not register anything.
         register_for_onnx = TasksManager.create_register("onnx")
