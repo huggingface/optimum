@@ -21,8 +21,8 @@ REQUIRED_PKGS = [
 ]
 
 TESTS_REQUIRE = [
+    "pytest",
     "accelerate",
-    "pytest<=8.0.0",
     "requests",
     "parameterized",
     "pytest-xdist",
