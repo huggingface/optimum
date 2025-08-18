@@ -43,12 +43,12 @@ QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
 BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
 EXTRAS_REQUIRE = {
-    "onnx": "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git@",
-    "onnxruntime": "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git@",
-    "onnxruntime-gpu": "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git@",
+    "onnx": "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
+    "onnxruntime": "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
+    "onnxruntime-gpu": "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
     # TODO: remove exporters (onnxruntime), exporters-gpu (onnxruntime) in v2.0
-    "exporters": "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git@",
-    "exporters-gpu": "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git@",
+    "exporters": "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
+    "exporters-gpu": "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
     ###########################################################################
     "intel": "optimum-intel>=1.23.0",
     "openvino": "optimum-intel[openvino]>=1.23.0",
