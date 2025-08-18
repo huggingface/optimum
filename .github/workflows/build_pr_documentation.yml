@@ -94,7 +94,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa executorch --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa executorch onnx --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 

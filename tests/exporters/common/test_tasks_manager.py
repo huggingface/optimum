@@ -22,7 +22,7 @@ from transformers import BertConfig, Pix2StructForConditionalGeneration, VisualB
 from transformers.testing_utils import slow
 
 from optimum.exporters import TasksManager
-from optimum.exporters.onnx.model_configs import BertOnnxConfig
+from optimum.exporters.tflite.model_configs import BertTFLiteConfig
 
 
 class TasksManagerTestCase(TestCase):
@@ -72,51 +72,48 @@ class TasksManagerTestCase(TestCase):
                 f"{', '.join(diff)}."
             )
 
-    def test_all_onnx_models_are_registered(self):
-        return self._check_all_models_are_registered("onnx", "OnnxConfig")
-
     def test_all_tflite_models_are_registered(self):
         return self._check_all_models_are_registered("tflite", "TFLiteConfig")
 
     def test_register(self):
         # Case 1: We try to register a config that was already registered, it should not register anything.
-        register_for_onnx = TasksManager.create_register("onnx")
+        register_for_tflite = TasksManager.create_register("tflite")
 
-        @register_for_onnx("bert", "text-classification")
-        class BadBertOnnxConfig(BertOnnxConfig):
+        @register_for_tflite("bert", "text-classification")
+        class BadBertTFLiteConfig(BertTFLiteConfig):
             pass
 
         bert_config_constructor = TasksManager.get_exporter_config_constructor(
-            "onnx",
+            "tflite",
             model_type="bert",
             task="text-classification",
         )
-        bert_onnx_config = bert_config_constructor(BertConfig())
+        bert_tflite_config = bert_config_constructor(BertConfig())
 
         self.assertNotEqual(
-            bert_onnx_config.__class__,
-            BadBertOnnxConfig,
+            bert_tflite_config.__class__,
+            BadBertTFLiteConfig,
             "Registering an already existing config constructor should not do anything unless overwrite_existing=True.",
         )
 
         # Case 2: We try to register a config that was already registered, but authorize overwriting, it should register
         # the new config.
-        register_for_onnx = TasksManager.create_register("onnx", overwrite_existing=True)
+        register_for_tflite = TasksManager.create_register("tflite", overwrite_existing=True)
 
-        @register_for_onnx("bert", "text-classification")
-        class BadBertOnnxConfig2(BertOnnxConfig):
+        @register_for_tflite("bert", "text-classification")
+        class BadBertTFLiteConfig2(BertTFLiteConfig):
             pass
 
         bert_config_constructor = TasksManager.get_exporter_config_constructor(
-            "onnx",
+            "tflite",
             model_type="bert",
             task="text-classification",
         )
-        bert_onnx_config = bert_config_constructor(BertConfig())
+        bert_tflite_config = bert_config_constructor(BertConfig())
 
         self.assertEqual(
-            bert_onnx_config.__class__,
-            BadBertOnnxConfig2,
+            bert_tflite_config.__class__,
+            BadBertTFLiteConfig2,
             (
                 "Registering an already existing config constructor with overwrite_existing=True should overwrite the "
                 "old config constructor."
@@ -126,15 +123,15 @@ class TasksManagerTestCase(TestCase):
         # Case 3: Registering an unknown task.
         with self.assertRaisesRegex(ValueError, "The TasksManager does not know the task called"):
 
-            @register_for_onnx("bert", "this is a wrong name for a task")
-            class UnknownTask(BertOnnxConfig):
+            @register_for_tflite("bert", "this is a wrong name for a task")
+            class UnknownTask(BertTFLiteConfig):
                 pass
 
         # Case 4: Registering for a new backend.
         register_for_new_backend = TasksManager.create_register("new-backend")
 
         @register_for_new_backend("bert", "text-classification")
-        class BertNewBackendConfig(BertOnnxConfig):
+        class BertNewBackendConfig(BertTFLiteConfig):
             pass
 
         bert_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -142,15 +139,15 @@ class TasksManagerTestCase(TestCase):
             model_type="bert",
             task="text-classification",
         )
-        bert_onnx_config = bert_config_constructor(BertConfig())
+        bert_tflite_config = bert_config_constructor(BertConfig())
 
         self.assertEqual(
-            bert_onnx_config.__class__, BertNewBackendConfig, "Wrong config class compared to the registered one."
+            bert_tflite_config.__class__, BertNewBackendConfig, "Wrong config class compared to the registered one."
         )
 
         # Case 5: Registering a new task for a already existing backend.
         @register_for_new_backend("bert", "token-classification")
-        class BertNewBackendConfigTaskSpecific(BertOnnxConfig):
+        class BertNewBackendConfigTaskSpecific(BertTFLiteConfig):
             pass
 
         bert_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -158,10 +155,10 @@ class TasksManagerTestCase(TestCase):
             model_type="bert",
             task="token-classification",
         )
-        bert_onnx_config = bert_config_constructor(BertConfig())
+        bert_tflite_config = bert_config_constructor(BertConfig())
 
         self.assertEqual(
-            bert_onnx_config.__class__,
+            bert_tflite_config.__class__,
             BertNewBackendConfigTaskSpecific,
             "Wrong config class compared to the registered one.",
         )

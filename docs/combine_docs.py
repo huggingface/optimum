@@ -183,6 +183,30 @@ def add_furiosa_doc(base_toc: List):
     )
 
 
+def add_onnx_doc(base_toc: List):
+    """
+    Extends the table of content with a section about Optimum ONNX.
+    Args:
+        base_toc (List): table of content for the doc of Optimum.
+    """
+    # Update optimum table of contents
+    base_toc.insert(
+        SUBPACKAGE_TOC_INSERT_INDEX,
+        {
+            "sections": [
+                {
+                    # Ideally this should directly point at https://huggingface.co/docs/optimum-onnx/index
+                    # Current hacky solution is to have a redirection in _redirects.yml
+                    "local": "docs/optimum-onnx/index",
+                    "title": "🤗 Optimum ONNX",
+                }
+            ],
+            "title": "ONNX",
+            "isExpanded": False,
+        },
+    )
+
+
 def main():
     args = parser.parse_args()
     optimum_path = Path("optimum-doc-build")
@@ -206,6 +230,8 @@ def main():
         elif subpackage == "executorch":
             # Optimum ExecuTorch has its own doc so it is managed differently
             add_executorch_doc(base_toc)
+        elif subpackage == "onnx":
+            add_onnx_doc(base_toc)
         elif subpackage == "furiosa":
             # TODO: add furiosa doc when available
             # add_furiosa_doc(base_toc)
