@@ -22,6 +22,7 @@ body:
         Please tag fewer than 3 people.
 
         - ONNX/ONNX Runtime: `@echarlaix`, `@IlyasMoutawwakil`
+        - OpenVINO/NNCF: `@echarlaix`, `@IlyasMoutawwakil`
         - Neuron: `@michaelbenayoun`, `@JingyaHuang`
         - Habana: `@regisss`
 
