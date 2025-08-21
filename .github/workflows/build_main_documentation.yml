@@ -66,20 +66,20 @@ jobs:
           pip install --upgrade pip uv
           uv pip install git+https://github.com/huggingface/doc-builder
 
+      - name: Make Intel documentation
+        run: |
+          cd optimum-intel
+          uv pip install . nncf openvino neural-compressor[pt]>3.4 diffusers accelerate
+          make doc BUILD_DIR=intel-doc-build VERSION=${{ env.VERSION }}
+          sudo mv intel-doc-build ../optimum
+          cd ..
+
       - name: Make Habana documentation
         run: |
           sudo docker system prune -a -f
           cd optimum-habana
           make doc BUILD_DIR=habana-doc-build VERSION=${{ env.VERSION }}
           sudo mv habana-doc-build ../optimum
-          cd ..
-
-      - name: Make Intel documentation
-        run: |
-          sudo docker system prune -a -f
-          cd optimum-intel
-          make doc BUILD_DIR=intel-doc-build VERSION=${{ env.VERSION }}
-          sudo mv intel-doc-build ../optimum
           cd ..
 
       - name: Make AMD documentation
