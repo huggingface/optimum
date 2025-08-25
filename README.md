@@ -71,7 +71,6 @@ Optimum provides multiple tools to export and run optimized models on various ec
 - [ONNX](https://huggingface.co/docs/optimum-onnx/en/onnx/usage_guides/export_a_model) / [ONNX Runtime](https://huggingface.co/docs/optimum-onnx/en/onnxruntime/usage_guides/models), one of the most popular open formats for model export, and a high-performance inference engine for deployment.
 - [OpenVINO](https://huggingface.co/docs/optimum/intel/inference), a toolkit for optimizing, quantizing and deploying deep learning models on Intel hardware.
 - [ExecuTorch](https://huggingface.co/docs/optimum-executorch/guides/export), PyTorch’s native solution for on-device inference across mobile and edge devices.
-- [TensorFlow Lite](https://huggingface.co/docs/optimum/exporters/tflite/usage_guides/export_a_model), a lightweight solution for running TensorFlow models on mobile and edge.
 - [Intel Gaudi Accelerators](https://huggingface.co/docs/optimum/main/en/habana/usage_guides/accelerate_inference) enabling optimal performance on first-gen Gaudi, Gaudi2 and Gaudi3.
 - [AWS Inferentia](https://huggingface.co/docs/optimum-neuron/en/guides/models) for accelerated inference on Inf2 and Inf1 instances.
 - [NVIDIA TensorRT-LLM](https://huggingface.co/blog/optimum-nvidia).
@@ -115,17 +114,6 @@ pip install optimum-executorch@git+https://github.com/huggingface/optimum-execut
 Users can export Transformers models to [ExecuTorch](https://github.com/pytorch/executorch) and run inference on edge devices within PyTorch's ecosystem.
 
 For more information about export Transformers to ExecuTorch, please check the doc for [Optimum-ExecuTorch](https://huggingface.co/docs/optimum-executorch/guides/export).
-
-### TensorFlow Lite
-
-Before you begin, make sure you have all the necessary libraries installed :
-
-```bash
-pip install optimum[exporters-tf]
-```
-
-Just as for ONNX, it is possible to export models to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them.
-You can find more information in our [documentation](https://huggingface.co/docs/optimum/main/exporters/tflite/usage_guides/export_a_model).
 
 ### Quanto
 

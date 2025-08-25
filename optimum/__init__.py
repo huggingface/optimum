@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2023 The HuggingFace Team. All rights reserved.
+# Copyright 2025 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""optimum.exporters command-line interface base classes."""
-
-from .. import BaseOptimumCLICommand, CommandInfo
-
-
-class ExportCommand(BaseOptimumCLICommand):
-    COMMAND = CommandInfo(
-        name="export",
-        help="Export PyTorch and TensorFlow models to several format.",
-    )
+__path__ = __import__("pkgutil").extend_path(__path__, __name__)
