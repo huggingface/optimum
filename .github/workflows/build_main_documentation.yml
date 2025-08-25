@@ -79,6 +79,7 @@ jobs:
           sudo docker system prune -a -f
           cd optimum-habana
           make doc BUILD_DIR=habana-doc-build VERSION=${{ env.VERSION }}
+          sudo chown -R $USER:$USER habana-doc-build
           sudo mv habana-doc-build ../optimum
           cd ..
 
@@ -87,6 +88,7 @@ jobs:
           sudo docker system prune -a -f
           cd optimum-amd
           make doc BUILD_DIR=amd-doc-build VERSION=${{ env.VERSION }}
+          sudo chown -R $USER:$USER amd-doc-build
           sudo mv amd-doc-build ../optimum
           cd ..
 
@@ -106,7 +108,7 @@ jobs:
       - name: Push to repositories
         run: |
           cd optimum/optimum-doc-build
-          sudo doc-builder push optimum \
+          doc-builder push optimum \
            --token "${{ secrets.HF_DOC_BUILD_PUSH }}" \
            --doc_build_repo_id "hf-doc-build/doc-build" \
            --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" \
