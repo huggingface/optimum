@@ -92,12 +92,9 @@ jobs:
 
       - name: Make Optimum documentation
         run: |
-          sudo docker system prune -a -f
           cd optimum
-          mkdir -p optimum-doc-build/optimum && cd optimum-doc-build/optimum
-          wget https://huggingface.co/datasets/hf-doc-build/doc-build/raw/main/optimum/_versions.yml
-          cd ../..
-          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }} COMMIT_SHA_OPTIMUM=${{ env.VERSION }}
+          uv pip install . accelerate
+          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }}
           cd ..
 
       - name: Combine subpackage documentation
@@ -108,8 +105,11 @@ jobs:
 
       - name: Push to repositories
         run: |
-          source venv-doc/bin/activate
           cd optimum/optimum-doc-build
-          sudo chmod -R ugo+rwx optimum
-          doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build" --token "${{ secrets.HF_DOC_BUILD_PUSH }}" --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5 --upload_version_yml
-        shell: bash
+          sudo chown -R $USER:$USER .
+          doc-builder push optimum \
+           --token "${{ secrets.HF_DOC_BUILD_PUSH }}" \
+           --doc_build_repo_id "hf-doc-build/doc-build" \
+           --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" \
+           --upload_version_yml \
+           --n_retries 5
