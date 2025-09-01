@@ -8,76 +8,44 @@ on:
       - v*-release
   workflow_dispatch:
 
+env:
+  UV_SYSTEM_PYTHON: 1
+  UV_TORCH_BACKEND: auto
+
 jobs:
   build_documentation:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v4
         with:
-          repository: 'huggingface/doc-builder'
-          path: doc-builder
+          node-version: "18"
+          cache-dependency-path: "kit/package-lock.json"
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum'
+          repository: "huggingface/optimum"
           path: optimum
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-habana'
+          repository: "huggingface/optimum-habana"
           path: optimum-habana
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-intel'
+          repository: "huggingface/optimum-intel"
           path: optimum-intel
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-amd'
+          repository: "huggingface/optimum-amd"
           path: optimum-amd
-
-      - name: Free disk space
-        run: |
-          df -h
-          sudo apt-get update
-          sudo apt-get purge -y '^apache.*'
-          sudo apt-get purge -y '^imagemagick.*'
-          sudo apt-get purge -y '^dotnet.*'
-          sudo apt-get purge -y '^aspnetcore.*'
-          sudo apt-get purge -y 'php.*'
-          sudo apt-get purge -y '^temurin.*'
-          sudo apt-get purge -y '^mysql.*'
-          sudo apt-get purge -y '^java.*'
-          sudo apt-get purge -y '^openjdk.*'
-          sudo apt-get purge -y microsoft-edge-stable azure-cli google-chrome-stable firefox mono-devel
-          df -h
-          sudo apt-get autoremove -y >/dev/null 2>&1
-          sudo apt-get clean
-          df -h
-          echo "https://github.com/actions/virtual-environments/issues/709"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          df -h
-          echo "remove big /usr/local"
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
-          df -h
-          echo "remove /usr/share leftovers"
-          sudo rm -rf /usr/share/dotnet/sdk > /dev/null 2>&1
-          sudo rm -rf /usr/share/dotnet/shared > /dev/null 2>&1
-          sudo rm -rf /usr/share/swift > /dev/null 2>&1
-          df -h
-          echo "remove other leftovers"
-          sudo rm -rf /var/lib/mysql > /dev/null 2>&1
-          sudo rm -rf /home/runner/.dotnet > /dev/null 2>&1
-          sudo rm -rf /home/runneradmin/.dotnet > /dev/null 2>&1
-          sudo rm -rf /etc/skel/.dotnet > /dev/null 2>&1
-          sudo rm -rf /usr/local/.ghcup > /dev/null 2>&1
-          sudo rm -rf /usr/local/aws-cli > /dev/null 2>&1
-          sudo rm -rf /usr/lib/heroku > /dev/null 2>&1
-          sudo rm -rf /usr/local/share/chromium > /dev/null 2>&1
-          df -h
 
       - name: Set environment variables
         run: |
@@ -95,13 +63,15 @@ jobs:
 
       - name: Setup environment
         run: |
-          python -m venv venv-doc
-          source venv-doc/bin/activate
-          pip uninstall -y doc-builder
-          cd doc-builder
-          git pull origin main
-          pip install .
-          pip install black
+          pip install --upgrade pip uv
+          uv pip install git+https://github.com/huggingface/doc-builder
+
+      - name: Make Intel documentation
+        run: |
+          cd optimum-intel
+          uv pip install . nncf openvino neural-compressor[pt]>3.4 diffusers accelerate
+          make doc BUILD_DIR=intel-doc-build VERSION=${{ env.VERSION }}
+          sudo mv intel-doc-build ../optimum
           cd ..
 
       - name: Make Habana documentation
@@ -110,14 +80,6 @@ jobs:
           cd optimum-habana
           make doc BUILD_DIR=habana-doc-build VERSION=${{ env.VERSION }}
           sudo mv habana-doc-build ../optimum
-          cd ..
-
-      - name: Make Intel documentation
-        run: |
-          sudo docker system prune -a -f
-          cd optimum-intel
-          make doc BUILD_DIR=intel-doc-build VERSION=${{ env.VERSION }}
-          sudo mv intel-doc-build ../optimum
           cd ..
 
       - name: Make AMD documentation
@@ -130,24 +92,24 @@ jobs:
 
       - name: Make Optimum documentation
         run: |
-          sudo docker system prune -a -f
           cd optimum
-          mkdir -p optimum-doc-build/optimum && cd optimum-doc-build/optimum
-          wget https://huggingface.co/datasets/hf-doc-build/doc-build/raw/main/optimum/_versions.yml
-          cd ../..
-          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }} COMMIT_SHA_OPTIMUM=${{ env.VERSION }}
+          uv pip install . accelerate
+          make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }}
           cd ..
 
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa executorch --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa executorch onnx --version ${{ env.VERSION }}
           cd ..
 
       - name: Push to repositories
         run: |
-          source venv-doc/bin/activate
           cd optimum/optimum-doc-build
-          sudo chmod -R ugo+rwx optimum
-          doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build" --token "${{ secrets.HF_DOC_BUILD_PUSH }}" --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5 --upload_version_yml
-        shell: bash
+          sudo chown -R $USER:$USER .
+          doc-builder push optimum \
+           --token "${{ secrets.HF_DOC_BUILD_PUSH }}" \
+           --doc_build_repo_id "hf-doc-build/doc-build" \
+           --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" \
+           --upload_version_yml \
+           --n_retries 5

@@ -24,6 +24,6 @@ Fixes # (issue)
 
 <!--
 For faster review, we strongly recommend you to ping the following people:
-- Exporters (ONNX/TFLite) : @echarlaix, @JingyaHuang, @michaelbenayoun, @IlyasMoutawwakil
+- Exporters (ONNX/OpenVINO) : @echarlaix, @JingyaHuang, @michaelbenayoun, @IlyasMoutawwakil
 - GPTQ, quantization: @SunMarc, @IlyasMoutawwakil
 -->

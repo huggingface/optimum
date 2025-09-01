@@ -3,7 +3,7 @@ name: Build PR documentation
 on:
   workflow_dispatch:
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths:
       - "optimum/**.py"
       - "docs/**.mdx"
@@ -13,6 +13,10 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
+
+env:
+  UV_SYSTEM_PYTHON: 1
+  UV_TORCH_BACKEND: auto
 
 jobs:
   build_documentation:
@@ -24,40 +28,47 @@ jobs:
       PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v4
         with:
-          repository: 'huggingface/doc-builder'
-          path: doc-builder
+          node-version: "18"
+          cache-dependency-path: "kit/package-lock.json"
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum'
+          repository: "huggingface/optimum"
           path: optimum
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-habana'
+          repository: "huggingface/optimum-habana"
           path: optimum-habana
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-intel'
+          repository: "huggingface/optimum-intel"
           path: optimum-intel
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-amd'
+          repository: "huggingface/optimum-amd"
           path: optimum-amd
 
       - name: Setup environment
         run: |
-          python -m venv venv-doc
-          source venv-doc/bin/activate
-          pip uninstall -y doc-builder
-          cd doc-builder
-          git pull origin main
-          pip install .
-          pip install black
+          pip install --upgrade pip uv
+          uv pip install git+https://github.com/huggingface/doc-builder
+
+      - name: Make Intel documentation
+        run: |
+          cd optimum-intel
+          uv pip install . nncf openvino neural-compressor[pt]>3.4 diffusers accelerate
+          make doc BUILD_DIR=intel-doc-build VERSION=pr_$PR_NUMBER
+          sudo mv intel-doc-build ../optimum
           cd ..
 
       - name: Make Habana documentation
@@ -66,14 +77,6 @@ jobs:
           cd optimum-habana
           make doc BUILD_DIR=habana-doc-build VERSION=pr_$PR_NUMBER
           sudo mv habana-doc-build ../optimum
-          cd ..
-
-      - name: Make Intel documentation
-        run: |
-          sudo docker system prune -a -f
-          cd optimum-intel
-          make doc BUILD_DIR=intel-doc-build VERSION=pr_$PR_NUMBER
-          sudo mv intel-doc-build ../optimum
           cd ..
 
       - name: Make AMD documentation
@@ -86,15 +89,15 @@ jobs:
 
       - name: Make Optimum documentation
         run: |
-          sudo docker system prune -a -f
           cd optimum
-          make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER COMMIT_SHA_OPTIMUM=$COMMIT_SHA CLONE_URL=$PR_CLONE_URL
+          uv pip install . accelerate
+          make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER
           cd ..
 
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa executorch --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa executorch onnx --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 

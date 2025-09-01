@@ -18,8 +18,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9]
-        runs-on: [ubuntu-22.04, macos-13, windows-2022]
+        os: [ubuntu-22.04, macos-13, windows-2022]
+        python-version: ["3.9"]
 
     runs-on: ${{ matrix.runs-on }}
 
@@ -35,8 +35,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install --no-cache-dir torch==2.1.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,exporters,exporters-tf]
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[tests,exporters]
 
       - name: Test with pytest
         run: |

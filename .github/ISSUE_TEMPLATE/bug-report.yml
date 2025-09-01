@@ -21,10 +21,9 @@ body:
         If you know how to use git blame, that is the easiest way, otherwise, here is a rough guide of **who to tag**.
         Please tag fewer than 3 people.
 
-        - Pipelines: `@philschmid`
-        - Export of transformers model to ONNX/TFLite: `@michaelbenayoun`
-        - ONNX Runtime: `@JingyaHuang`, `@echarlaix`
-        - Intel Neural Compressor: `@echarlaix`
+        - ONNX/ONNX Runtime: `@echarlaix`, `@IlyasMoutawwakil`
+        - OpenVINO/NNCF: `@echarlaix`, `@IlyasMoutawwakil`
+        - Neuron: `@michaelbenayoun`, `@JingyaHuang`
         - Habana: `@regisss`
 
       placeholder: "@Username ..."

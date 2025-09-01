@@ -65,7 +65,6 @@ TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 def is_backend_available(backend):
     backend_availablilty = {
         "onnx": is_onnx_available(),
-        "tflite": is_tf_available(),
     }
     return backend_availablilty[backend]
 
@@ -102,7 +101,6 @@ def supported_tasks_mapping(
             ```python
             >>> exporters = {  # doctest: +SKIP
             ...     "onnx": "BertOnnxConfig",
-            ...     "tflite": "BertTFLiteConfig",
             ...     ...
             ... }
             ```
@@ -406,7 +404,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="AlbertTFLiteConfig",
         ),
         "bart": supported_tasks_mapping(
             "feature-extraction",
@@ -429,7 +426,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="BertTFLiteConfig",
         ),
         "rembert": supported_tasks_mapping(
             "fill-mask",
@@ -490,7 +486,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="CamembertTFLiteConfig",
         ),
         "chinese_clip": supported_tasks_mapping(
             "feature-extraction",
@@ -519,7 +514,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="ConvBertTFLiteConfig",
         ),
         "convnext": supported_tasks_mapping(
             "feature-extraction",
@@ -563,7 +557,6 @@ class TasksManager:
             "text-classification",
             "token-classification",
             "question-answering",
-            tflite="DebertaTFLiteConfig",
         ),
         "deberta-v2": supported_tasks_mapping(
             "feature-extraction",
@@ -571,7 +564,6 @@ class TasksManager:
             "text-classification",
             "token-classification",
             "question-answering",
-            tflite="DebertaV2TFLiteConfig",
         ),
         "decision_transformer": supported_tasks_mapping(
             "feature-extraction",
@@ -598,7 +590,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="DistilBertTFLiteConfig",
         ),
         "donut": supported_tasks_mapping(
             "image-to-text",
@@ -628,7 +619,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="ElectraTFLiteConfig",
         ),
         "encoder-decoder": supported_tasks_mapping(
             "text2text-generation",
@@ -655,7 +645,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="FlaubertTFLiteConfig",
         ),
         "gemma": supported_tasks_mapping(
             "feature-extraction",
@@ -820,7 +809,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="MobileBertTFLiteConfig",
         ),
         "megatron-bert": supported_tasks_mapping(
             "feature-extraction",
@@ -862,7 +850,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="MPNetTFLiteConfig",
         ),
         "mpt": supported_tasks_mapping(
             "text-generation",
@@ -1012,7 +999,6 @@ class TasksManager:
         "resnet": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
-            tflite="ResNetTFLiteConfig",
         ),
         "roberta": supported_tasks_mapping(
             "feature-extraction",
@@ -1023,7 +1009,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="RobertaTFLiteConfig",
         ),
         "roformer": supported_tasks_mapping(
             "feature-extraction",
@@ -1034,7 +1019,6 @@ class TasksManager:
             "token-classification",
             "multiple-choice",
             "question-answering",
-            tflite="RoFormerTFLiteConfig",
         ),
         "rt_detr": supported_tasks_mapping(
             "object-detection",
@@ -1199,7 +1183,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="XLMTFLiteConfig",
         ),
         "xlm-roberta": supported_tasks_mapping(
             "feature-extraction",
@@ -1210,7 +1193,6 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            tflite="XLMRobertaTFLiteConfig",
         ),
         "yolos": supported_tasks_mapping(
             "feature-extraction",
