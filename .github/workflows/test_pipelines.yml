@@ -41,4 +41,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/pipelines -vvvv --durations=0 -n auto
+          pytest tests/pipelines -vvvv --durations=0
