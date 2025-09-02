@@ -36,7 +36,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install optimum-onnx[onnxruntime]@git+https://github.com/huggingface/optimum-onnx.git
+          pip install --no-cache-dir optimum-onnx[onnxruntime]@git+https://github.com/huggingface/optimum-onnx.git
           pip install .[tests]
 
       - name: Test with pytest
