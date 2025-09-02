@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shutil
 import unittest
 from typing import Any, Dict
 
 import numpy as np
+from huggingface_hub.constants import default_cache_path
 from PIL import Image
 from transformers.pipelines import Pipeline
 
@@ -239,6 +241,11 @@ class ORTPipelineTest(unittest.TestCase):
 
         self.assertIsInstance(result, list)
         self.assertIsInstance(result[0], list)
+
+    def tearDown(self):
+        # Clean up huggingface cache after each test
+
+        shutil.rmtree(default_cache_path, ignore_errors=True)
 
 
 if __name__ == "__main__":
