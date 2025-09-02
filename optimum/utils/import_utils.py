@@ -97,9 +97,8 @@ _sentence_transformers_available = _is_package_available("sentence_transformers"
 _diffusers_available, _diffusers_version = _is_package_available("diffusers", return_version=True)
 _transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
 _torch_available, _torch_version = _is_package_available("torch", return_version=True)
-_onnxruntime_available, _onnxruntime_version = _is_package_available(
+_onnxruntime_available = _is_package_available(
     "onnxruntime",
-    return_version=True,
     pkg_distributions=[
         "onnxruntime-gpu",
         "onnxruntime-rocm",
@@ -195,9 +194,7 @@ def is_torch_version(operation: str, reference_version: str):
     if not _torch_available:
         return False
 
-    import torch
-
-    return compare_versions(version.parse(version.parse(torch.__version__).base_version), operation, reference_version)
+    return compare_versions(version.parse(_torch_version), operation, reference_version)
 
 
 _is_torch_onnx_support_available = _torch_available and is_torch_version(">=", TORCH_MINIMUM_VERSION.base_version)

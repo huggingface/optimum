@@ -243,9 +243,6 @@ def pipeline(
             )
 
     if accelerator == "ort":
-        if not (is_optimum_onnx_available() and is_onnxruntime_available()):
-            raise ImportError("You need to install `optimum-onnx[onnxruntime]` to use ONNX Runtime as an accelerator.")
-
         from optimum.onnxruntime import pipeline as ort_pipeline
 
         return ort_pipeline(
@@ -269,11 +266,6 @@ def pipeline(
             **kwargs,
         )
     elif accelerator in ["ov", "ipex"]:
-        if accelerator == "ov" and not (is_optimum_intel_available() and is_openvino_available()):
-            raise ImportError("You need to install `optimum-intel[openvino]` to use OpenVINO as an accelerator.")
-        elif accelerator == "ipex" and not (is_optimum_intel_available() and is_ipex_available()):
-            raise ImportError("You need to install `optimum-intel[ipex]` to use IPEX as an accelerator.")
-
         from optimum.intel import pipeline as intel_pipeline
 
         return intel_pipeline(
