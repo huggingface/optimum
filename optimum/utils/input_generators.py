@@ -1215,7 +1215,7 @@ class DeepSeekV3DummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             self.batch_size,
             self.num_attention_heads,
             self.sequence_length,
-            self.qk_rope_head_dim + self.qk_nope_head_dim,
+            self.qk_rope_head_dim + self.qk_nope_head_dim,  # Combines rope and nope heads
         )
         past_value_shape = (
             self.batch_size,
