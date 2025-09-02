@@ -1,0 +1,245 @@
+# coding=utf-8
+# Copyright 2023 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import unittest
+from typing import Any, Dict
+
+import numpy as np
+from PIL import Image
+from transformers.pipelines import Pipeline
+
+from optimum.pipelines import pipeline
+
+
+class ORTPipelineTest(unittest.TestCase):
+    """Test ORT pipelines for all supported tasks"""
+
+    def _create_dummy_text(self) -> str:
+        """Create dummy text input for text-based tasks"""
+        return "This is a test sentence for the pipeline."
+
+    def _create_dummy_image(self) -> Image.Image:
+        """Create dummy image input for image-based tasks"""
+        # Create a simple RGB image
+        np_image = np.random.randint(0, 256, (224, 224, 3), dtype=np.uint8)
+        return Image.fromarray(np_image)
+
+    def _create_dummy_audio(self) -> Dict[str, Any]:
+        """Create dummy audio input for audio-based tasks"""
+        # Create a dummy audio array (16kHz sample rate, 1 second)
+        sample_rate = 16000
+        audio_array = np.random.randn(sample_rate).astype(np.float32)
+        return {"array": audio_array, "sampling_rate": sample_rate}
+
+    def test_text_classification_pipeline(self):
+        """Test text classification ORT pipeline"""
+        pipe = pipeline(task="text-classification", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = self._create_dummy_text()
+        result = pipe(text)
+
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn("label", result[0])
+        self.assertIn("score", result[0])
+
+    def test_token_classification_pipeline(self):
+        """Test token classification ORT pipeline"""
+        pipe = pipeline(task="token-classification", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = self._create_dummy_text()
+        result = pipe(text)
+
+        self.assertIsInstance(result, list)
+        if len(result) > 0:
+            self.assertIn("entity", result[0])
+            self.assertIn("score", result[0])
+            self.assertIn("word", result[0])
+
+    def test_question_answering_pipeline(self):
+        """Test question answering ORT pipeline"""
+        pipe = pipeline(task="question-answering", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        question = "What animal jumps?"
+        context = "The quick brown fox jumps over the lazy dog."
+        result = pipe(question=question, context=context)
+
+        self.assertIsInstance(result, dict)
+        self.assertIn("answer", result)
+        self.assertIn("score", result)
+        self.assertIn("start", result)
+        self.assertIn("end", result)
+
+    def test_fill_mask_pipeline(self):
+        """Test fill mask ORT pipeline"""
+        pipe = pipeline(task="fill-mask", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = "The weather is <mask> today."
+        result = pipe(text)
+
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn("token_str", result[0])
+        self.assertIn("score", result[0])
+
+    def test_feature_extraction_pipeline(self):
+        """Test feature extraction ORT pipeline"""
+        pipe = pipeline(task="feature-extraction", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = self._create_dummy_text()
+        result = pipe(text)
+
+        self.assertIsInstance(result, list)
+        self.assertIsInstance(result[0], list)
+        self.assertIsInstance(result[0][0], list)
+
+    def test_text_generation_pipeline(self):
+        """Test text generation ORT pipeline"""
+        pipe = pipeline(task="text-generation", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = "The future of AI is"
+        result = pipe(text, max_new_tokens=50, do_sample=False)
+
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn("generated_text", result[0])
+        self.assertTrue(result[0]["generated_text"].startswith(text))
+
+    def test_summarization_pipeline(self):
+        """Test summarization ORT pipeline"""
+        pipe = pipeline(task="summarization", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = "The quick brown fox jumps over the lazy dog."
+        result = pipe(text, max_new_tokens=50, min_new_tokens=10, do_sample=False)
+
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn("summary_text", result[0])
+
+    def test_translation_pipeline(self):
+        """Test translation ORT pipeline"""
+        pipe = pipeline(task="translation_en_to_de", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = "Hello, how are you?"
+        result = pipe(text, max_new_tokens=50)
+
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn("translation_text", result[0])
+
+    def test_text2text_generation_pipeline(self):
+        """Test text2text generation ORT pipeline"""
+        pipe = pipeline(task="text2text-generation", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = "translate English to German: Hello, how are you?"
+        result = pipe(text, max_new_tokens=50)
+
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn("generated_text", result[0])
+
+    def test_zero_shot_classification_pipeline(self):
+        """Test zero shot classification ORT pipeline"""
+        pipe = pipeline(task="zero-shot-classification", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = "This is a great movie with excellent acting."
+        candidate_labels = ["positive", "negative", "neutral"]
+        result = pipe(text, candidate_labels)
+
+        self.assertIsInstance(result, dict)
+        self.assertIn("labels", result)
+        self.assertIn("scores", result)
+        self.assertEqual(len(result["labels"]), len(candidate_labels))
+
+    def test_image_classification_pipeline(self):
+        """Test image classification ORT pipeline"""
+        pipe = pipeline(task="image-classification", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        image = self._create_dummy_image()
+        result = pipe(image)
+
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn("label", result[0])
+        self.assertIn("score", result[0])
+
+    def test_image_segmentation_pipeline(self):
+        """Test image segmentation ORT pipeline"""
+        pipe = pipeline(task="image-segmentation", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        image = self._create_dummy_image()
+        result = pipe(image)
+
+        self.assertIsInstance(result, list)
+        if len(result) > 0:
+            self.assertIn("label", result[0])
+            self.assertIn("score", result[0])
+            self.assertIn("mask", result[0])
+
+    def test_image_to_text_pipeline(self):
+        """Test image to text ORT pipeline"""
+        pipe = pipeline(task="image-to-text", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        image = self._create_dummy_image()
+        result = pipe(image)
+
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn("generated_text", result[0])
+
+    def test_image_to_image_pipeline(self):
+        """Test image to image ORT pipeline"""
+        pipe = pipeline(task="image-to-image", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        image = self._create_dummy_image()
+        result = pipe(image)
+
+        self.assertIsInstance(result, Image.Image)
+
+    # TODO: Enable when fixed
+    # def test_automatic_speech_recognition_pipeline(self):
+    #     """Test automatic speech recognition ORT pipeline"""
+    #     pipe = pipeline(task="automatic-speech-recognition", accelerator="ort")
+    #     audio = self._create_dummy_audio()
+    #     result = pipe(audio)
+
+    #     self.assertIsInstance(result, dict)
+    #     self.assertIn("text", result)
+
+    def test_audio_classification_pipeline(self):
+        """Test audio classification ORT pipeline"""
+        pipe = pipeline(task="audio-classification", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        audio = self._create_dummy_audio()
+        result = pipe(audio)
+
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn("label", result[0])
+        self.assertIn("score", result[0])
+
+    def test_pipeline_with_custom_model_id(self):
+        """Test ORT pipeline with a custom model id"""
+        pipe = pipeline(task="feature-extraction", model="distilbert-base-cased", accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = self._create_dummy_text()
+        result = pipe(text)
+
+        self.assertIsInstance(result, list)
+        self.assertIsInstance(result[0], list)
+
+
+if __name__ == "__main__":
+    unittest.main()
