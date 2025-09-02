@@ -653,6 +653,13 @@ class TasksManager:
             "text-generation-with-past",
             "text-classification",
         ),
+        "gemma3": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+        ),
         "glpn": supported_tasks_mapping(
             "feature-extraction",
             "depth-estimation",
