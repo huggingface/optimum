@@ -20,8 +20,10 @@ from typing import Any, Dict
 import numpy as np
 from huggingface_hub.constants import default_cache_path
 from PIL import Image
+from transformers import AutoTokenizer
 from transformers.pipelines import Pipeline
 
+from optimum.onnxruntime import ORTModelForFeatureExtraction
 from optimum.pipelines import pipeline
 
 
@@ -210,7 +212,7 @@ class ORTPipelineTest(unittest.TestCase):
 
         self.assertIsInstance(result, Image.Image)
 
-    # TODO: Enable when fixed
+    # TODO: Enable when fixed in optimum-onnx
     # def test_automatic_speech_recognition_pipeline(self):
     #     """Test automatic speech recognition ORT pipeline"""
     #     pipe = pipeline(task="automatic-speech-recognition", accelerator="ort")
@@ -232,6 +234,19 @@ class ORTPipelineTest(unittest.TestCase):
         self.assertIn("label", result[0])
         self.assertIn("score", result[0])
 
+    def test_pipeline_with_ort_model(self):
+        """Test ORT pipeline with a model already in ONNX format"""
+        tokenizer = AutoTokenizer.from_pretrained("distilbert-base-cased")
+        model = ORTModelForFeatureExtraction.from_pretrained("distilbert-base-cased", export=True)
+        pipe = pipeline(task="feature-extraction", model=model, tokenizer=tokenizer, accelerator="ort")
+        self.assertIsInstance(pipe, Pipeline)
+        text = self._create_dummy_text()
+        result = pipe(text)
+
+        self.assertIsInstance(result, list)
+        self.assertIsInstance(result[0], list)
+        self.assertIsInstance(result[0][0], list)
+
     def test_pipeline_with_custom_model_id(self):
         """Test ORT pipeline with a custom model id"""
         pipe = pipeline(task="feature-extraction", model="distilbert-base-cased", accelerator="ort")
@@ -243,8 +258,6 @@ class ORTPipelineTest(unittest.TestCase):
         self.assertIsInstance(result[0], list)
 
     def tearDown(self):
-        # Clean up huggingface cache after each test
-
         shutil.rmtree(default_cache_path, ignore_errors=True)
 
 
