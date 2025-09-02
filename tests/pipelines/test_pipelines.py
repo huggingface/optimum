@@ -17,11 +17,16 @@ import unittest
 from typing import Any, Dict
 
 import numpy as np
+from huggingface_hub.constants import HF_HUB_CACHE
 from PIL import Image
 from transformers import AutoTokenizer
 from transformers.pipelines import Pipeline
 
-from optimum.pipelines import pipeline
+from optimum.pipelines import pipeline as optimum_pipeline
+from optimum.utils.testing_utils import remove_directory
+
+
+GENERATE_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 5, "do_sample": True}
 
 
 class ORTPipelineTest(unittest.TestCase):
@@ -33,20 +38,18 @@ class ORTPipelineTest(unittest.TestCase):
 
     def _create_dummy_image(self) -> Image.Image:
         """Create dummy image input for image-based tasks"""
-        # Create a simple RGB image
         np_image = np.random.randint(0, 256, (224, 224, 3), dtype=np.uint8)
         return Image.fromarray(np_image)
 
     def _create_dummy_audio(self) -> Dict[str, Any]:
         """Create dummy audio input for audio-based tasks"""
-        # Create a dummy audio array (16kHz sample rate, 1 second)
         sample_rate = 16000
         audio_array = np.random.randn(sample_rate).astype(np.float32)
         return {"array": audio_array, "sampling_rate": sample_rate}
 
     def test_text_classification_pipeline(self):
         """Test text classification ORT pipeline"""
-        pipe = pipeline(task="text-classification", accelerator="ort")
+        pipe = optimum_pipeline(task="text-classification", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = self._create_dummy_text()
         result = pipe(text)
@@ -58,7 +61,7 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_token_classification_pipeline(self):
         """Test token classification ORT pipeline"""
-        pipe = pipeline(task="token-classification", accelerator="ort")
+        pipe = optimum_pipeline(task="token-classification", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = self._create_dummy_text()
         result = pipe(text)
@@ -71,7 +74,7 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_question_answering_pipeline(self):
         """Test question answering ORT pipeline"""
-        pipe = pipeline(task="question-answering", accelerator="ort")
+        pipe = optimum_pipeline(task="question-answering", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         question = "What animal jumps?"
         context = "The quick brown fox jumps over the lazy dog."
@@ -85,7 +88,7 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_fill_mask_pipeline(self):
         """Test fill mask ORT pipeline"""
-        pipe = pipeline(task="fill-mask", accelerator="ort")
+        pipe = optimum_pipeline(task="fill-mask", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = "The weather is <mask> today."
         result = pipe(text)
@@ -97,7 +100,7 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_feature_extraction_pipeline(self):
         """Test feature extraction ORT pipeline"""
-        pipe = pipeline(task="feature-extraction", accelerator="ort")
+        pipe = optimum_pipeline(task="feature-extraction", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = self._create_dummy_text()
         result = pipe(text)
@@ -108,10 +111,10 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_text_generation_pipeline(self):
         """Test text generation ORT pipeline"""
-        pipe = pipeline(task="text-generation", accelerator="ort")
+        pipe = optimum_pipeline(task="text-generation", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = "The future of AI is"
-        result = pipe(text, max_new_tokens=50, do_sample=False)
+        result = pipe(text, **GENERATE_KWARGS)
 
         self.assertIsInstance(result, list)
         self.assertGreater(len(result), 0)
@@ -120,10 +123,10 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_summarization_pipeline(self):
         """Test summarization ORT pipeline"""
-        pipe = pipeline(task="summarization", accelerator="ort")
+        pipe = optimum_pipeline(task="summarization", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = "The quick brown fox jumps over the lazy dog."
-        result = pipe(text, max_new_tokens=50, min_new_tokens=10, do_sample=False)
+        result = pipe(text, **GENERATE_KWARGS)
 
         self.assertIsInstance(result, list)
         self.assertGreater(len(result), 0)
@@ -131,10 +134,10 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_translation_pipeline(self):
         """Test translation ORT pipeline"""
-        pipe = pipeline(task="translation_en_to_de", accelerator="ort")
+        pipe = optimum_pipeline(task="translation_en_to_de", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = "Hello, how are you?"
-        result = pipe(text, max_new_tokens=50)
+        result = pipe(text, **GENERATE_KWARGS)
 
         self.assertIsInstance(result, list)
         self.assertGreater(len(result), 0)
@@ -142,10 +145,10 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_text2text_generation_pipeline(self):
         """Test text2text generation ORT pipeline"""
-        pipe = pipeline(task="text2text-generation", accelerator="ort")
+        pipe = optimum_pipeline(task="text2text-generation", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = "translate English to German: Hello, how are you?"
-        result = pipe(text, max_new_tokens=50)
+        result = pipe(text, **GENERATE_KWARGS)
 
         self.assertIsInstance(result, list)
         self.assertGreater(len(result), 0)
@@ -153,7 +156,7 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_zero_shot_classification_pipeline(self):
         """Test zero shot classification ORT pipeline"""
-        pipe = pipeline(task="zero-shot-classification", accelerator="ort")
+        pipe = optimum_pipeline(task="zero-shot-classification", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = "This is a great movie with excellent acting."
         candidate_labels = ["positive", "negative", "neutral"]
@@ -166,7 +169,7 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_image_classification_pipeline(self):
         """Test image classification ORT pipeline"""
-        pipe = pipeline(task="image-classification", accelerator="ort")
+        pipe = optimum_pipeline(task="image-classification", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         image = self._create_dummy_image()
         result = pipe(image)
@@ -178,7 +181,7 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_image_segmentation_pipeline(self):
         """Test image segmentation ORT pipeline"""
-        pipe = pipeline(task="image-segmentation", accelerator="ort")
+        pipe = optimum_pipeline(task="image-segmentation", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         image = self._create_dummy_image()
         result = pipe(image)
@@ -191,10 +194,10 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_image_to_text_pipeline(self):
         """Test image to text ORT pipeline"""
-        pipe = pipeline(task="image-to-text", accelerator="ort")
+        pipe = optimum_pipeline(task="image-to-text", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         image = self._create_dummy_image()
-        result = pipe(image)
+        result = pipe(image, generate_kwargs=GENERATE_KWARGS)
 
         self.assertIsInstance(result, list)
         self.assertGreater(len(result), 0)
@@ -202,7 +205,7 @@ class ORTPipelineTest(unittest.TestCase):
 
     def test_image_to_image_pipeline(self):
         """Test image to image ORT pipeline"""
-        pipe = pipeline(task="image-to-image", accelerator="ort")
+        pipe = optimum_pipeline(task="image-to-image", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         image = self._create_dummy_image()
         result = pipe(image)
@@ -212,16 +215,16 @@ class ORTPipelineTest(unittest.TestCase):
     # TODO: Enable when fixed in optimum-onnx
     # def test_automatic_speech_recognition_pipeline(self):
     #     """Test automatic speech recognition ORT pipeline"""
-    #     pipe = pipeline(task="automatic-speech-recognition", accelerator="ort")
+    #     pipe = optimum_pipeline(task="automatic-speech-recognition", accelerator="ort")
     #     audio = self._create_dummy_audio()
-    #     result = pipe(audio)
+    #     result = pipe(audio, generate_kwargs=GENERATE_KWARGS)
 
     #     self.assertIsInstance(result, dict)
     #     self.assertIn("text", result)
 
     def test_audio_classification_pipeline(self):
         """Test audio classification ORT pipeline"""
-        pipe = pipeline(task="audio-classification", accelerator="ort")
+        pipe = optimum_pipeline(task="audio-classification", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         audio = self._create_dummy_audio()
         result = pipe(audio)
@@ -237,7 +240,7 @@ class ORTPipelineTest(unittest.TestCase):
 
         tokenizer = AutoTokenizer.from_pretrained("distilbert-base-cased")
         model = ORTModelForFeatureExtraction.from_pretrained("distilbert-base-cased", export=True)
-        pipe = pipeline(task="feature-extraction", model=model, tokenizer=tokenizer, accelerator="ort")
+        pipe = optimum_pipeline(task="feature-extraction", model=model, tokenizer=tokenizer, accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = self._create_dummy_text()
         result = pipe(text)
@@ -246,9 +249,9 @@ class ORTPipelineTest(unittest.TestCase):
         self.assertIsInstance(result[0], list)
         self.assertIsInstance(result[0][0], list)
 
-    def test_pipeline_with_custom_model_id(self):
+    def test_pipeline_with_model_id(self):
         """Test ORT pipeline with a custom model id"""
-        pipe = pipeline(task="feature-extraction", model="distilbert-base-cased", accelerator="ort")
+        pipe = optimum_pipeline(task="feature-extraction", model="distilbert-base-cased", accelerator="ort")
         self.assertIsInstance(pipe, Pipeline)
         text = self._create_dummy_text()
         result = pipe(text)
@@ -259,14 +262,17 @@ class ORTPipelineTest(unittest.TestCase):
     def test_pipeline_with_invalid_task(self):
         """Test ORT pipeline with an unsupported task"""
         with self.assertRaises(KeyError) as context:
-            _ = pipeline(task="invalid-task", accelerator="ort")
+            _ = optimum_pipeline(task="invalid-task", accelerator="ort")
         self.assertIn("Unknown task invalid-task", str(context.exception))
 
     def test_pipeline_with_invalid_accelerator(self):
         """Test ORT pipeline with an unsupported accelerator"""
         with self.assertRaises(ValueError) as context:
-            _ = pipeline(task="text-classification", accelerator="invalid-accelerator")
+            _ = optimum_pipeline(task="feature-extraction", accelerator="invalid-accelerator")
         self.assertIn("Accelerator invalid-accelerator not recognized", str(context.exception))
+
+    def tearDown(self):
+        remove_directory(HF_HUB_CACHE)
 
 
 if __name__ == "__main__":
