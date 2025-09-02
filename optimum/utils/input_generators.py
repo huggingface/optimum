@@ -1185,6 +1185,53 @@ class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             ]
 
 
+class DeepSeekV3DummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            **kwargs,
+        )
+        self.num_attention_heads = normalized_config.num_attention_heads
+        self.qk_rope_head_dim = normalized_config.qk_rope_head_dim
+        self.qk_nope_head_dim = normalized_config.qk_nope_head_dim
+        self.v_head_dim = normalized_config.v_head_dim
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        past_key_shape = (
+            self.batch_size,
+            self.num_attention_heads,
+            self.sequence_length,
+            self.qk_rope_head_dim + self.qk_nope_head_dim,  # Combines rope and nope heads
+        )
+        past_value_shape = (
+            self.batch_size,
+            self.num_attention_heads,
+            self.sequence_length,
+            self.v_head_dim,
+        )
+        return [
+            (
+                self.random_float_tensor(past_key_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(past_value_shape, framework=framework, dtype=float_dtype),
+            )
+            for _ in range(self.num_layers)
+        ]
+
+
 class MultiQueryPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
     def __init__(
         self,

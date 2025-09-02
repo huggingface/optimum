@@ -63,6 +63,7 @@ from .input_generators import (
     ASTDummyAudioInputGenerator,
     BartDummyTextInputGenerator,
     BloomDummyPastKeyValuesGenerator,
+    DeepSeekV3DummyPastKeyValuesGenerator,
     Dinov2DummyInputGenerator,
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
