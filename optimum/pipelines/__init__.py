@@ -25,6 +25,10 @@ from optimum.utils.import_utils import (
     is_optimum_intel_available,
     is_optimum_onnx_available,
 )
+from optimum.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 if TYPE_CHECKING:
@@ -64,7 +68,7 @@ def pipeline(
     accelerator: Optional[str] = None,
     **kwargs: Any,
 ) -> "Pipeline":
-    """Utility factory method to build a [`Pipeline`] with an optimum accelerated model, similar to `transformers.pipeline`.
+    """Utility factory method to build a [`Pipeline`] with an Optimum accelerated model, similar to `transformers.pipeline`.
     A pipeline consists of:
         - One or more components for pre-processing model inputs, such as a [tokenizer](tokenizer),
         [image_processor](image_processor), [feature_extractor](feature_extractor), or [processor](processors).
@@ -217,19 +221,30 @@ def pipeline(
     if accelerator is None:
         # probably needs to check for couple of stuff here, like target device, type(model) etc.
         if is_optimum_intel_available() and is_openvino_available():
+            logger.info(
+                "`accelerator` not specified. Using OpenVINO (`ov`) as the accelerator since `optimum-intel[openvino]` is installed."
+            )
             accelerator = "ov"
         elif is_optimum_onnx_available() and is_onnxruntime_available():
+            logger.info(
+                "`accelerator` not specified. Using ONNX Runtime (`ort`) as the accelerator since `optimum-onnx[onnxruntime]` is installed."
+            )
             accelerator = "ort"
         elif is_optimum_intel_available() and is_ipex_available():
+            logger.info(
+                "`accelerator` not specified. Using IPEX (`ipex`) as the accelerator since `optimum-intel[ipex]` is installed."
+            )
             accelerator = "ipex"
         else:
             raise ImportError(
-                "You need to install either optimum-onnx[onnxruntime], optimum-intel[openvino], or optimum-intel[ipex] to use this pipeline."
+                "You need to install either `optimum-onnx[onnxruntime]` to use ONNX Runtime as an accelerator, "
+                "or `optimum-intel[openvino]` to use OpenVINO as an accelerator, "
+                "or `optimum-intel[ipex]` to use IPEX as an accelerator."
             )
 
     if accelerator == "ort":
         if not (is_optimum_onnx_available() and is_onnxruntime_available()):
-            raise ImportError("You need to install the `optimum-onnx[onnxruntime]` to use ONNX Runtime models.")
+            raise ImportError("You need to install `optimum-onnx[onnxruntime]` to use ONNX Runtime as an accelerator.")
 
         from optimum.onnxruntime import pipeline as ort_pipeline
 
@@ -255,11 +270,9 @@ def pipeline(
         )
     elif accelerator in ["ov", "ipex"]:
         if accelerator == "ov" and not (is_optimum_intel_available() and is_openvino_available()):
-            raise ImportError("You need to install the `optimum-intel[openvino]` to use OpenVINO models.")
+            raise ImportError("You need to install `optimum-intel[openvino]` to use OpenVINO as an accelerator.")
         elif accelerator == "ipex" and not (is_optimum_intel_available() and is_ipex_available()):
-            raise ImportError(
-                "You need to install the `optimum-intel[ipex]` to use Intel Extension for PyTorch models."
-            )
+            raise ImportError("You need to install `optimum-intel[ipex]` to use IPEX as an accelerator.")
 
         from optimum.intel import pipeline as intel_pipeline
 
