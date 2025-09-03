@@ -62,6 +62,14 @@ class NormalizedConfig:
 
         attr = getattr(config, leaf_attr_name, None)
 
+        if attr is None:
+            # Fallback to checking if the leaf attribute name exists as mapped
+            try:
+                mapped_attr_name = super().__getattribute__(leaf_attr_name.upper())
+                attr = getattr(config, mapped_attr_name, None)
+            except AttributeError:
+                pass
+
         # If the attribute was not specified manually, try to fallback on the attribute_map.
         if attr is None:
             attribute_map = getattr(self.config, "attribute_map", {})
@@ -134,9 +142,40 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
-Pix2StructNormalizedTextConfig = NormalizedTextAndVisionConfig.with_args(
-    text_config="text_config", vision_config="vision_config"
-)
+def create_normalized_text_and_vision_config(
+    text_config_cls: type[NormalizedTextConfig] = NormalizedTextConfig,
+    vision_config_cls: type[NormalizedVisionConfig] = NormalizedVisionConfig,
+) -> type[NormalizedConfig]:
+    """
+    Create a normalized config for a model with both a text and vision config.
+
+    This allows for custom renaming of parameters within the nested configs.
+
+    Example usage:
+    >>> MyNormalizedTextAndVisionConfigWithGQA = create_normalized_text_and_vision_config(
+            text_config_cls=NormalizedTextConfigWithGQA
+        ).with_args(text_config="text_config", vision_config="vision_config")
+
+    Attributes:
+        text_config_cls ([`type[NormalizedTextConfig]`]):
+            Normalized configuration class to use for the text config.
+
+        vision_config_cls ([`type[NormalizedVisionConfig]`]):
+            Normalized configuration class to use for the vision config.
+    """
+
+    class CustomNormalizedTextAndVisionConfig(text_config_cls, vision_config_cls):
+        TEXT_CONFIG = None
+        VISION_CONFIG = None
+
+        def __getattr__(self, attr_name):
+            if self.TEXT_CONFIG is not None and attr_name.upper() in dir(text_config_cls):
+                attr_name = f"{self.TEXT_CONFIG}.{attr_name}"
+            elif self.VISION_CONFIG is not None and attr_name.upper() in dir(vision_config_cls):
+                attr_name = f"{self.VISION_CONFIG}.{attr_name}"
+            return super().__getattr__(attr_name)
+
+    return CustomNormalizedTextAndVisionConfig
 
 
 class NormalizedEncoderDecoderConfig(NormalizedConfig):
@@ -161,7 +200,6 @@ BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="encoder_attention_heads",
     hidden_size="d_model",
 )
-
 GPT2LikeNormalizedTextConfig = NormalizedTextConfig.with_args(num_attention_heads="n_head", hidden_size="n_embd")
 T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
@@ -173,23 +211,32 @@ MPTNormalizedTextConfig = NormalizedTextConfig.with_args(
 GPTBigCodeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="n_head", hidden_size="n_embd", num_layers="n_layer"
 )
-
 WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
 )
-
 TrOCRLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_layers="decoder_layers",
     num_attention_heads="decoder_attention_heads",
     hidden_size="hidden_size",
 )
-
 SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
     decoder_num_layers="decoder_layers",
     num_layers="decoder_layers",
     input_features_per_channel="input_feat_per_channel",
     allow_new=True,
 )
+Pix2StructNormalizedTextConfig = NormalizedTextAndVisionConfig.with_args(
+    text_config="text_config", vision_config="vision_config"
+)
+
+
+class Gemma3NormalizedTextConfigWithGQA(NormalizedTextConfigWithGQA):
+    HEAD_DIM = "text_config.head_dim"
+
+
+Gemma3NormalizedTextAndVisionConfig = create_normalized_text_and_vision_config(
+    text_config_cls=Gemma3NormalizedTextConfigWithGQA
+).with_args(text_config="text_config", vision_config="vision_config")
 
 
 class NormalizedConfigManager:
@@ -253,11 +300,13 @@ class NormalizedConfigManager:
         "electra": NormalizedTextConfig,
         "encoder-decoder": NormalizedEncoderDecoderConfig,
         "gemma": NormalizedTextConfigWithGQA,
+        "gemma3": Gemma3NormalizedTextAndVisionConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gpt_neox": NormalizedTextConfig,
         "gptj": GPT2LikeNormalizedTextConfig,
+        "granite": NormalizedTextConfigWithGQA,
         "imagegpt": GPT2LikeNormalizedTextConfig,
         "internlm2": NormalizedTextConfigWithGQA,
         "llama": NormalizedTextConfigWithGQA,
@@ -298,7 +347,6 @@ class NormalizedConfigManager:
         "qwen3": NormalizedTextConfig,
         "qwen3_moe": NormalizedTextConfig,
         "smollm3": NormalizedTextConfig,
-        "granite": NormalizedTextConfigWithGQA,
     }
 
     @classmethod
