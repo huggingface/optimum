@@ -26,8 +26,8 @@ from transformers.utils import is_tf_available, is_torch_available
 
 from ..utils import (
     DIFFUSERS_MINIMUM_VERSION,
-    check_if_diffusers_greater,
     is_diffusers_available,
+    is_diffusers_version,
     logging,
 )
 from ..utils.import_utils import _diffusers_version
@@ -38,7 +38,7 @@ logger = logging.get_logger()
 
 
 if is_diffusers_available():
-    if not check_if_diffusers_greater(DIFFUSERS_MINIMUM_VERSION.base_version):
+    if is_diffusers_version("<", DIFFUSERS_MINIMUM_VERSION.base_version):
         raise ImportError(
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"
