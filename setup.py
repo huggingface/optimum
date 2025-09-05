@@ -56,7 +56,6 @@ EXTRAS_REQUIRE = {
     "neural-compressor": "optimum-intel[neural-compressor]>=1.23.0",
     "ipex": "optimum-intel[ipex]>=1.23.0",
     "habana": "optimum-habana>=1.17.0",
-    "neuronx": ["optimum-neuron[neuronx]>=0.0.28"],
     "graphcore": "optimum-graphcore",
     "furiosa": "optimum-furiosa",
     "amd": "optimum-amd",
