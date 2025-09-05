@@ -62,6 +62,13 @@ class NormalizedConfig:
 
         attr = getattr(config, leaf_attr_name, None)
 
+        # See if the nested attribute has been mapped manually
+        try:
+            mapped_attr_name = super().__getattribute__(leaf_attr_name.upper())
+            attr = getattr(config, mapped_attr_name, None)
+        except AttributeError:  # e.g. in the NormalizedTextAndVisionConfig case
+            pass
+
         # If the attribute was not specified manually, try to fallback on the attribute_map.
         if attr is None:
             attribute_map = getattr(self.config, "attribute_map", {})
