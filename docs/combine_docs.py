@@ -84,10 +84,18 @@ def rename_copy_subpackage_html_paths(subpackage: str, subpackage_path: Path, op
 
 
 # for docs created separately that needs to be combined
-#TODO: add AMD to EXTERNAL_DOCUMENTATION once added in optimum-amd
-EXTERNAL_DOCUMENTATION = {"executorch": "ExecuTorch", "habana": "Habana", "intel": "Intel", "neuron": "Neuron", "onnx":"ONNX", "tpu": "TPU"}
+# TODO: add AMD to EXTERNAL_DOCUMENTATION once added in optimum-amd
+EXTERNAL_DOCUMENTATION = {
+    "executorch": "ExecuTorch",
+    "habana": "Habana",
+    "intel": "Intel",
+    "neuron": "Neuron",
+    "onnx": "ONNX",
+    "tpu": "TPU",
+}
 # needed for cases where the section title differs from the subpackage name
 TITLE_SECTION = {"Neuron": "AWS Trainium/Inferentia", "TPU": "Google TPUs"}
+
 
 def add_subpackage_doc(base_toc: List, subpackage: str):
     """
