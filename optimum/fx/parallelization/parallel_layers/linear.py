@@ -44,6 +44,17 @@ class ColumnParallelLinear(nn.Module):
     """
 
     def __init__(self, ctx: ParallelExecutionCtx, linear: nn.Linear, gather_output: bool = True) -> None:
+        """
+        Initialize the column-parallel linear layer.
+
+        Sets up parameter metadata for parallel execution and configures weight and bias
+        tensors for column-wise parallelization across the tensor parallel group.
+
+        Args:
+            ctx (ParallelExecutionCtx): Parallel execution context containing runtime information.
+            linear (nn.Linear): The original linear module being replaced.
+            gather_output (bool, optional): Whether to gather output at the end of forward pass. Defaults to True.
+        """
         super(ColumnParallelLinear, self).__init__()
         self.process_group = ctx.tp_group
         world_size = dist.get_world_size(self.process_group)
@@ -94,6 +105,15 @@ class ColumnParallelLinear(nn.Module):
             self.register_parameter("bias", None)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        """
+        Performs forward pass through the column-parallel linear layer.
+
+        Args:
+            input (torch.Tensor): Input tensor to be processed.
+
+        Returns:
+            torch.Tensor: Output tensor after linear transformation, optionally gathered across processes.
+        """
         input = differentiable_identity(input, self.process_group)
         output = F.linear(input, self.weight, self.bias)
         if self.gather_output:
@@ -121,6 +141,17 @@ class RowParallelLinear(nn.Module):
     """
 
     def __init__(self, ctx: ParallelExecutionCtx, linear: nn.Linear, input_is_parallel: bool = False) -> None:
+        """
+        Initialize the row-parallel linear layer.
+
+        Sets up parameter metadata for parallel execution and configures weight and bias
+        tensors for row-wise parallelization across the tensor parallel group.
+
+        Args:
+            ctx (ParallelExecutionCtx): Parallel execution context containing runtime information.
+            linear (nn.Linear): The original linear module being replaced.
+            input_is_parallel (bool, optional): Whether the input tensor has already been parallelized. Defaults to False.
+        """
         super(RowParallelLinear, self).__init__()
         self.process_group = ctx.tp_group
         world_size = dist.get_world_size(self.process_group)
@@ -166,6 +197,15 @@ class RowParallelLinear(nn.Module):
             self.register_parameter("bias", None)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        """
+        Performs forward pass through the row-parallel linear layer.
+
+        Args:
+            input (torch.Tensor): Input tensor to be processed.
+
+        Returns:
+            torch.Tensor: Output tensor after linear transformation and all-reduce operation, with bias added if present.
+        """
         if not self.input_is_parallel:
             input = differentiable_scatter(input, self.process_group)
 
