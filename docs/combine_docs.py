@@ -94,7 +94,7 @@ EXTERNAL_DOCUMENTATION = {
     "tpu": "TPU",
 }
 # needed for cases where the section title differs from the subpackage name
-TITLE_SECTION = {"Neuron": "AWS Trainium/Inferentia", "TPU": "Google TPUs"}
+TITLE_SECTION = {"Habana": "For Intel Gaudi", "Neuron": "AWS Trainium/Inferentia", "TPU": "Google TPUs"}
 
 
 def add_subpackage_doc(base_toc: List, subpackage: str):
