@@ -16,6 +16,28 @@ habana_trainer: habana/package_reference/trainer
 habana_gaudi_config: habana/package_reference/gaudi_config
 habana/usage_guides/stable_diffusion: habana/tutorials/stable_diffusion
 habana/tutorials/pretraining: habana/usage_guides/pretraining
+docs/optimum-habana/index: /docs/optimum-habana/index
+habana/index: /docs/optimum-habana/index
+habana/installation: /docs/optimum-habana/installation
+habana/quickstart: /docs/optimum-habana/quickstart
+habana/tutorials/overview: /docs/optimum-habana/tutorials/overview
+habana/tutorials/single_hpu: /docs/optimum-habana/tutorials/single_hpu
+habana/tutorials/distributed: /docs/optimum-habana/tutorials/distributed
+habana/tutorials/inference: /docs/optimum-habana/tutorials/inference
+habana/tutorials/stable_diffusion: /docs/optimum-habana/tutorials/stable_diffusion
+habana/tutorials/tgi: /docs/optimum-habana/tutorials/tgi
+habana/usage_guides/overview: /docs/optimum-habana/usage_guides/overview
+habana/usage_guides/script_adaptation: /docs/optimum-habana/usage_guides/script_adaptation
+habana/usage_guides/pretraining: /docs/optimum-habana/usage_guides/pretraining
+habana/usage_guides/accelerate_training: /docs/optimum-habana/usage_guides/accelerate_training
+habana/usage_guides/accelerate_inference: /docs/optimum-habana/usage_guides/accelerate_inference
+habana/usage_guides/deepspeed: /docs/optimum-habana/usage_guides/deepspeed
+habana/usage_guides/multi_node_training: /docs/optimum-habana/usage_guides/multi_node_training
+habana/usage_guides/quantization: /docs/optimum-habana/usage_guides/quantization
+habana/usage_guides/safe_softmax: /docs/optimum-habana/usage_guides/safe_softmax
+habana/package_reference/trainer: /docs/optimum-habana/package_reference/trainer
+habana/package_reference/gaudi_config: /docs/optimum-habana/package_reference/gaudi_config
+habana/package_reference/distributed_runner: /docs/optimum-habana/package_reference/distributed_runner
 
 # Optimum Intel
 intel_index: intel/index
@@ -31,6 +53,22 @@ intel/reference_ov: intel/openvino/reference
 intel/optimization_inc: intel/neural_compressor/optimization
 intel/distributed_training: intel/neural_compressor/distributed_training
 intel/reference_inc: intel/neural_compressor/reference
+docs/optimum-intel/index: /docs/optimum-intel/index
+intel/index: /docs/optimum-intel/index
+intel/installation: /docs/optimum-intel/installation
+intel/neural_compressor/optimization: /docs/optimum-intel/neural_compressor/optimization
+intel/neural_compressor/distributed_training: /docs/optimum-intel/neural_compressor/distributed_training
+intel/neural_compressor/reference: /docs/optimum-intel/neural_compressor/reference
+intel/openvino/export: /docs/optimum-intel/openvino/export
+intel/openvino/inference: /docs/optimum-intel/openvino/inference
+intel/openvino/optimization: /docs/optimum-intel/openvino/optimization
+intel/openvino/models: /docs/optimum-intel/openvino/models
+intel/openvino/reference: /docs/optimum-intel/openvino/reference
+intel/openvino/tutorials/notebooks: /docs/optimum-intel/openvino/tutorials/notebooks
+intel/openvino/tutorials/diffusers: /docs/optimum-intel/openvino/tutorials/diffusers
+intel/ipex/inference: /docs/optimum-intel/ipex/inference
+intel/ipex/models: /docs/optimum-intel/ipex/models
+intel/ipex/tutorials/notebooks: /docs/optimum-intel/ipex/tutorials/notebooks
 
 # Optimum Neuron
 docs/optimum-neuron/index: /docs/optimum-neuron/index
