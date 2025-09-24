@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip uv
-          uv pip install --no-cache-dir optimum-onnx[onnxruntime]@git+https://github.com/huggingface/optimum-onnx.git
+          uv pip install --no-cache-dir optimum-onnx[onnxruntime]@git+https://github.com/huggingface/optimum-onnx.git@remove-legacy
           uv pip install --no-cache-dir .[tests]
 
       - name: Test with pytest
