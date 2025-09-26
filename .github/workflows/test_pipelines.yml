@@ -30,7 +30,7 @@ jobs:
       - name: Checkout optimum
         uses: actions/checkout@v4
         with:
-          folder: optimum
+          path: optimum
           fetch-depth: 0
 
       - name: checkout optimum-onnx
@@ -38,7 +38,7 @@ jobs:
         with:
           repository: huggingface/optimum-onnx
           ref: ${{ env.OPTIMUM_ONNX_REF }}
-          folder: optimum-onnx
+          path: optimum-onnx
           fetch-depth: 0
 
       - name: Setup Python ${{ matrix.python-version }}
