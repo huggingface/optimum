@@ -21,7 +21,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import optimum.commands
+import optimum.commands.base
 
 
 CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
@@ -40,7 +40,6 @@ class TestCLI(unittest.TestCase):
     def test_export_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             commands = [
-                # TODO: we should add more nuanced commands here, to be tested in optimum CI.
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vit --task image-classification {tempdir}/onnx",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bert --task text-classification --sequence_length 128 {tempdir}/onnx",
             ]
