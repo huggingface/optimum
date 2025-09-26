@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple, Type, Union
 from ..utils import logging
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
-from .export import ExportCommand
+from .export.base import ExportCommand
 
 
 logger = logging.get_logger()
@@ -104,9 +104,9 @@ def resolve_command_to_command_instance(
     return command2command_instance
 
 
-def load_optimum_namespace_cli_commands() -> List[
-    Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]
-]:
+def load_optimum_namespace_cli_commands() -> (
+    List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]
+):
     """
     Loads a list of command classes to register to the CLI from the `optimum.commands.register` namespace of each optimum subpackage/distribution.
 
@@ -123,6 +123,7 @@ def load_optimum_namespace_cli_commands() -> List[
         if dist.metadata["Name"] == "optimum-benchmark":
             continue
         if not dist.metadata["Name"].startswith("optimum-"):
+            # it might be better (and more secure ?) to use an explicit list of optimum subpackages here
             continue
 
         dist_name = dist.metadata["Name"]
@@ -130,6 +131,10 @@ def load_optimum_namespace_cli_commands() -> List[
         dist_module = importlib.import_module(dist_module_name)
         dist_module_path = Path(dist_module.__file__).parent
         commands_register_path = dist_module_path.parent / "commands" / "register"
+        if not commands_register_path.is_dir():
+            # distribution does not register any commands
+            continue
+
         for file in commands_register_path.iterdir():
             if file.name == "__init__.py":
                 raise ValueError(
