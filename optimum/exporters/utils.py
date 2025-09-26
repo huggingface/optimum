@@ -185,19 +185,12 @@ def _get_submodels_for_export_diffusion(
 
 
 def _get_submodels_for_export_decoder(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    use_past: bool,
-    legacy: bool = False,
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], use_past: bool
 ) -> Dict[str, Union["PreTrainedModel", "TFPreTrainedModel"]]:
     """
     Returns the decoder part of the model.
     """
-    models_for_export = {DECODER_NAME if legacy else "model": model}
-
-    if legacy and use_past:
-        models_for_export[DECODER_WITH_PAST_NAME] = model
-
-    return models_for_export
+    return {"model": model}
 
 
 def _get_submodels_for_export_encoder_decoder(
@@ -252,9 +245,7 @@ def get_encoder_decoder_models_for_export(
 
 
 def get_decoder_models_for_export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    config: "ExporterConfig",
-    legacy: bool = False,
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExporterConfig"
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExporterConfig"]]:
     """
     Returns two versions of the decoder that can be used together to perform fast generation:
@@ -275,44 +266,17 @@ def get_decoder_models_for_export(
         export configs for the encoder and decoder parts of the model.
     """
 
-    models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past, legacy=legacy)
+    models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past)
 
-    export_kwargs = {
-        "task": config.task,
-        "float_dtype": config.float_dtype,
-        "int_dtype": config.int_dtype,
-        "legacy": legacy,
-    }
-
-    if legacy:
-        export_config = config.__class__(
-            model.config,
-            use_past=config.use_past,
-            use_past_in_inputs=False,
-            **export_kwargs,
-        )
-        models_for_export[DECODER_NAME] = (models_for_export[DECODER_NAME], export_config)
-
-        if config.use_past:
-            export_config_with_past = config.__class__(
-                model.config,
-                use_past=True,
-                use_past_in_inputs=True,
-                **export_kwargs,
-            )
-            models_for_export[DECODER_WITH_PAST_NAME] = (
-                models_for_export[DECODER_WITH_PAST_NAME],
-                export_config_with_past,
-            )
-
-    else:
-        export_config = config.__class__(
-            model.config,
-            use_past=config.use_past,
-            use_past_in_inputs=config.use_past,
-            **export_kwargs,
-        )
-        models_for_export["model"] = (models_for_export["model"], export_config)
+    export_config = config.__class__(
+        model.config,
+        task=config.task,
+        int_dtype=config.int_dtype,
+        float_dtype=config.float_dtype,
+        use_past=config.use_past,
+        use_past_in_inputs=config.use_past,
+    )
+    models_for_export["model"] = (models_for_export["model"], export_config)
 
     return models_for_export
 
@@ -432,12 +396,12 @@ def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrained
     }
 
     text_encoder_config = config.__class__(
-        model.config, task=config.task, legacy=False, model_part="text_encoder", variant=config.variant
+        model.config, task=config.task, model_part="text_encoder", variant=config.variant
     )
     models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_config)
 
     audio_encoder_config = config.__class__(
-        model.config, task=config.task, legacy=False, model_part="encodec_decode", variant=config.variant
+        model.config, task=config.task, model_part="encodec_decode", variant=config.variant
     )
     models_for_export["encodec_decode"] = (models_for_export["encodec_decode"], audio_encoder_config)
 
@@ -455,7 +419,7 @@ def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrained
         )
 
     build_delay_pattern_mask_config = config.__class__(
-        model.config, task=config.task, legacy=False, model_part="build_delay_pattern_mask", variant=config.variant
+        model.config, task=config.task, model_part="build_delay_pattern_mask", variant=config.variant
     )
     models_for_export["build_delay_pattern_mask"] = (
         models_for_export["build_delay_pattern_mask"],
@@ -482,14 +446,14 @@ def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel
     models_for_export = _get_submodels_for_export_sam(model, config.variant)
 
     if config.variant == "monolith":
-        export_config = config.__class__(model.config, task=config.task, legacy=config.legacy)
+        export_config = config.__class__(model.config, task=config.task)
         models_for_export["model"] = (models_for_export["model"], export_config)
     else:
         vision_encoder_export_config = config.__class__(
-            model.config, task=config.task, variant=config.variant, vision_encoder=True, legacy=config.legacy
+            model.config, task=config.task, variant=config.variant, vision_encoder=True
         )
         prompt_encoder_mask_decoder_export_config = config.__class__(
-            model.config, task=config.task, variant=config.variant, vision_encoder=False, legacy=config.legacy
+            model.config, task=config.task, variant=config.variant, vision_encoder=False
         )
         models_for_export["vision_encoder"] = (models_for_export["vision_encoder"], vision_encoder_export_config)
         models_for_export["prompt_encoder_mask_decoder"] = (
@@ -547,7 +511,6 @@ def get_speecht5_models_for_export(
         behavior=config._behavior,  # Irrelevant here.
         preprocessors=config._preprocessors,
         is_postnet_and_vocoder=True,
-        legacy=config.legacy,
     )
     postnet_and_vocoder_export_config.variant = config.variant
     models_for_export["decoder_postnet_and_vocoder"] = (
@@ -592,7 +555,6 @@ def _get_submodels_and_export_configs(
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
-    legacy: bool = False,
     model_kwargs: Optional[Dict] = None,
     exporter: str = "onnx",
 ):
@@ -611,7 +573,6 @@ def _get_submodels_and_export_configs(
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
                 preprocessors=preprocessors,
-                legacy=legacy,
             )
 
             export_config.variant = _variant
@@ -622,13 +583,13 @@ def _get_submodels_and_export_configs(
 
             # TODO: this succession of if/else strongly suggests a refactor is needed.
             if (
-                model.config.is_encoder_decoder
-                and task.startswith(TasksManager._ENCODER_DECODER_TASKS)
+                task.startswith(TasksManager._ENCODER_DECODER_TASKS)
+                and model.config.is_encoder_decoder
                 and not monolith
             ):
                 models_and_export_configs = get_encoder_decoder_models_for_export(model, export_config)
             elif task.startswith("text-generation") and not monolith:
-                models_and_export_configs = get_decoder_models_for_export(model, export_config, legacy=legacy)
+                models_and_export_configs = get_decoder_models_for_export(model, export_config)
             elif model.config.model_type == "sam":
                 models_and_export_configs = get_sam_models_for_export(model, export_config)
             elif model.config.model_type == "speecht5":
@@ -653,8 +614,8 @@ def _get_submodels_and_export_configs(
             if library_name == "diffusers":
                 submodels_for_export = _get_submodels_for_export_diffusion(model)
             elif (
-                model.config.is_encoder_decoder
-                and task.startswith(TasksManager._ENCODER_DECODER_TASKS)
+                task.startswith(TasksManager._ENCODER_DECODER_TASKS)
+                and model.config.is_encoder_decoder
                 and not monolith
             ):
                 submodels_for_export = _get_submodels_for_export_encoder_decoder(
