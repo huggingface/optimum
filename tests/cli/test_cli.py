@@ -21,11 +21,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import optimum.commands
+import optimum.commands.base
 
 
 CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
-OPTIMUM_COMMANDS_DIR = Path(inspect.getfile(optimum.commands)).parent
+OPTIMUM_COMMANDS_DIR = Path(inspect.getfile(optimum.commands.base)).parent
 REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH = OPTIMUM_COMMANDS_DIR / "register" / "cli_with_custom_command.py"
 
 
@@ -40,7 +40,6 @@ class TestCLI(unittest.TestCase):
     def test_export_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             commands = [
-                # TODO: we should add more nuanced commands here, to be tested in optimum CI.
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vit --task image-classification {tempdir}/onnx",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bert --task text-classification --sequence_length 128 {tempdir}/onnx",
             ]
@@ -64,6 +63,7 @@ class TestCLI(unittest.TestCase):
         self.assertFalse(succeeded, "The command should fail here since it is not registered yet.")
 
         # As a "base" command in `optimum-cli`.
+        print("Copying", CLI_WIH_CUSTOM_COMMAND_PATH, "to", REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
         shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
 
         # We check that the print_help method prints the registered command.

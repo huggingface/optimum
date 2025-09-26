@@ -14,7 +14,7 @@
 # limitations under the License.
 """optimum.exporters command-line interface base classes."""
 
-from .. import BaseOptimumCLICommand, CommandInfo
+from ..base import BaseOptimumCLICommand, CommandInfo
 
 
 class ExportCommand(BaseOptimumCLICommand):

@@ -17,11 +17,10 @@ import importlib
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Type, Union
 
-from ..subpackages import load_subpackages
 from ..utils import logging
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
-from .export import ExportCommand
+from .export.base import ExportCommand
 
 
 logger = logging.get_logger()
@@ -33,6 +32,7 @@ OPTIMUM_CLI_ROOT_SUBCOMMANDS = [ExportCommand, EnvironmentCommand]
 _OPTIMUM_CLI_SUBCOMMANDS = []
 
 
+# TODO: Why do we have two apis to register commands ?
 def optimum_cli_subcommand(parent_command: Optional[Type[BaseOptimumCLICommand]] = None):
     """
     A decorator to declare optimum-cli subcommands.
@@ -105,14 +105,11 @@ def resolve_command_to_command_instance(
     return command2command_instance
 
 
-def dynamic_load_commands_in_register() -> (
+def load_optimum_namespace_cli_commands() -> (
     List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]
 ):
     """
-    Loads a list of command classes to register to the CLI from the `optimum/commands/register/` directory.
-    It will look in any python file if there is a `REGISTER_COMMANDS` list, and load the commands to register
-    accordingly.
-    At this point, nothing is actually registered in the root CLI.
+    Loads a list of command classes to register to the CLI from the `optimum.commands.register` namespace of each optimum subpackage/distribution.
 
     Returns:
         `List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]`: A list
@@ -120,19 +117,46 @@ def dynamic_load_commands_in_register() -> (
         subclass of `BaseOptimumCLICommand` or a `CommandInfo`. The second element corresponds to the parent command,
         where `None` means that the parent command is the root CLI command.
     """
-    commands_to_register = []
-    register_dir_path = Path(__file__).parent / "register"
-    for filename in register_dir_path.iterdir():
-        if filename.is_dir() or filename.suffix != ".py":
-            if filename.name not in ["__pycache__", "README.md"]:
-                logger.warning(
-                    f"Skipping {filename} because only python files are allowed when registering commands dynamically."
-                )
+    command_registration_files = []
+    for dist in importlib.metadata.distributions():
+        if dist.metadata["Name"] is None:
             continue
-        module_name = f".register.{filename.stem}"
-        module = importlib.import_module(module_name, package="optimum.commands")
-        commands_to_register_in_file = getattr(module, "REGISTER_COMMANDS", [])
-        for command_idx, command in enumerate(commands_to_register_in_file):
+        if dist.metadata["Name"] == "optimum-benchmark":
+            continue
+        # it might be better (and more secure ?) to use an explicit list of optimum subpackages here
+        if not dist.metadata["Name"].startswith("optimum"):
+            continue
+
+        if dist.metadata["Name"] == "optimum":
+            # optimum can't have an __init__.py file, so we use optimum.pipelines instead
+            dist_module = importlib.import_module("optimum.pipelines")  #  optimum.pipelines
+            dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum)
+            commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
+        else:
+            dist_name = dist.metadata["Name"]  # optimum-onnx
+            dist_module_name = dist_name.replace("-", ".")  # optimum.onnx
+            dist_module = importlib.import_module(dist_module_name)  #  optimum.onnx
+            dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum-onnx)
+            commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
+
+        if not commands_register_path.is_dir():
+            # if distribution does not register any commands
+            continue
+
+        for file in commands_register_path.iterdir():
+            if file.name == "__init__.py":
+                # Following PEP 420, a namespace should not contain an __init__.py file.
+                raise ValueError(
+                    "The namespace package optimum.commands.register should not contain an `__init__.py` file."
+                )
+            elif file.suffix == ".py":
+                command_registration_files.append(file.stem)
+
+    commands_to_register = []
+    for registration_file in command_registration_files:
+        submodule = importlib.import_module(f"optimum.commands.register.{registration_file}")
+        commands_to_register_in_module = getattr(submodule, "REGISTER_COMMANDS", [])
+        for command_idx, command in enumerate(commands_to_register_in_module):
             if isinstance(command, tuple):
                 command_or_command_info, parent_command_cls = command
             else:
@@ -143,9 +167,10 @@ def dynamic_load_commands_in_register() -> (
                 command_or_command_info, BaseOptimumCLICommand
             ):
                 raise ValueError(
-                    f"The command at index {command_idx} in {filename} is not of the right type: {type(command_or_command_info)}."
+                    f"The command at index {command_idx} in the `commands.register` module of {dist_name} is not of the right type: {type(command_or_command_info)}."
                 )
             commands_to_register.append((command_or_command_info, parent_command_cls))
+
     return commands_to_register
 
 
@@ -181,11 +206,8 @@ def main():
     for subcommand_cls in OPTIMUM_CLI_ROOT_SUBCOMMANDS:
         register_optimum_cli_subcommand(subcommand_cls, parent_command=root)
 
-    # Load subpackages to give them a chance to declare their own subcommands
-    load_subpackages()
-
     # Register subcommands declared by the subpackages or found in the register files under commands/register
-    commands_to_register = _OPTIMUM_CLI_SUBCOMMANDS + dynamic_load_commands_in_register()
+    commands_to_register = _OPTIMUM_CLI_SUBCOMMANDS + load_optimum_namespace_cli_commands()
     command2command_instance = resolve_command_to_command_instance(
         root, [parent_command_cls for _, parent_command_cls in commands_to_register if parent_command_cls is not None]
     )

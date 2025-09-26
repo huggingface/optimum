@@ -15,7 +15,8 @@
 
 import os
 
-from optimum.commands import BaseOptimumCLICommand, CommandInfo, ExportCommand
+from optimum.commands.base import BaseOptimumCLICommand, CommandInfo
+from optimum.commands.export.base import ExportCommand
 
 
 class MyCustomCommand(BaseOptimumCLICommand):

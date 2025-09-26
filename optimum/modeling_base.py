@@ -27,7 +27,7 @@ from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import AutoConfig, PretrainedConfig, add_start_docstrings
 from transformers.utils import http_user_agent
 
-from .exporters import TasksManager
+from .exporters.tasks import TasksManager
 from .utils import CONFIG_NAME
 
 
