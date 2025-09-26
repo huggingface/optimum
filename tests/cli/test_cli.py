@@ -25,7 +25,7 @@ import optimum.commands
 
 
 CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
-OPTIMUM_COMMANDS_DIR = Path(inspect.getfile(optimum.commands)).parent
+OPTIMUM_COMMANDS_DIR = Path(inspect.getfile(optimum.commands.base)).parent
 REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH = OPTIMUM_COMMANDS_DIR / "register" / "cli_with_custom_command.py"
 
 
