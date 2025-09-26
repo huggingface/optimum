@@ -19,7 +19,7 @@ from transformers import __version__ as transformers_version
 from transformers.utils import is_tf_available, is_torch_available
 
 from ..version import __version__ as version
-from . import BaseOptimumCLICommand, CommandInfo
+from .base import BaseOptimumCLICommand, CommandInfo
 
 
 class EnvironmentCommand(BaseOptimumCLICommand):

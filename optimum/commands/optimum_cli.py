@@ -32,6 +32,7 @@ OPTIMUM_CLI_ROOT_SUBCOMMANDS = [ExportCommand, EnvironmentCommand]
 _OPTIMUM_CLI_SUBCOMMANDS = []
 
 
+# TODO: Why do we have two apis to register commands ?
 def optimum_cli_subcommand(parent_command: Optional[Type[BaseOptimumCLICommand]] = None):
     """
     A decorator to declare optimum-cli subcommands.
@@ -116,36 +117,42 @@ def load_optimum_namespace_cli_commands() -> (
         subclass of `BaseOptimumCLICommand` or a `CommandInfo`. The second element corresponds to the parent command,
         where `None` means that the parent command is the root CLI command.
     """
-    registration_files = []
+    command_registration_files = []
     for dist in importlib.metadata.distributions():
         if dist.metadata["Name"] is None:
             continue
         if dist.metadata["Name"] == "optimum-benchmark":
             continue
-        if not dist.metadata["Name"].startswith("optimum-"):
-            # it might be better (and more secure ?) to use an explicit list of optimum subpackages here
+        # it might be better (and more secure ?) to use an explicit list of optimum subpackages here
+        if not dist.metadata["Name"].startswith("optimum"):
             continue
 
-        dist_name = dist.metadata["Name"]
-        dist_module_name = dist_name.replace("-", ".")
-        dist_module = importlib.import_module(dist_module_name)
-        dist_module_path = Path(dist_module.__file__).parent
-        commands_register_path = dist_module_path.parent / "commands" / "register"
+        dist_name = dist.metadata["Name"]  # optimum-onnx
+        dist_module_name = dist_name.replace("-", ".")  # optimum.onnx
+        dist_module = importlib.import_module(dist_module_name)  # import optimum.onnx
+        dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum-onnx)
+        commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
+
         if not commands_register_path.is_dir():
-            # distribution does not register any commands
+            # if distribution does not register any commands
             continue
 
         for file in commands_register_path.iterdir():
             if file.name == "__init__.py":
+                # Following PEP 420, a namespace should not contain an __init__.py file.
                 raise ValueError(
                     "The namespace package optimum.commands.register should not contain an `__init__.py` file."
                 )
-            if file.suffix == ".py":
-                registration_files.append(file.stem)
+            elif file.suffix == ".py":
+                command_registration_files.append(file.stem)
+            else:
+                logger.warning(
+                    f"Found a non-Python file in the `optimum.commands.register` namespace of {dist_name}: {file.name}."
+                )
 
     commands_to_register = []
-    for register_file in registration_files:
-        submodule = importlib.import_module(f"optimum.commands.register.{register_file}")
+    for registration_file in command_registration_files:
+        submodule = importlib.import_module(f"optimum.commands.register.{registration_file}")
         commands_to_register_in_module = getattr(submodule, "REGISTER_COMMANDS", [])
         for command_idx, command in enumerate(commands_to_register_in_module):
             if isinstance(command, tuple):
