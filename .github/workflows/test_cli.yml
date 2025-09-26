@@ -1,4 +1,4 @@
-name: Optimum CLI / Python - Test
+name: Optimum CLI / Python - Test - Subpackage (ONNX)
 
 on:
   push:
