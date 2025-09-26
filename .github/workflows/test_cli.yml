@@ -49,20 +49,20 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip uv
-          uv pip install ./optimum-onnx
+          uv pip install ./optimum-onnx[onnxruntime]
           uv pip install ./optimum[tests]
 
       - name: Test with pytest
         run: |
-          pytest tests/cli -vvvv --durations=0 -n auto
+          pytest tests/cli -vvvv --durations=0
         working-directory: optimum
 
       - name: Install dependencies (editable mode)
         run: |
-          uv pip install -e ./optimum-onnx
+          uv pip install -e ./optimum-onnx[onnxruntime]
           uv pip install -e ./optimum[tests]
 
       - name: Test with pytest (editable mode)
         run: |
-          pytest tests/cli -vvvv --durations=0 -n auto
+          pytest tests/cli -vvvv --durations=0
         working-directory: optimum

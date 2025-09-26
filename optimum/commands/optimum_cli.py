@@ -127,11 +127,17 @@ def load_optimum_namespace_cli_commands() -> (
         if not dist.metadata["Name"].startswith("optimum"):
             continue
 
-        dist_name = dist.metadata["Name"]  # optimum-onnx
-        dist_module_name = dist_name.replace("-", ".")  # optimum.onnx
-        dist_module = importlib.import_module(dist_module_name)  # import optimum.onnx
-        dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum-onnx)
-        commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
+        if dist.metadata["Name"] == "optimum":
+            # optimum can't have an __init__.py file, so we use optimum.pipelines instead
+            dist_module = importlib.import_module("optimum.pipelines")  #  optimum.pipelines
+            dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum)
+            commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
+        else:
+            dist_name = dist.metadata["Name"]  # optimum-onnx
+            dist_module_name = dist_name.replace("-", ".")  # optimum.onnx
+            dist_module = importlib.import_module(dist_module_name)  #  optimum.onnx
+            dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum-onnx)
+            commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
 
         if not commands_register_path.is_dir():
             # if distribution does not register any commands
@@ -145,10 +151,6 @@ def load_optimum_namespace_cli_commands() -> (
                 )
             elif file.suffix == ".py":
                 command_registration_files.append(file.stem)
-            else:
-                logger.warning(
-                    f"Found a non-Python file in the `optimum.commands.register` namespace of {dist_name}: {file.name}."
-                )
 
     commands_to_register = []
     for registration_file in command_registration_files:
