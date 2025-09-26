@@ -12,7 +12,8 @@ concurrency:
 
 env:
   UV_SYSTEM_PYTHON: 1
-  UV_TORCH_BACKEND: auto
+  UV_TORCH_BACKEND: cpu
+  OPTIMUM_ONNX_REF: main
   TRANSFORMERS_IS_CI: true
 
 jobs:
@@ -20,14 +21,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-13, windows-2022]
-        python-version: ["3.9"]
+        python-version: [3.9]
+        run-on: [ubuntu-22.04, macos-13, windows-2022]
 
     runs-on: ${{ matrix.runs-on }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: checkout optimum-onnx
+        uses: actions/checkout@v4
+        with:
+          repository: huggingface/optimum-onnx
+          ref: ${{ env.OPTIMUM_ONNX_REF }}
+          fetch-depth: 0
 
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -37,17 +47,20 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip uv
-          uv pip install --no-cache-dir optimum-onnx@git+https://github.com/huggingface/optimum-onnx.git@namespace-command-loading
-          uv pip install --no-cache-dir .[tests]
+          uv pip install ./optimum-onnx
+          uv pip install ./optimum[tests]
 
       - name: Test with pytest
         run: |
-          pytest tests/cli -vvvv --durations=0
+          pytest tests/cli -vvvv --durations=0 -n auto
+        working-directory: optimum
 
       - name: Install dependencies (editable mode)
         run: |
-          uv pip install -e .[tests]
+          uv pip install -e ./optimum-onnx
+          uv pip install -e ./optimum[tests]
 
       - name: Test with pytest (editable mode)
         run: |
-          pytest tests/cli -vvvv --durations=0
+          pytest tests/cli -vvvv --durations=0 -n auto
+        working-directory: optimum
