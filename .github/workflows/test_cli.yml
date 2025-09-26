@@ -11,6 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  UV_SYSTEM_PYTHON: 1
+  UV_TORCH_BACKEND: auto
   TRANSFORMERS_IS_CI: true
 
 jobs:
@@ -34,10 +36,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,exporters]
+          pip install --upgrade pip uv
+          uv pip install --no-cache-dir optimum-onnx@git+https://github.com/huggingface/optimum-onnx.git@namespace-command-loading
+          uv pip install --no-cache-dir .[tests]
 
       - name: Test with pytest
+        run: |
+          pytest tests/cli -vvvv --durations=0
+
+      - name: Install dependencies (editable mode)
+        run: |
+          uv pip install -e .[tests]
+
+      - name: Test with pytest (editable mode)
         run: |
           pytest tests/cli -vvvv --durations=0
