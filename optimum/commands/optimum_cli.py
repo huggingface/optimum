@@ -28,47 +28,6 @@ logger = logging.get_logger()
 # The table below contains the optimum-cli root subcommands provided by the optimum package
 OPTIMUM_CLI_ROOT_SUBCOMMANDS = [ExportCommand, EnvironmentCommand]
 
-# The table below is dynamically populated when loading subpackages
-_OPTIMUM_CLI_SUBCOMMANDS = []
-
-
-# TODO: Why do we have two apis to register commands ?
-def optimum_cli_subcommand(parent_command: Optional[Type[BaseOptimumCLICommand]] = None):
-    """
-    A decorator to declare optimum-cli subcommands.
-
-    The declaration of an optimum-cli subcommand looks like this:
-
-    ```
-    @optimum_cli_subcommand()
-    class MySubcommand(BaseOptimumCLICommand):
-        <implementation>
-    ```
-
-    or
-
-    ```
-    @optimum_cli_subcommand(ExportCommand)
-    class MySubcommand(BaseOptimumCLICommand):
-        <implementation>
-    ```
-
-    Args:
-        parent_command: (`Optional[Type[BaseOptimumCLICommand]]`):
-            The class of the parent command or None if this is a top-level command. Defaults to None.
-
-    """
-
-    if parent_command is not None and not issubclass(parent_command, BaseOptimumCLICommand):
-        raise ValueError(f"The parent command {parent_command} must be a subclass of BaseOptimumCLICommand")
-
-    def wrapper(subcommand):
-        if not issubclass(subcommand, BaseOptimumCLICommand):
-            raise ValueError(f"The subcommand {subcommand} must be a subclass of BaseOptimumCLICommand")
-        _OPTIMUM_CLI_SUBCOMMANDS.append((subcommand, parent_command))
-
-    return wrapper
-
 
 def resolve_command_to_command_instance(
     root: RootOptimumCLICommand, commands: List[Type[BaseOptimumCLICommand]]
@@ -123,21 +82,20 @@ def load_optimum_namespace_cli_commands() -> (
             continue
         if dist.metadata["Name"] == "optimum-benchmark":
             continue
-        # it might be better (and more secure ?) to use an explicit list of optimum subpackages here
         if not dist.metadata["Name"].startswith("optimum"):
+            # it might be better (and more secure ?) to use an explicit list of optimum subpackages here
             continue
 
         if dist.metadata["Name"] == "optimum":
+            # NOTE: optimum no longer registers commands in the main package, we do this for testing purposes only
             # optimum can't have an __init__.py file, so we use optimum.pipelines instead
-            dist_module = importlib.import_module("optimum.pipelines")  #  optimum.pipelines
-            dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum)
-            commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
+            dist_name = "optimum.pipelines"
         else:
-            dist_name = dist.metadata["Name"]  # optimum-onnx
-            dist_module_name = dist_name.replace("-", ".")  # optimum.onnx
-            dist_module = importlib.import_module(dist_module_name)  #  optimum.onnx
-            dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum-onnx)
-            commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
+            dist_name = dist.metadata["Name"].replace("-", ".")  # optimum.onnx
+
+        dist_module = importlib.import_module(dist_name)  #  optimum.onnx
+        dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum/onnx/)
+        commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
 
         if not commands_register_path.is_dir():
             # if distribution does not register any commands
@@ -207,7 +165,7 @@ def main():
         register_optimum_cli_subcommand(subcommand_cls, parent_command=root)
 
     # Register subcommands declared by the subpackages or found in the register files under commands/register
-    commands_to_register = _OPTIMUM_CLI_SUBCOMMANDS + load_optimum_namespace_cli_commands()
+    commands_to_register = load_optimum_namespace_cli_commands()
     command2command_instance = resolve_command_to_command_instance(
         root, [parent_command_cls for _, parent_command_cls in commands_to_register if parent_command_cls is not None]
     )
