@@ -63,7 +63,6 @@ class TestCLI(unittest.TestCase):
         self.assertFalse(succeeded, "The command should fail here since it is not registered yet.")
 
         # As a "base" command in `optimum-cli`.
-        print("Copying", CLI_WIH_CUSTOM_COMMAND_PATH, "to", REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
         shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
 
         # We check that the print_help method prints the registered command.
