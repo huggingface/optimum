@@ -59,6 +59,7 @@ jobs:
 
       - name: Install dependencies (editable mode)
         run: |
+          uv pip uninstall optimum-onnx optimum
           uv pip install -e ./optimum-onnx[onnxruntime]
           uv pip install -e ./optimum[tests]
 
