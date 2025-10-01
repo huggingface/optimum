@@ -11,6 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  UV_SYSTEM_PYTHON: 1
+  UV_TORCH_BACKEND: cpu
   TRANSFORMERS_IS_CI: true
 
 jobs:
@@ -19,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.9]
-        runs-on: [ubuntu-22.04, windows-2022, macos-14]
+        runs-on: [ubuntu-22.04, macos-14, windows-2022]
 
     runs-on: ${{ matrix.runs-on }}
 
@@ -34,9 +36,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests]
+          pip install --upgrade pip uv
+          uv pip install .[tests]
 
       - name: Test with pytest
         run: |

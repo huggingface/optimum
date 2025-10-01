@@ -29,12 +29,9 @@ logger = logging.getLogger(__name__)
 
 def load_namespace_modules(namespace: str, module: str):
     """Load modules with a specific name inside a namespace
-
     This method operates on namespace packages:
     https://packaging.python.org/en/latest/guides/packaging-namespace-packages/
-
     For each package inside the specified `namespace`, it looks for the specified `module` and loads it.
-
     Args:
         namespace (`str`):
             The namespace containing modules to be loaded.
@@ -68,9 +65,7 @@ def load_namespace_modules(namespace: str, module: str):
 
 def load_subpackages():
     """Load optimum subpackages
-
     This method goes through packages inside the `optimum` namespace and loads the `subpackage` module if it exists.
-
     This module is then in charge of registering the subpackage commands.
     """
     SUBPACKAGE_LOADER = "subpackage"
