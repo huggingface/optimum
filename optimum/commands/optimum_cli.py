@@ -17,6 +17,7 @@ import importlib
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Type, Union
 
+from ..subpackages import load_subpackages
 from ..utils import logging
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
@@ -27,6 +28,40 @@ logger = logging.get_logger()
 
 # The table below contains the optimum-cli root subcommands provided by the optimum package
 OPTIMUM_CLI_ROOT_SUBCOMMANDS = [ExportCommand, EnvironmentCommand]
+
+# The table below is dynamically populated when loading subpackages (through the decorator)
+_OPTIMUM_CLI_SUBCOMMANDS = []
+
+
+def optimum_cli_subcommand(parent_command: Optional[Type[BaseOptimumCLICommand]] = None):
+    """
+    A decorator to declare optimum-cli subcommands.
+    The declaration of an optimum-cli subcommand looks like this:
+    ```
+    @optimum_cli_subcommand()
+    class MySubcommand(BaseOptimumCLICommand):
+        <implementation>
+    ```
+    or
+    ```
+    @optimum_cli_subcommand(ExportCommand)
+    class MySubcommand(BaseOptimumCLICommand):
+        <implementation>
+    ```
+    Args:
+        parent_command: (`Optional[Type[BaseOptimumCLICommand]]`):
+            The class of the parent command or None if this is a top-level command. Defaults to None.
+    """
+
+    if parent_command is not None and not issubclass(parent_command, BaseOptimumCLICommand):
+        raise ValueError(f"The parent command {parent_command} must be a subclass of BaseOptimumCLICommand")
+
+    def wrapper(subcommand):
+        if not issubclass(subcommand, BaseOptimumCLICommand):
+            raise ValueError(f"The subcommand {subcommand} must be a subclass of BaseOptimumCLICommand")
+        _OPTIMUM_CLI_SUBCOMMANDS.append((subcommand, parent_command))
+
+    return wrapper
 
 
 def resolve_command_to_command_instance(
@@ -64,9 +99,9 @@ def resolve_command_to_command_instance(
     return command2command_instance
 
 
-def load_optimum_namespace_cli_commands() -> (
-    List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]
-):
+def load_optimum_namespace_cli_commands() -> List[
+    Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]
+]:
     """
     Loads a list of command classes to register to the CLI from the `optimum.commands.register` namespace of each optimum subpackage/distribution.
 
@@ -87,7 +122,6 @@ def load_optimum_namespace_cli_commands() -> (
             continue
 
         if dist.metadata["Name"] == "optimum":
-            # NOTE: optimum no longer registers commands in the main package, we do this for testing purposes only
             # optimum can't have an __init__.py file, so we use optimum.pipelines instead
             dist_name = "optimum.pipelines"
         else:
@@ -164,8 +198,11 @@ def main():
     for subcommand_cls in OPTIMUM_CLI_ROOT_SUBCOMMANDS:
         register_optimum_cli_subcommand(subcommand_cls, parent_command=root)
 
+    # Load subpackages to give them a chance to declare their own subcommands (optimum-quanto use this)
+    load_subpackages()
+
     # Register subcommands declared by the subpackages or found in the register files under commands/register
-    commands_to_register = load_optimum_namespace_cli_commands()
+    commands_to_register = _OPTIMUM_CLI_SUBCOMMANDS + load_optimum_namespace_cli_commands()
     command2command_instance = resolve_command_to_command_instance(
         root, [parent_command_cls for _, parent_command_cls in commands_to_register if parent_command_cls is not None]
     )
