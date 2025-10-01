@@ -111,57 +111,48 @@ def load_optimum_namespace_cli_commands() -> (
         subclass of `BaseOptimumCLICommand` or a `CommandInfo`. The second element corresponds to the parent command,
         where `None` means that the parent command is the root CLI command.
     """
-    command_registration_files = []
-    for dist in importlib.metadata.distributions():
-        if dist.metadata["Name"] is None:
-            continue
-        if dist.metadata["Name"] == "optimum-benchmark":
-            continue
-        if not dist.metadata["Name"].startswith("optimum"):
-            # it might be better (and more secure ?) to use an explicit list of optimum subpackages here
-            continue
 
-        if dist.metadata["Name"] == "optimum":
-            # optimum can't have an __init__.py file, so we use optimum.pipelines instead
-            dist_name = "optimum.pipelines"
-        else:
-            dist_name = dist.metadata["Name"].replace("-", ".")  # optimum.onnx
+    # Check if the commands.register namespace exists in any installed subpackage
+    commands_register_namespace = "optimum.commands.register"
+    commands_register_spec = importlib.util.find_spec(commands_register_namespace)
+    if commands_register_spec is None or commands_register_spec.submodule_search_locations is None:
+        # no installed subpackage is using the namespace optimum.commands.register
+        return []
 
-        dist_module = importlib.import_module(dist_name)  #  optimum.onnx
-        dist_module_path = Path(dist_module.__file__).parent.parent  # optimum/ (in optimum/onnx/)
-        commands_register_path = dist_module_path / "commands" / "register"  # optimum/commands/register
-
-        if not commands_register_path.is_dir():
-            # if distribution does not register any commands
-            continue
-
-        for file in commands_register_path.iterdir():
-            if file.name == "__init__.py":
-                # Following PEP 420, a namespace should not contain an __init__.py file.
-                raise ValueError(
-                    "The namespace package optimum.commands.register should not contain an `__init__.py` file."
-                )
-            elif file.suffix == ".py":
-                command_registration_files.append(file.stem)
-
+    # Find all registration files and load the commands to register
     commands_to_register = []
-    for registration_file in command_registration_files:
-        submodule = importlib.import_module(f"optimum.commands.register.{registration_file}")
-        commands_to_register_in_module = getattr(submodule, "REGISTER_COMMANDS", [])
-        for command_idx, command in enumerate(commands_to_register_in_module):
-            if isinstance(command, tuple):
-                command_or_command_info, parent_command_cls = command
-            else:
-                command_or_command_info = command
-                parent_command_cls = None
+    for register_path in commands_register_spec.submodule_search_locations:
+        register_path = Path(register_path)
+        if not register_path.is_dir():
+            # skip non-directory paths
+            continue
 
-            if not isinstance(command_or_command_info, CommandInfo) and not issubclass(
-                command_or_command_info, BaseOptimumCLICommand
-            ):
-                raise ValueError(
-                    f"The command at index {command_idx} in the `commands.register` module of {dist_name} is not of the right type: {type(command_or_command_info)}."
-                )
-            commands_to_register.append((command_or_command_info, parent_command_cls))
+        # Look for python files
+        for register_file in register_path.iterdir():
+            if register_file.name == "__init__.py":
+                raise ValueError("The namespace optimum.commands.register should never contain an __init__.py file.")
+            if register_file.suffix != ".py":
+                continue
+
+            # we only load the command register module, which should be lightweight if it keeps all its relevant imports inside the run function
+            # e.g. https://github.com/huggingface/optimum-onnx/blob/671b84f78a244594dd21cb1a8a1f7abb8961ea60/optimum/commands/export/onnx.py#L254
+            # this way we avoid loading all subpackages and their dependencies at cli startup
+            register_module = importlib.import_module(f"{commands_register_namespace}.{register_file.stem}")
+            register_commands = getattr(register_module, "REGISTER_COMMANDS", [])
+            for command_idx, command in enumerate(register_commands):
+                if isinstance(command, tuple):
+                    command_or_command_info, parent_command_cls = command
+                else:
+                    command_or_command_info, parent_command_cls = command, None
+
+                if not isinstance(command_or_command_info, CommandInfo) and not issubclass(
+                    command_or_command_info, BaseOptimumCLICommand
+                ):
+                    raise ValueError(
+                        f"The command at index {command_idx} in the `optimum.commands.register.{register_file.stem}.py` file is neither a "
+                        f"subclass of BaseOptimumCLICommand nor a CommandInfo instance: {type(command_or_command_info)}."
+                    )
+                commands_to_register.append((command_or_command_info, parent_command_cls))
 
     return commands_to_register
 
