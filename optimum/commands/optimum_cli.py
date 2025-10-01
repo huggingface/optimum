@@ -99,9 +99,9 @@ def resolve_command_to_command_instance(
     return command2command_instance
 
 
-def load_optimum_namespace_cli_commands() -> List[
-    Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]
-]:
+def load_optimum_namespace_cli_commands() -> (
+    List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]
+):
     """
     Loads a list of command classes to register to the CLI from the `optimum.commands.register` namespace of each optimum subpackage/distribution.
 
