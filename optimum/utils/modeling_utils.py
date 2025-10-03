@@ -15,6 +15,19 @@
 import functools
 
 
+MODEL_TO_PATCH_FOR_PAST = {
+    "bart",
+    "blenderbot",
+    "blenderbot-small",
+    "bloom",
+    "llama",
+    "mistral",
+    "mpt",
+    "opt",
+    "pegasus",
+}
+
+
 def recurse_getattr(obj, attr: str):
     """
     Recursive `getattr`.
