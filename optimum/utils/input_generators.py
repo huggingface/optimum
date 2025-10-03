@@ -21,7 +21,7 @@ from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 
-from ..utils import is_diffusers_version, is_tf_available, is_torch_available, is_transformers_version
+from ..utils import is_diffusers_version, is_torch_available, is_transformers_version
 from ..utils.save_utils import maybe_load_preprocessors
 from .normalized_config import (
     NormalizedConfig,
@@ -35,19 +35,14 @@ from .normalized_config import (
 if is_torch_available():
     import torch
 
-if is_tf_available():
-    import tensorflow as tf  # type: ignore
-
 
 def check_framework_is_available(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         framework = kwargs.get("framework", "pt")
         pt_asked_but_not_available = framework == "pt" and not is_torch_available()
-        tf_asked_but_not_available = framework == "tf" and not is_tf_available()
-        if (pt_asked_but_not_available or tf_asked_but_not_available) and framework != "np":
-            framework_name = "PyTorch" if framework == "pt" else "TensorFlow"
-            raise RuntimeError(f"Requested the {framework_name} framework, but it does not seem installed.")
+        if pt_asked_but_not_available:
+            raise RuntimeError(f"Requested the {framework} framework, but it does not seem installed.")
         return func(*args, **kwargs)
 
     return wrapper
@@ -94,19 +89,6 @@ class DTYPE_MAPPER:
             "int32": torch.int32,
             "int8": torch.int8,
             "bool": torch.bool,
-        }
-        return mapping[dtype]
-
-    @classmethod
-    def tf(cls, dtype):
-        mapping = {
-            "fp32": tf.float32,
-            "fp16": tf.float16,
-            "bf16": tf.bfloat16,
-            "int64": tf.int64,
-            "int32": tf.int32,
-            "int8": tf.int8,
-            "bool": tf.bool,
         }
         return mapping[dtype]
 
@@ -177,8 +159,6 @@ class DummyInputGenerator(ABC):
         """
         if framework == "pt":
             return torch.randint(low=min_value, high=max_value, size=shape, dtype=DTYPE_MAPPER.pt(dtype))
-        elif framework == "tf":
-            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=DTYPE_MAPPER.tf(dtype))
         else:
             return np.random.randint(min_value, high=max_value, size=shape, dtype=DTYPE_MAPPER.np(dtype))
 
@@ -213,16 +193,6 @@ class DummyInputGenerator(ABC):
             )
             if padding_side == "left":
                 mask_tensor = torch.flip(mask_tensor, [-1])
-        elif framework == "tf":
-            mask_tensor = tf.concat(
-                [
-                    tf.ones((*shape[:-1], shape[-1] - mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
-                    tf.zeros((*shape[:-1], mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
-                ],
-                axis=-1,
-            )
-            if padding_side == "left":
-                mask_tensor = tf.reverse(mask_tensor, [-1])
         else:
             mask_tensor = np.concatenate(
                 [
@@ -259,10 +229,7 @@ class DummyInputGenerator(ABC):
             A random tensor in the requested framework.
         """
         if framework == "pt":
-            tensor = torch.empty(shape, dtype=DTYPE_MAPPER.pt(dtype)).uniform_(min_value, max_value)
-            return tensor
-        elif framework == "tf":
-            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=DTYPE_MAPPER.tf(dtype))
+            return torch.empty(shape, dtype=DTYPE_MAPPER.pt(dtype)).uniform_(min_value, max_value)
         else:
             return np.random.uniform(low=min_value, high=max_value, size=shape).astype(DTYPE_MAPPER.np(dtype))
 
@@ -289,8 +256,6 @@ class DummyInputGenerator(ABC):
         """
         if framework == "pt":
             return torch.full(shape, value, dtype=dtype)
-        elif framework == "tf":
-            return tf.constant(value, dtype=dtype, shape=shape)
         else:
             return np.full(shape, value, dtype=dtype)
 
@@ -299,8 +264,6 @@ class DummyInputGenerator(ABC):
         framework = None
         if is_torch_available() and isinstance(input_, torch.Tensor):
             framework = "pt"
-        elif is_tf_available() and isinstance(input_, tf.Tensor):
-            framework = "tf"
         elif isinstance(input_, np.ndarray):
             framework = "np"
         else:
@@ -325,8 +288,6 @@ class DummyInputGenerator(ABC):
         framework = cls._infer_framework_from_input(inputs[0])
         if framework == "pt":
             return torch.cat(inputs, dim=dim)
-        elif framework == "tf":
-            return tf.concat(inputs, axis=dim)
         else:
             return np.concatenate(inputs, axis=dim)
 
@@ -465,8 +426,6 @@ class LongformerDummyTextInputGenerator(DummyTextInputGenerator):
 
             if framework == "pt":
                 global_attention_mask = torch.zeros_like(attention_mask)
-            elif framework == "tf":
-                global_attention_mask = tf.zeros_like(attention_mask)
             else:
                 global_attention_mask = np.zeros_like(attention_mask)
 

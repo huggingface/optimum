@@ -119,33 +119,7 @@ _onnxruntime_available = _is_package_available(
         "ort-rocm-nightly",
     ],
 )
-_tf_available, _tf_version = _is_package_available(
-    "tensorflow",
-    return_version=True,
-    pkg_distributions=[
-        "tensorflow",
-        "tensorflow-cpu",
-        "tensorflow-gpu",
-        "tensorflow-rocm",
-        "tensorflow-macos",
-        "tensorflow-aarch64",
-        "tf-nightly",
-        "tf-nightly-cpu",
-        "tf-nightly-gpu",
-        "tf-nightly-rocm",
-        "tf-nightly-macos",
-        "intel-tensorflow",
-        "intel-tensorflow-avx512",
-    ],
-)
 _onnxslim_available = _is_package_available("onnxslim")
-
-if _tf_available and version.parse(_tf_version) < version.parse("2"):
-    logger.warning(
-        "TensorFlow 2.0 or higher is required to use the TensorFlow backend. "
-        "Please install the latest version of TensorFlow, or switch to another backend."
-    )
-    _tf_available = False
 
 
 # This function was copied from: https://github.com/huggingface/accelerate/blob/874c4967d94badd24f893064cc3bef45f57cadf7/src/accelerate/utils/versions.py#L319
@@ -246,10 +220,6 @@ def is_tensorrt_available():
 
 def is_torch_available():
     return _torch_available
-
-
-def is_tf_available():
-    return _tf_available
 
 
 def is_auto_gptq_available():

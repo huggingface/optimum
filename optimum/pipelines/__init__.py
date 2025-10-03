@@ -41,7 +41,6 @@ if TYPE_CHECKING:
         PreTrainedTokenizer,
         PreTrainedTokenizerFast,
         ProcessorMixin,
-        TFPreTrainedModel,
     )
 
 
@@ -49,7 +48,7 @@ if TYPE_CHECKING:
 # to reflect the fact that this pipeline loads Accelerated models using optimum.
 def pipeline(
     task: Optional[str] = None,
-    model: Optional[Union[str, "PreTrainedModel", "TFPreTrainedModel"]] = None,
+    model: Optional[Union[str, "PreTrainedModel"]] = None,
     config: Optional[Union[str, "PretrainedConfig"]] = None,
     tokenizer: Optional[Union[str, "PreTrainedTokenizer", "PreTrainedTokenizerFast"]] = None,
     feature_extractor: Optional[Union[str, "FeatureExtractionMixin "]] = None,

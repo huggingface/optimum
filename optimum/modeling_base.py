@@ -38,11 +38,9 @@ if TYPE_CHECKING:
         PreTrainedModel,
         ProcessorMixin,
         SpecialTokensMixin,
-        TFPreTrainedModel,
     )
 
     PreprocessorT = Union[SpecialTokensMixin, FeatureExtractionMixin, ImageProcessingMixin, ProcessorMixin]
-    ModelT = Union["PreTrainedModel", "TFPreTrainedModel"]
 
 
 logger = logging.getLogger(__name__)
@@ -101,7 +99,10 @@ class OptimizedModel(PreTrainedModel):
     config_name = CONFIG_NAME
 
     def __init__(
-        self, model: Union["ModelT"], config: "PretrainedConfig", preprocessors: Optional[List["PreprocessorT"]] = None
+        self,
+        model: "PreTrainedModel",
+        config: "PretrainedConfig",
+        preprocessors: Optional[List["PreprocessorT"]] = None,
     ):
         self.model = model
         self.config = config
