@@ -20,7 +20,6 @@ from inspect import signature
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import torch
-from packaging import version
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5HifiGan
 from transformers.utils import is_torch_available
 
@@ -95,7 +94,6 @@ def _get_submodels_for_export_diffusion(
 
     models_for_export = {}
 
-    is_torch_greater_or_equal_than_2_1 = version.parse(torch.__version__) >= version.parse("2.1.0")
     is_sdxl = pipeline.__class__.__name__.startswith("StableDiffusionXL")
     is_sd3 = pipeline.__class__.__name__.startswith("StableDiffusion3")
 
@@ -128,10 +126,6 @@ def _get_submodels_for_export_diffusion(
     # U-NET
     unet = getattr(pipeline, "unet", None)
     if unet is not None:
-        # ONNX export of torch.nn.functional.scaled_dot_product_attention not supported for < v2.1.0
-        if not is_torch_greater_or_equal_than_2_1:
-            unet.set_attn_processor(AttnProcessor())
-
         # The U-NET time_ids inputs shapes depends on the value of `requires_aesthetics_score`
         # https://github.com/huggingface/diffusers/blob/v0.18.2/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_img2img.py#L571
         unet.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
@@ -147,10 +141,6 @@ def _get_submodels_for_export_diffusion(
     # Transformer
     transformer = getattr(pipeline, "transformer", None)
     if transformer is not None:
-        # ONNX export of torch.nn.functional.scaled_dot_product_attention not supported for < v2.1.0
-        if not is_torch_greater_or_equal_than_2_1:
-            transformer.set_attn_processor(AttnProcessor())
-
         transformer.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
         transformer.config.time_cond_proj_dim = getattr(pipeline.transformer.config, "time_cond_proj_dim", None)
         transformer.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
@@ -160,20 +150,12 @@ def _get_submodels_for_export_diffusion(
     # VAE Encoder
     vae_encoder = copy.deepcopy(pipeline.vae)
 
-    # ONNX export of torch.nn.functional.scaled_dot_product_attention not supported for < v2.1.0
-    if not is_torch_greater_or_equal_than_2_1:
-        vae_encoder = override_diffusers_2_0_attn_processors(vae_encoder)
-
     # we return the distribution parameters to be able to recreate it in the decoder
     vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample)["latent_dist"].parameters}
     models_for_export["vae_encoder"] = vae_encoder
 
     # VAE Decoder
     vae_decoder = copy.deepcopy(pipeline.vae)
-
-    # ONNX export of torch.nn.functional.scaled_dot_product_attention not supported for < v2.1.0
-    if not is_torch_greater_or_equal_than_2_1:
-        vae_decoder = override_diffusers_2_0_attn_processors(vae_decoder)
 
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     models_for_export["vae_decoder"] = vae_decoder
