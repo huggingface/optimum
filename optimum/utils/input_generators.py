@@ -20,7 +20,6 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, Union
 
 from ..utils import is_diffusers_version, is_torch_available, is_transformers_version
-from ..utils.save_utils import maybe_load_preprocessors
 from .normalized_config import (
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
@@ -1720,6 +1719,9 @@ class Dinov2DummyInputGenerator(DummyVisionInputGenerator):
             height=height,
             **kwargs,
         )
+
+        from ..utils.save_utils import maybe_load_preprocessors
+
         preprocessor = maybe_load_preprocessors(normalized_config._name_or_path)[-1]
 
         if preprocessor is not None and hasattr(preprocessor, "crop_size"):
@@ -1747,6 +1749,8 @@ class DummyVisionStaticInputGenerator(DummyVisionInputGenerator):
             height=height,
             **kwargs,
         )
+
+        from ..utils.save_utils import maybe_load_preprocessors
 
         preprocessor = maybe_load_preprocessors(normalized_config._name_or_path)[-1]
         if preprocessor is not None and hasattr(preprocessor, "size"):

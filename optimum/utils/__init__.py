@@ -48,7 +48,6 @@ from .import_utils import (
     is_pydantic_available,
     is_sentence_transformers_available,
     is_tensorrt_available,
-    is_tf_available,
     is_timm_available,
     is_torch_available,
     is_torch_onnx_support_available,
