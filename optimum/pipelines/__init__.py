@@ -238,7 +238,7 @@ def pipeline(
             )
 
     if accelerator == "ort":
-        from optimum.onnxruntime import pipeline as ort_pipeline
+        from optimum.onnxruntime import pipeline as ort_pipeline  # type: ignore
 
         return ort_pipeline(
             task=task,
@@ -261,7 +261,7 @@ def pipeline(
             **kwargs,
         )
     elif accelerator in ["ov", "ipex"]:
-        from optimum.intel import pipeline as intel_pipeline
+        from optimum.intel import pipeline as intel_pipeline  # type: ignore
 
         return intel_pipeline(
             task=task,
