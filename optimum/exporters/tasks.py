@@ -80,13 +80,13 @@ def get_diffusers_tasks_to_model_mapping():
             AUTO_INPAINT_PIPELINES_MAPPING,
             AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
         )
-    except ImportError:
+    except Exception as e:
         # Sometimes a user might have two incompatible versions of transformers and diffusers
         # resulting in a transformers model export failing because of diffusers import.
         logger.warning(
-            "`get_diffusers_tasks_to_model_mapping` failed to import diffusers. "
-            "Make sure you have diffusers installed and can be imported correctly. "
-            "This failure might be due to an incompatibility with transformers version."
+            "`get_diffusers_tasks_to_model_mapping` failed to import diffusers with the error below."
+            "Please make sure you have diffusers installed and compatible with your transformers version.\n"
+            f"{e}"
         )
         return tasks_to_model_mapping
 
