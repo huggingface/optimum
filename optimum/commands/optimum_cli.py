@@ -132,7 +132,7 @@ def load_optimum_namespace_cli_commands() -> (
             if register_file.name == "__init__.py":
                 logger.warning(
                     "The namespace optimum.commands.register should never contain an __init__.py file (PEP 420). "
-                    f"However an __init__.py file was found in {register_path} which might result import issues."
+                    f"However an __init__.py file was found in {register_path} which might result in import issues."
                 )
             if register_file.suffix != ".py":
                 continue
