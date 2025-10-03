@@ -1284,7 +1284,7 @@ class TasksManager:
         Args:
             exporter (`str`):
                 The exporter to use.
-            model (`Optional[Union[PreTrainedModel]]`, defaults to `None`):
+            model (`Optional[PreTrainedModel]`, defaults to `None`):
                 The instance of the model.
             task (`str`, defaults to `"feature-extraction"`):
                 The task to retrieve the config for.
