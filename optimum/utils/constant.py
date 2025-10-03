@@ -25,6 +25,8 @@ DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER = "text_encoder_3"
 DIFFUSION_PIPELINE_CONFIG_FILE_NAME = "model_index.json"
 DIFFUSION_MODEL_CONFIG_FILE_NAME = "config.json"
 
+ONNX_WEIGHTS_NAME = "model.onnx"  # TODO: remove and use the optimum-onnx one
+
 ALL_TASKS = [
     "audio-classification",
     "audio-frame-classification",
