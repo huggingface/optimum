@@ -14,6 +14,7 @@
 """Utility functions for the Optimum library."""
 
 from .constant import (
+    ALL_TASKS,
     CONFIG_NAME,
     DIFFUSION_MODEL_CONFIG_FILE_NAME,
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
