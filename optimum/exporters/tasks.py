@@ -160,7 +160,9 @@ class TasksManager:
                 "AutoModelForUniversalSegmentation",
             ),
             "image-to-image": "AutoModelForImageToImage",
+            # TODO: AutoModelForVision2Seq is deprecated and will be removed in Transformers v5
             "image-to-text": ("AutoModelForVision2Seq", "AutoModel"),
+            "image-text-to-text": "AutoModelForImageTextToText",
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "multiple-choice": "AutoModelForMultipleChoice",

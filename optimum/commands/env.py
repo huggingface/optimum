@@ -12,13 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import platform
 
-import huggingface_hub
-from transformers import __version__ as transformers_version
-from transformers.utils import is_torch_available
-
-from ..version import __version__ as version
 from .base import BaseOptimumCLICommand, CommandInfo
 
 
@@ -30,6 +24,14 @@ class EnvironmentCommand(BaseOptimumCLICommand):
         return "\n".join([f"- {prop}: {val}" for prop, val in d.items()]) + "\n"
 
     def run(self):
+        import platform
+
+        import huggingface_hub
+        from transformers import __version__ as transformers_version
+        from transformers.utils import is_torch_available
+
+        from ..version import __version__ as version
+
         pt_version = "not installed"
         pt_cuda_available = "NA"
         if is_torch_available():

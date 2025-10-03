@@ -15,8 +15,10 @@ from ..export import ExportCommand
 
 REGISTER_COMMANDS = [
   # CustomCommand1 will be registered as a subcommand of the root Optimum CLI. 
-  CustomCommand1, 
+  CustomCommand1, # registered as `optimum-cli custom-command1`
   # CustomCommand2 will be registered as a subcommand of the `optimum-cli export` command. 
-  (CustomCommand2, ExportCommand) # CustomCommand2 will be registered
+  (CustomCommand2, ExportCommand) # registered as `optimum-cli export custom-command2`
 ]
 ```
+
+Examples can be found in [`optimum-onnx`](https://github.com/huggingface/optimum-onnx/tree/main/optimum/commands/register) and [`optimum-intel`](https://github.com/huggingface/optimum-intel/tree/main/optimum/commands/register)

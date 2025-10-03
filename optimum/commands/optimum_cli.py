@@ -18,13 +18,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Type, Union
 
 from ..subpackages import load_subpackages
-from ..utils import logging
+from ..utils.logging import get_logger
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
 from .export.base import ExportCommand
 
 
-logger = logging.get_logger()
+logger = get_logger(__name__)
 
 # The table below contains the optimum-cli root subcommands provided by the optimum package
 OPTIMUM_CLI_ROOT_SUBCOMMANDS = [ExportCommand, EnvironmentCommand]
