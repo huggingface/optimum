@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
+"""Utility functions for the Optimum library."""
 
 from .constant import (
     CONFIG_NAME,
@@ -48,6 +48,7 @@ from .import_utils import (
     is_pydantic_available,
     is_sentence_transformers_available,
     is_tensorrt_available,
+    is_tf_available,
     is_timm_available,
     is_torch_available,
     is_torch_onnx_support_available,
@@ -55,6 +56,53 @@ from .import_utils import (
     is_transformers_available,
     is_transformers_version,
     require_numpy_strictly_lower,
+)
+from .input_generators import (
+    DEFAULT_DUMMY_SHAPES,
+    DTYPE_MAPPER,
+    ASTDummyAudioInputGenerator,
+    BartDummyTextInputGenerator,
+    BloomDummyPastKeyValuesGenerator,
+    DeepSeekV3DummyPastKeyValuesGenerator,
+    Dinov2DummyInputGenerator,
+    DummyAudioInputGenerator,
+    DummyBboxInputGenerator,
+    DummyCodegenDecoderTextInputGenerator,
+    DummyDecisionTransformerInputGenerator,
+    DummyDecoderTextInputGenerator,
+    DummyEncodecInputGenerator,
+    DummyFluxTransformerTextInputGenerator,
+    DummyFluxTransformerVisionInputGenerator,
+    DummyInputGenerator,
+    DummyIntGenerator,
+    DummyLabelsGenerator,
+    DummyPastKeyValuesGenerator,
+    DummyPatchTSTInputGenerator,
+    DummyPix2StructInputGenerator,
+    DummyPointsGenerator,
+    DummySeq2SeqDecoderTextInputGenerator,
+    DummySeq2SeqPastKeyValuesGenerator,
+    DummySpeechT5InputGenerator,
+    DummyTextInputGenerator,
+    DummyTimestepInputGenerator,
+    DummyTransformerTextInputGenerator,
+    DummyTransformerTimestepInputGenerator,
+    DummyTransformerVisionInputGenerator,
+    DummyVisionEmbeddingsGenerator,
+    DummyVisionEncoderDecoderPastKeyValuesGenerator,
+    DummyVisionInputGenerator,
+    DummyXPathSeqInputGenerator,
+    FalconDummyPastKeyValuesGenerator,
+    GemmaDummyPastKeyValuesGenerator,
+    GPTBigCodeDummyPastKeyValuesGenerator,
+    LongformerDummyTextInputGenerator,
+    MCTCTDummyAudioInputGenerator,
+    MistralDummyPastKeyValuesGenerator,
+    MultiQueryPastKeyValuesGenerator,
+    PerceiverDummyInputGenerator,
+    Speech2TextDummyAudioInputGenerator,
+    T5DummySeq2SeqPastKeyValuesGenerator,
+    VitPoseDummyInputGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (

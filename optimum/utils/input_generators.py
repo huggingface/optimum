@@ -19,8 +19,6 @@ import random
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, Union
 
-import numpy as np
-
 from ..utils import is_diffusers_version, is_torch_available, is_transformers_version
 from ..utils.save_utils import maybe_load_preprocessors
 from .normalized_config import (
@@ -30,10 +28,6 @@ from .normalized_config import (
     NormalizedTextConfig,
     NormalizedVisionConfig,
 )
-
-
-if is_torch_available():
-    import torch
 
 
 def check_framework_is_available(func):
@@ -69,6 +63,8 @@ DEFAULT_DUMMY_SHAPES = {
 class DTYPE_MAPPER:
     @classmethod
     def np(cls, dtype):
+        import numpy as np
+
         mapping = {
             "fp32": np.float32,
             "fp16": np.float16,
@@ -81,6 +77,8 @@ class DTYPE_MAPPER:
 
     @classmethod
     def pt(cls, dtype):
+        import torch
+
         mapping = {
             "fp32": torch.float32,
             "fp16": torch.float16,
@@ -158,8 +156,12 @@ class DummyInputGenerator(ABC):
             A random tensor in the requested framework.
         """
         if framework == "pt":
+            import torch
+
             return torch.randint(low=min_value, high=max_value, size=shape, dtype=DTYPE_MAPPER.pt(dtype))
         else:
+            import numpy as np
+
             return np.random.randint(min_value, high=max_value, size=shape, dtype=DTYPE_MAPPER.np(dtype))
 
     @staticmethod
@@ -184,6 +186,8 @@ class DummyInputGenerator(ABC):
         shape = tuple(shape)
         mask_length = random.randint(1, shape[-1] - 1)
         if framework == "pt":
+            import torch
+
             mask_tensor = torch.cat(
                 [
                     torch.ones(*shape[:-1], shape[-1] - mask_length, dtype=DTYPE_MAPPER.pt(dtype)),
@@ -194,6 +198,8 @@ class DummyInputGenerator(ABC):
             if padding_side == "left":
                 mask_tensor = torch.flip(mask_tensor, [-1])
         else:
+            import numpy as np
+
             mask_tensor = np.concatenate(
                 [
                     np.ones((*shape[:-1], shape[-1] - mask_length), dtype=DTYPE_MAPPER.np(dtype)),
@@ -229,8 +235,12 @@ class DummyInputGenerator(ABC):
             A random tensor in the requested framework.
         """
         if framework == "pt":
+            import torch
+
             return torch.empty(shape, dtype=DTYPE_MAPPER.pt(dtype)).uniform_(min_value, max_value)
         else:
+            import numpy as np
+
             return np.random.uniform(low=min_value, high=max_value, size=shape).astype(DTYPE_MAPPER.np(dtype))
 
     @staticmethod
@@ -255,17 +265,27 @@ class DummyInputGenerator(ABC):
             A constant tensor in the requested framework.
         """
         if framework == "pt":
+            import torch
+
             return torch.full(shape, value, dtype=dtype)
         else:
+            import numpy as np
+
             return np.full(shape, value, dtype=dtype)
 
     @staticmethod
     def _infer_framework_from_input(input_) -> str:
         framework = None
-        if is_torch_available() and isinstance(input_, torch.Tensor):
-            framework = "pt"
-        elif isinstance(input_, np.ndarray):
+
+        import numpy as np
+
+        if is_torch_available():
+            import torch
+
+        if isinstance(input_, np.ndarray):
             framework = "np"
+        elif is_torch_available() and isinstance(input_, torch.Tensor):
+            framework = "pt"
         else:
             raise RuntimeError(f"Could not infer the framework from {input_}")
         return framework
@@ -287,8 +307,12 @@ class DummyInputGenerator(ABC):
             raise ValueError("You did not provide any inputs to concat")
         framework = cls._infer_framework_from_input(inputs[0])
         if framework == "pt":
+            import torch
+
             return torch.cat(inputs, dim=dim)
         else:
+            import numpy as np
+
             return np.concatenate(inputs, axis=dim)
 
     @classmethod
@@ -421,12 +445,19 @@ class LongformerDummyTextInputGenerator(DummyTextInputGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "global_attention_mask":
             attention_mask = super().generate(
-                "attention_mask", framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+                "attention_mask",
+                framework=framework,
+                int_dtype=int_dtype,
+                float_dtype=float_dtype,
             )
 
             if framework == "pt":
+                import torch
+
                 global_attention_mask = torch.zeros_like(attention_mask)
             else:
+                import numpy as np
+
                 global_attention_mask = np.zeros_like(attention_mask)
 
             return global_attention_mask
