@@ -39,23 +39,20 @@ if TYPE_CHECKING:
     if is_torch_available():
         from transformers import PreTrainedModel
 
+    if is_diffusers_available():
+        from diffusers import DiffusionPipeline
+
+
 logger = get_logger(__name__)
 
-if not is_torch_available():
-    logger.warning(
-        "The export tasks are only supported for PyTorch. You will not be able to export models without it installed."
-    )
 
 if is_torch_available():
     import torch
-
-
-if is_diffusers_available():
-    from diffusers import DiffusionPipeline
-    from diffusers.pipelines.auto_pipeline import (
-        AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
-        AUTO_INPAINT_PIPELINES_MAPPING,
-        AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+else:
+    logger.warning(
+        "The optimum.exporters.tasks module only supports the PyTorch framework. "
+        "You will not be able to export models if it is not installed along with a "
+        "modeling library (e.g. transformers, diffusers, sentence_transformers, timm)."
     )
 
 ExportConfigConstructor = Callable[[PretrainedConfig], "ExporterConfig"]
@@ -77,6 +74,22 @@ def get_diffusers_tasks_to_model_mapping():
 
     tasks_to_model_mapping = {}
 
+    try:
+        from diffusers.pipelines.auto_pipeline import (
+            AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+            AUTO_INPAINT_PIPELINES_MAPPING,
+            AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+        )
+    except ImportError:
+        # Sometimes a user might have two incompatible versions of transformers and diffusers
+        # resulting in a transformers model export failing because of diffusers import.
+        logger.warning(
+            "`get_diffusers_tasks_to_model_mapping` failed to import diffusers. "
+            "Make sure you have diffusers installed and can be imported correctly. "
+            "This failure might be due to an incompatibility with transformers version."
+        )
+        return tasks_to_model_mapping
+
     for task_name, model_mapping in (
         ("text-to-image", AUTO_TEXT2IMAGE_PIPELINES_MAPPING),
         ("image-to-image", AUTO_IMAGE2IMAGE_PIPELINES_MAPPING),
@@ -90,12 +103,10 @@ def get_diffusers_tasks_to_model_mapping():
     return tasks_to_model_mapping
 
 
-def get_transformers_tasks_to_model_mapping(tasks_to_model_loader, framework="pt"):
+def get_transformers_tasks_to_model_mapping(tasks_to_model_loader):
     """task -> model type -> model class mapping"""
-    if framework == "pt":
-        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_auto")
-    elif framework == "tf":
-        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
+
+    import transformers.models.auto.modeling_auto as auto_modeling_module
 
     tasks_to_model_mapping = {}
     for task_name, model_loaders in tasks_to_model_loader.items():
@@ -119,31 +130,22 @@ class TasksManager:
     Handles the `task name -> model class` and `architecture -> configuration` mappings.
     """
 
-    # Torch model loaders
+    # Torch auto model loaders
+    # (task -> auto-model class name)
     _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {}
     _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {}
     _TIMM_TASKS_TO_MODEL_LOADERS = {}
     _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {}
 
     # Torch model mappings
+    # (task -> model type / pipelines architecture -> model class name)
     _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = {}
     _DIFFUSERS_TASKS_TO_MODEL_MAPPINGS = {}
-
-    # TF model loaders
-    _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {}
-    _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {}
-
-    # TF model mappings
-    _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = {}
 
     if is_torch_available():
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
-        # auto-class _model_mapping to determine the right one.
-
-        # TODO: having several tasks pointing to the same auto-model class is bug prone to auto-detect the
-        # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
-        # on transformersInfo["auto_model"] and this dictionary.
+        # auto-class's _model_mapping to determine the right one (see get_transformers_tasks_to_model_mapping)
         _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
             "audio-classification": "AutoModelForAudioClassification",
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
@@ -180,12 +182,10 @@ class TasksManager:
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
 
-        _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = get_transformers_tasks_to_model_mapping(
-            _TRANSFORMERS_TASKS_TO_MODEL_LOADERS, framework="pt"
-        )
-
-        _TIMM_TASKS_TO_MODEL_LOADERS = {
-            "image-classification": "create_model",
+        _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
+            "image-to-image": "AutoPipelineForImage2Image",
+            "inpainting": "AutoPipelineForInpainting",
+            "text-to-image": "AutoPipelineForText2Image",
         }
 
         _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
@@ -193,14 +193,9 @@ class TasksManager:
             "sentence-similarity": "SentenceTransformer",
         }
 
-        if is_diffusers_available():
-            _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
-                "image-to-image": "AutoPipelineForImage2Image",
-                "inpainting": "AutoPipelineForInpainting",
-                "text-to-image": "AutoPipelineForText2Image",
-            }
-
-            _DIFFUSERS_TASKS_TO_MODEL_MAPPINGS = get_diffusers_tasks_to_model_mapping()
+        _TIMM_TASKS_TO_MODEL_LOADERS = {
+            "image-classification": "create_model",
+        }
 
         _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {
             "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
@@ -208,6 +203,12 @@ class TasksManager:
             "timm": _TIMM_TASKS_TO_MODEL_LOADERS,
             "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
         }
+
+        _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = get_transformers_tasks_to_model_mapping(
+            _TRANSFORMERS_TASKS_TO_MODEL_LOADERS
+        )
+        if is_diffusers_available():
+            _DIFFUSERS_TASKS_TO_MODEL_MAPPINGS = get_diffusers_tasks_to_model_mapping()
 
     _SYNONYM_TASK_MAP = {
         "audio-ctc": "automatic-speech-recognition",
@@ -494,7 +495,7 @@ class TasksManager:
             if framework == "pt":
                 tasks_to_model_loader = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP[library]
             else:
-                tasks_to_model_loader = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP[library]
+                raise ValueError(f"Only PyTorch is supported for export, but {framework} was provided.")
 
             loaded_library = importlib.import_module(library)
 
@@ -703,8 +704,6 @@ class TasksManager:
 
         if target_class_name.startswith("AutoModel"):
             tasks_to_model_loaders = cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS
-        elif target_class_name.startswith("TFAutoModel"):
-            tasks_to_model_loaders = cls._TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS
         elif target_class_name.startswith("AutoPipeline"):
             tasks_to_model_loaders = cls._DIFFUSERS_TASKS_TO_MODEL_LOADERS
 
@@ -720,10 +719,7 @@ class TasksManager:
         tasks_to_model_mapping = None
 
         if target_class_module.startswith("transformers"):
-            if target_class_name.startswith("TF"):
-                tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS
-            else:
-                tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS
+            tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS
         elif target_class_module.startswith("diffusers"):
             tasks_to_model_mapping = cls._DIFFUSERS_TASKS_TO_MODEL_MAPPINGS
 
@@ -1089,21 +1085,13 @@ class TasksManager:
         Returns:
             `List`: all the possible tasks.
         """
-        tasks = []
-        if is_torch_available():
-            framework = "pt"
-            mapping = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP
-        else:
-            framework = "tf"
-            mapping = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP
 
         tasks = []
-        for d in mapping.values():
+        for d in TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP.values():
             tasks += list(d.keys())
 
         for custom_class in TasksManager._CUSTOM_CLASSES:
-            if custom_class[0] == framework:
-                tasks.append(custom_class[2])
+            tasks.append(custom_class[2])
 
         tasks = list(set(tasks))
 
@@ -1199,6 +1187,8 @@ class TasksManager:
                     model_class_name = config.architectures[0]
 
         if library_name == "diffusers":
+            from diffusers import DiffusionPipeline
+
             config = DiffusionPipeline.load_config(model_name_or_path, **kwargs)
             class_name = config.get("_class_name", None)
             loaded_library = importlib.import_module(library_name)
