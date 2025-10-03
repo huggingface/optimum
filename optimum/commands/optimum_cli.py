@@ -99,9 +99,9 @@ def resolve_command_to_command_instance(
     return command2command_instance
 
 
-def load_optimum_namespace_cli_commands() -> List[
-    Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]
-]:
+def load_optimum_namespace_cli_commands() -> (
+    List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]
+):
     """
     Loads a list of command classes to register to the CLI from the `optimum.commands.register` namespace of each optimum subpackage/distribution.
 
@@ -132,7 +132,7 @@ def load_optimum_namespace_cli_commands() -> List[
             if register_file.name == "__init__.py":
                 logger.warning(
                     "The namespace optimum.commands.register should never contain an __init__.py file (PEP 420). "
-                    "This might result in the subpackage commands not being registered correctly or import issues."
+                    f"However an __init__.py file was found in {register_path} which might result import issues."
                 )
             if register_file.suffix != ".py":
                 continue
