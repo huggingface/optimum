@@ -165,9 +165,6 @@ def pipeline(
             artifacts on huggingface.co, so `revision` can be any identifier allowed by git.
         use_fast (`bool`, *optional*, defaults to `True`):
             Whether or not to use a Fast tokenizer if possible (a [`PreTrainedTokenizerFast`]).
-        use_auth_token (`str` or *bool*, *optional*):
-            The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
-            when running `hf auth login` (stored in `~/.huggingface`).
         device (`int` or `str` or `torch.device`):
             Defines the device (*e.g.*, `"cpu"`, `"cuda:1"`, `"mps"`, or a GPU ordinal rank like `1`) on which this
             pipeline will be allocated.

@@ -16,20 +16,20 @@
 
 import importlib
 import os
-import warnings
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
+import torch
 from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.errors import OfflineModeIsEnabled
 from packaging import version
-from requests.exceptions import ConnectionError as RequestsConnectionError
-from transformers import AutoConfig, PretrainedConfig, is_torch_available
+from requests.exceptions import ConnectionError
+from transformers import AutoConfig, PretrainedConfig
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
 
-from ..utils.import_utils import is_diffusers_available
+from ..utils.import_utils import is_diffusers_available, is_torch_available
 from ..utils.logging import get_logger
 
 
@@ -46,20 +46,10 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-if is_torch_available():
-    import torch
-else:
-    logger.warning(
-        "The optimum.exporters.tasks module only supports the PyTorch framework. "
-        "You will not be able to export models if it is not installed along with a "
-        "modeling library (e.g. transformers, diffusers, sentence_transformers, timm)."
-    )
-
-ExportConfigConstructor = Callable[[PretrainedConfig], "ExporterConfig"]
-TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
+ExportConfigConstructor = Callable[["PretrainedConfig"], "ExporterConfig"]
 
 
-def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> ExportConfigConstructor:
+def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> "ExportConfigConstructor":
     if "-with-past" in task:
         if not getattr(config_cls, "SUPPORTS_PAST", False):
             raise ValueError(f"{config_cls} does not support tasks with past.")
@@ -84,8 +74,8 @@ def get_diffusers_tasks_to_model_mapping():
         # Sometimes a user might have two incompatible versions of transformers and diffusers
         # resulting in a transformers model export failing because of diffusers import.
         logger.warning(
-            "`get_diffusers_tasks_to_model_mapping` failed to import diffusers with the error below."
-            "Please make sure you have diffusers installed and compatible with your transformers version.\n"
+            "optimum.exporters.tasks.get_diffusers_tasks_to_model_mapping method failed to import diffusers with the error below."
+            "Please make sure you have diffusers installed and compatible with your transformers version.\n\n"
             f"{e}"
         )
         return tasks_to_model_mapping
@@ -352,7 +342,7 @@ class TasksManager:
     @staticmethod
     def get_supported_tasks_for_model_type(
         model_type: str, exporter: str, model_name: Optional[str] = None, library_name: Optional[str] = None
-    ) -> TaskNameToExportConfigDict:
+    ) -> Dict[str, "ExportConfigConstructor"]:
         """
         Retrieves the `task -> exporter backend config constructors` map from the model type.
 
@@ -367,8 +357,8 @@ class TasksManager:
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
-            `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExporterConfig`
-            constructor.
+            `Dict[str, ExportConfigConstructor]`: The mapping between the supported tasks and the backend config
+            constructors for the specified model type.
         """
         if library_name is None:
             logger.warning(
@@ -542,22 +532,11 @@ class TasksManager:
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
     ):
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         request_exception = None
         full_model_path = Path(model_name_or_path, subfolder)
-
         hf_api = HfApi(user_agent=http_user_agent(), token=token)
 
         if full_model_path.is_dir():
@@ -578,7 +557,7 @@ class TasksManager:
                 )
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
-            except (RequestsConnectionError, OfflineModeIsEnabled) as e:
+            except (ConnectionError, OfflineModeIsEnabled) as e:
                 snapshot_path = hf_api.snapshot_download(
                     repo_id=model_name_or_path,
                     cache_dir=cache_dir,
@@ -666,7 +645,7 @@ class TasksManager:
             framework = "pt"
         else:
             if request_exception is not None:
-                raise RequestsConnectionError(
+                raise ConnectionError(
                     f"The framework could not be automatically inferred. If using the command-line, please provide the argument --framework (pt,tf) Detailed error: {request_exception}"
                 )
             else:
@@ -761,7 +740,7 @@ class TasksManager:
                 model_info = HfApi(user_agent=http_user_agent(), token=token).model_info(
                     model_name_or_path, revision=revision, token=token
                 )
-            except (RequestsConnectionError, OfflineModeIsEnabled):
+            except (ConnectionError, OfflineModeIsEnabled):
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
                 )
@@ -1202,20 +1181,10 @@ class TasksManager:
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
             model = model.to(torch_dtype).to(device)
         elif library_name == "sentence_transformers":
-            cache_folder = model_kwargs.pop("cache_folder", None)
-            use_auth_token = model_kwargs.pop("use_auth_token", None)
             token = model_kwargs.pop("token", None)
+            cache_folder = model_kwargs.pop("cache_folder", None)
             trust_remote_code = model_kwargs.pop("trust_remote_code", False)
             model_kwargs["torch_dtype"] = torch_dtype
-
-            if use_auth_token is not None:
-                warnings.warn(
-                    "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                    FutureWarning,
-                )
-                if token is not None:
-                    raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-                token = use_auth_token
 
             model = model_class(
                 model_name_or_path,
@@ -1269,7 +1238,7 @@ class TasksManager:
         model_name: Optional[str] = None,
         exporter_config_kwargs: Optional[Dict[str, Any]] = None,
         library_name: Optional[str] = None,
-    ) -> ExportConfigConstructor:
+    ) -> "ExportConfigConstructor":
         """
         Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
 

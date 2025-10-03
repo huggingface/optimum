@@ -17,7 +17,6 @@
 import logging
 import os
 import subprocess
-import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Union
@@ -61,8 +60,6 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
         force_download (`bool`, defaults to `True`):
             Whether or not to force the (re-)download of the model weights and configuration files, overriding the
             cached versions if they exist.
-        use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
-            Deprecated. Please use the `token` argument instead.
         token (`Optional[Union[bool,str]]`, defaults to `None`):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
             when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
@@ -176,18 +173,8 @@ class OptimizedModel(PreTrainedModel):
         save_directory: str,
         repository_id: str,
         private: Optional[bool] = None,
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
     ) -> str:
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         hf_api = HfApi(user_agent=http_user_agent(), token=token)
 
         hf_api.create_repo(
