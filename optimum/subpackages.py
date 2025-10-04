@@ -42,18 +42,24 @@ def load_namespace_modules(namespace: str, module: str):
         dist_name = dist.metadata["Name"]
         if dist_name is None:
             continue
-        if dist_name == f"{namespace}-benchmark":
-            continue
         if not dist_name.startswith(f"{namespace}-"):
             continue
+        if dist_name not in {"optimum-quanto", "optimum-nvidia"}:
+            # find_spec(optimum.backend.subpackage) loads optimum.backend as well
+            # which slows down the CLI startup time greatly (e.g. importing optimum.onnx)
+            # adding this early exit speeds up the cli to the same speed as without subpackages
+            continue
+
         package_import_name = dist_name.replace("-", ".")
         module_import_name = f"{package_import_name}.{module}"
         if module_import_name in sys.modules:
             # Module already loaded
             continue
+
         backend_spec = find_spec(module_import_name)
         if backend_spec is None:
             continue
+
         try:
             imported_module = module_from_spec(backend_spec)
             sys.modules[module_import_name] = imported_module
