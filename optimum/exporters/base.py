@@ -35,7 +35,7 @@ logger = get_logger(__name__)
 
 
 GENERATE_DUMMY_DOCSTRING = r"""
-        Generates the dummy inputs necessary for tracing the model. If not explicitely specified, default input shapes are used.
+        Generates the dummy inputs necessary for tracing the model. If not explicitly specified, default input shapes are used.
 
         Args:
             framework (`str`, defaults to `"pt"`):

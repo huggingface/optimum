@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-SEQLEN_KEYS_TRANFORMERS = ["max_position_embeddings", "seq_length", "n_positions"]
+SEQLEN_KEYS_TRANSFORMERS = ["max_position_embeddings", "seq_length", "n_positions"]
 BLOCK_PATTERNS = [
     "transformer.h",
     "model.decoder.layers",

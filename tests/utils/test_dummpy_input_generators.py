@@ -228,5 +228,5 @@ class GenerateDummy(TestCase):
         )
         self.validate_shape_for_all_frameworks(input_generator, "input_values", (batch_size, audio_sequence_length))
         self.validate_shape_for_all_frameworks(
-            input_generator, "input_feautres", (batch_size, feature_size, nb_max_frames)
+            input_generator, "input_features", (batch_size, feature_size, nb_max_frames)
         )

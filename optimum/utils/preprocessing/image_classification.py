@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 class ImageClassificationProcessing(TaskProcessor):
     ACCEPTED_PREPROCESSOR_CLASSES = (BaseImageProcessor,)
     DEFAULT_DATASET_ARGS = "uoft-cs/cifar10"
-    DEFAUL_DATASET_DATA_KEYS = {"image": "img"}
+    DEFAULT_DATASET_DATA_KEYS = {"image": "img"}
     ALLOWED_DATA_KEY_NAMES = {"image"}
     DEFAULT_REF_KEYS = ["answers"]
 

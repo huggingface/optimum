@@ -605,7 +605,7 @@ def _get_submodels_and_export_configs(
             logger.error(f"{exporter.upper()} custom configs for: {', '.join(custom_export_configs.keys())}")
             logger.error(f"Submodels to export: {', '.join(submodels_for_export.keys())}")
             raise ValueError(
-                f"Trying to export a custom model, but could not find as many custom {exporter.upper()} configs as the number of submodels to export. Please specifiy the fn_get_submodels argument, that should return a dictionary of submodules with as many items as the provided custom_export_configs dictionary."
+                f"Trying to export a custom model, but could not find as many custom {exporter.upper()} configs as the number of submodels to export. Please specify the fn_get_submodels argument, that should return a dictionary of submodules with as many items as the provided custom_export_configs dictionary."
             )
 
         for key, custom_export_config in custom_export_configs.items():

@@ -124,7 +124,7 @@ class GPTQQuantizer(object):
                 Setting it to False can significantly speed up inference but the perplexity may become slightly worse.
                 Also known as act-order.
             sym (`bool`, defaults to `True`):
-                Whether to use symetric quantization.
+                Whether to use symmetric quantization.
             true_sequential (`bool`, defaults to `True`):
                 Whether to perform sequential quantization even within a single Transformer block.
                 Instead of quantizing the entire block at once, we perform layer-wise quantization.
@@ -408,7 +408,7 @@ class GPTQQuantizer(object):
 
         if not is_auto_gptq_available() and not is_gptqmodel_available():
             raise RuntimeError(
-                "gptqmodel or auto-gptq is required in order to perform gptq quantzation: `pip install gptqmodel` or `pip install auto-gptq`. Please notice that auto-gptq will be deprecated in the future."
+                "gptqmodel or auto-gptq is required in order to perform gptq quantization: `pip install gptqmodel` or `pip install auto-gptq`. Please notice that auto-gptq will be deprecated in the future."
             )
         elif is_gptqmodel_available() and is_auto_gptq_available():
             logger.warning(
@@ -539,7 +539,7 @@ class GPTQQuantizer(object):
                 if "hidden_states" in kwargs:
                     input = (nested_move_to(kwargs["hidden_states"], cur_layer_device),)
                 else:
-                    raise ValueError("No input value found in the foward pass")
+                    raise ValueError("No input value found in the forward pass")
             layer_inputs.append(input)
             other_kwargs = {}
             for k, v in kwargs.items():  # make sure other arguments also be captured
@@ -784,7 +784,7 @@ class GPTQQuantizer(object):
 
         Args:
             model (`nn.Module`):
-                Model to be saved. The model can be wrapped or unwraped.
+                Model to be saved. The model can be wrapped or unwrapped.
             save_dir (`str`):
                 Directory to which to save. Will be created if it doesn't exist.
             max_shard_size (`str`, defaults to `"10GB"`):

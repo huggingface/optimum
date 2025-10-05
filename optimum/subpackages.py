@@ -66,7 +66,7 @@ def load_namespace_modules(namespace: str, module: str):
             backend_spec.loader.exec_module(imported_module)
             logger.debug(f"Successfully loaded {module_import_name}")
         except Exception as e:
-            logger.error(f"An exception occured while loading {module_import_name}: {e}.")
+            logger.error(f"An exception occurred while loading {module_import_name}: {e}.")
 
 
 def load_subpackages():

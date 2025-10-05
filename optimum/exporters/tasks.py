@@ -641,7 +641,7 @@ class TasksManager:
             # diffusers case
             framework = "pt"
         elif "config_sentence_transformers.json" in all_files:
-            # Sentence Transformers libary relies on PyTorch.
+            # Sentence Transformers library relies on PyTorch.
             framework = "pt"
         else:
             if request_exception is not None:
@@ -1282,7 +1282,7 @@ class TasksManager:
 
         if model_type is None:
             if hasattr(model.config, "export_model_type"):
-                # We can specifiy a custom `export_model_type` attribute in the config. Useful for timm, sentence_transformers
+                # We can specify a custom `export_model_type` attribute in the config. Useful for timm, sentence_transformers
                 model_type = model.config.export_model_type
             else:
                 model_type = getattr(model.config, "model_type", None)

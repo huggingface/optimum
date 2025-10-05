@@ -41,7 +41,7 @@ Performing quantization to go from `float32` to `float16` is quite straightforwa
 representation scheme. The questions to ask yourself when quantizing an operation to `float16` are:
 
 - Does my operation have a `float16` implementation?
-- Does my hardware suport `float16`? For instance, Intel CPUs [have been supporting `float16` as a storage type, but
+- Does my hardware support `float16`? For instance, Intel CPUs [have been supporting `float16` as a storage type, but
 computation is done after converting to `float32`](https://scicomp.stackexchange.com/a/35193). Full support will come
 in Cooper Lake and Sapphire Rapids.
 - Is my operation sensitive to lower precision?
@@ -109,7 +109,7 @@ paper, or [Lei Mao's blog post](https://leimao.github.io/article/Neural-Networks
 
 ### Per-tensor and per-channel quantization
 
-Depending on the accuracy / latency trade-off you are targetting you can play with the granularity of the quantization parameters:
+Depending on the accuracy / latency trade-off you are targeting you can play with the granularity of the quantization parameters:
 
 - Quantization parameters can be computed on a *per-tensor* basis, meaning that one pair of `(S, Z)` will be used per
 tensor.
@@ -157,7 +157,7 @@ this works well with activations.
   for more details.
 
 
-### Pratical steps to follow to quantize a model to `int8`
+### Practical steps to follow to quantize a model to `int8`
 
 To effectively quantize a model to `int8`, the steps to follow are:
 
@@ -168,7 +168,7 @@ for instance linear projections and matrix multiplications.
 accuracy. Apply observers to your models in places where you want to quantize.
 4. Choose a calibration technique and perform it.
 5. Convert the model to its quantized form: the observers are removed and the `float32` operators are converted to their `int8`
-coutnerparts.
+counterparts.
 6. Evaluate the quantized model: is the accuracy good enough? If yes, stop here, otherwise start again at step 3 but
 with quantization aware training this time.
 
@@ -214,7 +214,7 @@ Example: `19` is represented as an unsigned int8 as `00010011` because :
 19 = 0 x 2^7 + 0 x 2^6 + 0 x 2^5 + 1 x 2^4 + 0 x 2^3 + 0 x 2^2 + 1 x 2^1 + 1 x 2^0
 ```
 
-2. Signed integers: it is less straightforward to represent signed integers, and multiple approachs exist, the most
+2. Signed integers: it is less straightforward to represent signed integers, and multiple approaches exist, the most
 common being the *two's complement*. For more information, you can check the
 [Wikipedia page](https://en.wikipedia.org/wiki/Signed_number_representations) on the subject.
 
@@ -236,10 +236,10 @@ since it is the most commonly used. There are three components in the floating-p
   - 8 bits in `float32`
   - 11 bits in `float64`
 2. The mantissa
-  - 11 bits in `float16` (10 explictly stored)
+  - 11 bits in `float16` (10 explicitly stored)
   - 8 bits in `bfloat16` (7 explicitly stored)
-  - 24 bits in `float32` (23 explictly stored)
-  - 53 bits in `float64` (52 explictly stored)
+  - 24 bits in `float32` (23 explicitly stored)
+  - 53 bits in `float64` (52 explicitly stored)
 
 For more information on the bits allocation for each data type, check the nice illustration on the Wikipedia page about
 the [bfloat16 floating-point format](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format).

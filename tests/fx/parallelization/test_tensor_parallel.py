@@ -95,7 +95,7 @@ def run_test_all_rank_results_match(rank: int, world_size: int, model_id: str, m
     tearDown(tp_group)
 
 
-def run_test_parameters_persist_bewteen_recompile(
+def run_test_parameters_persist_between_recompile(
     rank: int, world_size: int, model_id: str, model_kwargs: Dict[str, Any]
 ):
     # initialize default group
@@ -215,14 +215,14 @@ def test_all_rank_results_match(
 @unittest.skipIf(
     not is_gpu_available() or not is_torch_compile_available(), "requires gpu and torch version >= 2.3.0 to run"
 )
-def test_parameters_persist_bewteen_recompile(
+def test_parameters_persist_between_recompile(
     model_id,
     model_kwargs,
 ):
     for world_size in [1, 2]:
         if world_size <= NUM_AVAILABLE_DEVICES:
             spawn(
-                world_size, run_test_parameters_persist_bewteen_recompile, model_id, model_kwargs, deterministic=False
+                world_size, run_test_parameters_persist_between_recompile, model_id, model_kwargs, deterministic=False
             )
 
 

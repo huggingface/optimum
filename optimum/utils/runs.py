@@ -258,7 +258,7 @@ class Run(_RunDefaults, _RunBase):
 
         # validate `task_args`
         if self.task == "text-classification":
-            message = "For text classification, whether the task is regression should be explicity specified in the task_args.is_regression key."
+            message = "For text classification, whether the task is regression should be explicitly specified in the task_args.is_regression key."
             assert self.task_args is not None, message
             assert self.task_args["is_regression"] is not None, message
 

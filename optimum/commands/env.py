@@ -46,7 +46,7 @@ class EnvironmentCommand(BaseOptimumCLICommand):
             "Platform": platform.platform(),
             "Python version": platform.python_version(),
             "Huggingface_hub version": huggingface_hub.__version__,
-            "PyTorch version (GPU?)": f"{pt_version} (cuda availabe: {pt_cuda_available})",
+            "PyTorch version (GPU?)": f"{pt_version} (cuda available: {pt_cuda_available})",
         }
 
         print("\nCopy-and-paste the text below in your GitHub issue:\n")
