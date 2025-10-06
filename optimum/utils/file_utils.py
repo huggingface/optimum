@@ -16,7 +16,6 @@
 
 import os
 import re
-import warnings
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -51,7 +50,6 @@ def find_files_matching_pattern(
     pattern: str,
     glob_pattern: str = "**/*",
     subfolder: str = "",
-    use_auth_token: Optional[Union[bool, str]] = None,
     token: Optional[Union[bool, str]] = None,
     revision: Optional[str] = None,
 ) -> List[Path]:
@@ -68,8 +66,6 @@ def find_files_matching_pattern(
         subfolder (`str`, defaults to `""`):
             In case the model files are located inside a subfolder of the model directory / repo on the Hugging
             Face Hub, you can specify the subfolder name here.
-        use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
-            Deprecated. Please use the `token` argument instead.
         token (`Optional[Union[bool,str]]`, defaults to `None`):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
             when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
@@ -82,15 +78,6 @@ def find_files_matching_pattern(
     Returns:
         `List[Path]`
     """
-
-    if use_auth_token is not None:
-        warnings.warn(
-            "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-            FutureWarning,
-        )
-        if token is not None:
-            raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-        token = use_auth_token
 
     model_path = str(model_name_or_path) if isinstance(model_name_or_path, Path) else model_name_or_path
     pattern = re.compile(subfolder + pattern)

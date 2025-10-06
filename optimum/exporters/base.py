@@ -20,25 +20,22 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from transformers.utils import is_torch_available
 
-from ..utils import (
-    DEFAULT_DUMMY_SHAPES,
-    DummyInputGenerator,
-    logging,
-)
 from ..utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ..utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
 from ..utils.doc import add_dynamic_docstring
 from ..utils.import_utils import is_torch_version, is_transformers_version
+from ..utils.input_generators import DEFAULT_DUMMY_SHAPES, DummyInputGenerator
+from ..utils.logging import get_logger
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
-logger = logging.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 GENERATE_DUMMY_DOCSTRING = r"""
-        Generates the dummy inputs necessary for tracing the model. If not explicitely specified, default input shapes are used.
+        Generates the dummy inputs necessary for tracing the model. If not explicitly specified, default input shapes are used.
 
         Args:
             framework (`str`, defaults to `"pt"`):

@@ -24,7 +24,7 @@ from pathlib import Path
 import optimum.commands.base
 
 
-CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
+CLI_WITH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
 OPTIMUM_COMMANDS_DIR = Path(inspect.getfile(optimum.commands.base)).parent
 REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH = OPTIMUM_COMMANDS_DIR / "register" / "cli_with_custom_command.py"
 
@@ -65,7 +65,7 @@ class TestCLI(unittest.TestCase):
         self.assertFalse(succeeded, "The command should fail here since it is not registered yet.")
 
         # As a "base" command in `optimum-cli`.
-        shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
+        shutil.copy(CLI_WITH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
         # We check that the print_help method prints the registered command.
         succeeded = self._run_command_and_check_content("optimum-cli", command_name)
         self.assertTrue(succeeded, "The command name should appear in the help.")
@@ -75,7 +75,7 @@ class TestCLI(unittest.TestCase):
         REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink()
 
         # As a subcommand of an existing command, `optimum-cli export` here.
-        shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
+        shutil.copy(CLI_WITH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
         os.environ["TEST_REGISTER_COMMAND_WITH_SUBCOMMAND"] = "true"
         # We check that the print_help method prints the registered command.
         succeeded = self._run_command_and_check_content("optimum-cli export", "blablabla")

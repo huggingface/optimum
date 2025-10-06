@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 class TokenClassificationProcessing(TaskProcessor):
     ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
     DEFAULT_DATASET_ARGS = "conll2003"
-    DEFAUL_DATASET_DATA_KEYS = {"primary": "tokens"}
+    DEFAULT_DATASET_DATA_KEYS = {"primary": "tokens"}
     ALLOWED_DATA_KEY_NAMES = {"primary"}
     DEFAULT_REF_KEYS = ["ner_tags", "pos_tags", "chunk_tags"]
 

@@ -21,7 +21,6 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import List, Optional, Tuple, Union
 
-import numpy as np
 from packaging import version
 
 
@@ -32,9 +31,8 @@ TRANSFORMERS_MINIMUM_VERSION = version.parse("4.36.0")
 DIFFUSERS_MINIMUM_VERSION = version.parse("0.22.0")
 AUTOGPTQ_MINIMUM_VERSION = version.parse("0.4.99")  # Allows 0.5.0.dev0
 GPTQMODEL_MINIMUM_VERSION = version.parse("1.6.0")
+ORT_QUANTIZE_MINIMUM_VERSION = version.parse("1.4.0")  # TODO: remove as optimm-onnx requires >=1.15.0
 
-# This is the minimal required version to support some ONNX Runtime features
-ORT_QUANTIZE_MINIMUM_VERSION = version.parse("1.4.0")
 
 STR_OPERATION_TO_FUNC = {">": op.gt, ">=": op.ge, "==": op.eq, "!=": op.ne, "<=": op.le, "<": op.lt}
 
@@ -119,33 +117,7 @@ _onnxruntime_available = _is_package_available(
         "ort-rocm-nightly",
     ],
 )
-_tf_available, _tf_version = _is_package_available(
-    "tensorflow",
-    return_version=True,
-    pkg_distributions=[
-        "tensorflow",
-        "tensorflow-cpu",
-        "tensorflow-gpu",
-        "tensorflow-rocm",
-        "tensorflow-macos",
-        "tensorflow-aarch64",
-        "tf-nightly",
-        "tf-nightly-cpu",
-        "tf-nightly-gpu",
-        "tf-nightly-rocm",
-        "tf-nightly-macos",
-        "intel-tensorflow",
-        "intel-tensorflow-avx512",
-    ],
-)
 _onnxslim_available = _is_package_available("onnxslim")
-
-if _tf_available and version.parse(_tf_version) < version.parse("2"):
-    logger.warning(
-        "TensorFlow 2.0 or higher is required to use the TensorFlow backend. "
-        "Please install the latest version of TensorFlow, or switch to another backend."
-    )
-    _tf_available = False
 
 
 # This function was copied from: https://github.com/huggingface/accelerate/blob/874c4967d94badd24f893064cc3bef45f57cadf7/src/accelerate/utils/versions.py#L319
@@ -248,10 +220,6 @@ def is_torch_available():
     return _torch_available
 
 
-def is_tf_available():
-    return _tf_available
-
-
 def is_auto_gptq_available():
     if _auto_gptq_available:
         v = version.parse(importlib.metadata.version("auto_gptq"))
@@ -296,6 +264,8 @@ def is_optimum_intel_available():
 
 @contextmanager
 def require_numpy_strictly_lower(package_version: str, message: str):
+    import numpy as np
+
     if not version.parse(np.__version__) < version.parse(package_version):
         raise ImportError(
             f"Found an incompatible version of numpy. Found version {np.__version__}, but expected numpy<{version}. {message}"

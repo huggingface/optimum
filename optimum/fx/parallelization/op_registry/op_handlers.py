@@ -409,7 +409,7 @@ class SpdaAttnParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 class FallbackParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
     def propagate(self) -> List[int]:
-        # by default we don't parallelize inputs and constants(except parameters embeded in modules)
+        # by default we don't parallelize inputs and constants(except parameters embedded in modules)
         if self.node.op in ["placeholder", "get_attr"]:
             return [None]
         elif self.node.op == "output":

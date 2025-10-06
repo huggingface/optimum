@@ -12,13 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import platform
 
-import huggingface_hub
-from transformers import __version__ as transformers_version
-from transformers.utils import is_tf_available, is_torch_available
-
-from ..version import __version__ as version
 from .base import BaseOptimumCLICommand, CommandInfo
 
 
@@ -30,6 +24,14 @@ class EnvironmentCommand(BaseOptimumCLICommand):
         return "\n".join([f"- {prop}: {val}" for prop, val in d.items()]) + "\n"
 
     def run(self):
+        import platform
+
+        import huggingface_hub
+        from transformers import __version__ as transformers_version
+        from transformers.utils import is_torch_available
+
+        from ..version import __version__ as version
+
         pt_version = "not installed"
         pt_cuda_available = "NA"
         if is_torch_available():
@@ -38,27 +40,13 @@ class EnvironmentCommand(BaseOptimumCLICommand):
             pt_version = torch.__version__
             pt_cuda_available = torch.cuda.is_available()
 
-        tf_version = "not installed"
-        tf_cuda_available = "NA"
-        if is_tf_available():
-            import tensorflow as tf
-
-            tf_version = tf.__version__
-            try:
-                # deprecated in v2.1
-                tf_cuda_available = tf.test.is_gpu_available()
-            except AttributeError:
-                # returns list of devices, convert to bool
-                tf_cuda_available = bool(tf.config.list_physical_devices("GPU"))
-
         info = {
             "`optimum` version": version,
             "`transformers` version": transformers_version,
             "Platform": platform.platform(),
             "Python version": platform.python_version(),
             "Huggingface_hub version": huggingface_hub.__version__,
-            "PyTorch version (GPU?)": f"{pt_version} (cuda availabe: {pt_cuda_available})",
-            "Tensorflow version (GPU?)": f"{tf_version} (cuda availabe: {tf_cuda_available})",
+            "PyTorch version (GPU?)": f"{pt_version} (cuda available: {pt_cuda_available})",
         }
 
         print("\nCopy-and-paste the text below in your GitHub issue:\n")

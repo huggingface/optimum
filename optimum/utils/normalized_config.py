@@ -161,34 +161,48 @@ BartLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="encoder_attention_heads",
     hidden_size="d_model",
 )
-
-GPT2LikeNormalizedTextConfig = NormalizedTextConfig.with_args(num_attention_heads="n_head", hidden_size="n_embd")
+GPT2LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="n_head",
+    hidden_size="n_embd",
+)
 T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
     hidden_size="d_model",
 )
 MPTNormalizedTextConfig = NormalizedTextConfig.with_args(
-    num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
+    num_attention_heads="n_heads",
+    hidden_size="d_model",
+    num_layers="n_layers",
 )
 GPTBigCodeNormalizedTextConfig = NormalizedTextConfig.with_args(
-    num_attention_heads="n_head", hidden_size="n_embd", num_layers="n_layer"
+    num_attention_heads="n_head",
+    hidden_size="n_embd",
+    num_layers="n_layer",
 )
-
 WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
 )
-
 TrOCRLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
-    num_layers="decoder_layers",
     num_attention_heads="decoder_attention_heads",
+    num_layers="decoder_layers",
     hidden_size="hidden_size",
 )
-
 SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
+    input_features_per_channel="input_feat_per_channel",
     decoder_num_layers="decoder_layers",
     num_layers="decoder_layers",
-    input_features_per_channel="input_feat_per_channel",
     allow_new=True,
+)
+BloomNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="n_head",
+    num_layers="n_layer",
+)
+DistilBertNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="n_heads",
+    hidden_size="dim",
+)
+GPTNeoNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="num_heads",
 )
 
 
@@ -201,9 +215,10 @@ class NormalizedConfigManager:
             and the hidden size model config attribute names as well as the corresponding ONNX Runtime model type.
     """
 
+    # TODO: missing normalized configs (currently not useful)
     """
-    TODO: missing normalized configs (currently not useful)
-        ['beit',
+        ...
+        'beit',
         'clip',
         'convbert',
         'convnext',
@@ -228,6 +243,7 @@ class NormalizedConfigManager:
         'siglip',
         'squeezebert',
         'table-transformer',
+        ...
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -239,7 +255,7 @@ class NormalizedConfigManager:
         "bigbird_pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot-small": BartLikeNormalizedTextConfig,
-        "bloom": NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head"),
+        "bloom": BloomNormalizedTextConfig,
         "falcon": NormalizedTextConfig,
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
@@ -248,14 +264,14 @@ class NormalizedConfigManager:
         "deberta-v2": NormalizedTextConfig,
         "deit": NormalizedVisionConfig,
         "dinov2": NormalizedVisionConfig,
-        "distilbert": NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"),
+        "distilbert": DistilBertNormalizedTextConfig,
         "donut-swin": NormalizedVisionConfig,
         "electra": NormalizedTextConfig,
         "encoder-decoder": NormalizedEncoderDecoderConfig,
         "gemma": NormalizedTextConfigWithGQA,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
-        "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
+        "gpt_neo": GPTNeoNormalizedTextConfig,
         "gpt_neox": NormalizedTextConfig,
         "gptj": GPT2LikeNormalizedTextConfig,
         "imagegpt": GPT2LikeNormalizedTextConfig,

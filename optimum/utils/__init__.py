@@ -11,12 +11,12 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
+"""Utility functions for the Optimum library."""
 
 from .constant import (
+    ALL_TASKS,
     CONFIG_NAME,
     DIFFUSION_MODEL_CONFIG_FILE_NAME,
-    DIFFUSION_MODEL_ONNX_FILE_NAME,
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
@@ -28,7 +28,9 @@ from .constant import (
     ONNX_WEIGHTS_NAME,
 )
 from .import_utils import (
+    AUTOGPTQ_MINIMUM_VERSION,
     DIFFUSERS_MINIMUM_VERSION,
+    GPTQMODEL_MINIMUM_VERSION,
     ORT_QUANTIZE_MINIMUM_VERSION,
     TORCH_MINIMUM_VERSION,
     TRANSFORMERS_MINIMUM_VERSION,
@@ -48,7 +50,6 @@ from .import_utils import (
     is_pydantic_available,
     is_sentence_transformers_available,
     is_tensorrt_available,
-    is_tf_available,
     is_timm_available,
     is_torch_available,
     is_torch_onnx_support_available,

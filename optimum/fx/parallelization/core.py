@@ -73,7 +73,7 @@ class ParameterMeta:
 
     Attributes:
         - is_tied (`bool`, defaults to `False`):
-            Whether the parameter is shared accross multiple modules.
+            Whether the parameter is shared across multiple modules.
 
         - is_parallel (`bool`, defaults to `False`):
             Whether the parameter needs to be parallelized.
@@ -113,7 +113,7 @@ class ParallelExecutionCtx:
             Tensor parallel process group the current process belongs to.
 
         - current_device (`torch.device`):
-            Device correpsonding to the current process.
+            Device corresponding to the current process.
 
         - example_inputs (`List[Any]`):
             A list of tensors which are used as example inputs for graphs captured by dynamo.

@@ -41,7 +41,6 @@ if TYPE_CHECKING:
         PreTrainedTokenizer,
         PreTrainedTokenizerFast,
         ProcessorMixin,
-        TFPreTrainedModel,
     )
 
 
@@ -49,7 +48,7 @@ if TYPE_CHECKING:
 # to reflect the fact that this pipeline loads Accelerated models using optimum.
 def pipeline(
     task: Optional[str] = None,
-    model: Optional[Union[str, "PreTrainedModel", "TFPreTrainedModel"]] = None,
+    model: Optional[Union[str, "PreTrainedModel"]] = None,
     config: Optional[Union[str, "PretrainedConfig"]] = None,
     tokenizer: Optional[Union[str, "PreTrainedTokenizer", "PreTrainedTokenizerFast"]] = None,
     feature_extractor: Optional[Union[str, "FeatureExtractionMixin "]] = None,
@@ -156,8 +155,7 @@ def pipeline(
             If not provided, the default processor for the given `model` will be loaded (if it is a string). If `model`
             is not specified or not a string, then the default processor for `config` is loaded (if it is a string).
         framework (`str`, *optional*):
-            The framework to use, either `"pt"` for PyTorch or `"tf"` for TensorFlow. The specified framework must be
-            installed.
+            The framework to use, only supports `"pt"` for PyTorch. The specified framework must be installed.
             If no framework is specified, will default to the one currently installed. If no framework is specified and
             both frameworks are installed, will default to the framework of the `model`, or to PyTorch if no model is
             provided.
@@ -167,9 +165,6 @@ def pipeline(
             artifacts on huggingface.co, so `revision` can be any identifier allowed by git.
         use_fast (`bool`, *optional*, defaults to `True`):
             Whether or not to use a Fast tokenizer if possible (a [`PreTrainedTokenizerFast`]).
-        use_auth_token (`str` or *bool*, *optional*):
-            The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
-            when running `hf auth login` (stored in `~/.huggingface`).
         device (`int` or `str` or `torch.device`):
             Defines the device (*e.g.*, `"cpu"`, `"cuda:1"`, `"mps"`, or a GPU ordinal rank like `1`) on which this
             pipeline will be allocated.
@@ -243,7 +238,7 @@ def pipeline(
             )
 
     if accelerator == "ort":
-        from optimum.onnxruntime import pipeline as ort_pipeline
+        from optimum.onnxruntime import pipeline as ort_pipeline  # type: ignore
 
         return ort_pipeline(
             task=task,
@@ -266,7 +261,7 @@ def pipeline(
             **kwargs,
         )
     elif accelerator in ["ov", "ipex"]:
-        from optimum.intel import pipeline as intel_pipeline
+        from optimum.intel import pipeline as intel_pipeline  # type: ignore
 
         return intel_pipeline(
             task=task,

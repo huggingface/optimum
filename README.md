@@ -91,7 +91,7 @@ It is possible to export Transformers, Diffusers, Sentence Transformers and timm
 
 For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum-onnx/en/onnx/usage_guides/export_a_model).
 
-Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend.
+Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seamless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend.
 
 For this make sure you have ONNX Runtime installed, fore more information check out the [installation instructions](https://onnxruntime.ai/docs/install/).
 

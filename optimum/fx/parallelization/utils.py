@@ -316,7 +316,7 @@ def initialize_parameter_meta(model: nn.Module) -> None:
 def move_model_to_device(model: nn.Module, device: Union[torch.device, str]):
     """
     Move everything except tensors on meta devices on current device
-    this function should be called before `intialize_parameter_meta`
+    this function should be called before `initialize_parameter_meta`
     """
     for name, tensor in chain(model.named_parameters(), model.named_buffers()):
         if tensor.device == torch.device("meta"):
@@ -355,7 +355,7 @@ class DisabledTqdm(tqdm):
         super().__init__(*args, **kwargs, disable=True)
 
 
-# adpated from vllm.model_executor.model_loader.weight_utils.py
+# adapted from vllm.model_executor.model_loader.weight_utils.py
 def download_model_from_hf(
     model_name_or_path: str,
     cache_dir: Optional[str],

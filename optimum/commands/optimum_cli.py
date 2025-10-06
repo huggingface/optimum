@@ -18,13 +18,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Type, Union
 
 from ..subpackages import load_subpackages
-from ..utils import logging
+from ..utils.logging import get_logger
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
 from .export.base import ExportCommand
 
 
-logger = logging.get_logger()
+logger = get_logger(__name__)
 
 # The table below contains the optimum-cli root subcommands provided by the optimum package
 OPTIMUM_CLI_ROOT_SUBCOMMANDS = [ExportCommand, EnvironmentCommand]
@@ -130,7 +130,10 @@ def load_optimum_namespace_cli_commands() -> (
         # Look for python files
         for register_file in register_path.iterdir():
             if register_file.name == "__init__.py":
-                raise ValueError("The namespace optimum.commands.register should never contain an __init__.py file.")
+                logger.warning(
+                    "The namespace optimum.commands.register should never contain an __init__.py file (PEP 420). "
+                    f"However an __init__.py file was found in {register_path} which might result in import issues."
+                )
             if register_file.suffix != ".py":
                 continue
 

@@ -20,7 +20,6 @@ from unittest import TestCase
 import torch
 from parameterized import parameterized
 from transformers import AutoConfig
-from transformers.utils import is_tf_available
 
 from optimum.utils import DTYPE_MAPPER, DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
 from optimum.utils.normalized_config import NormalizedConfigManager
@@ -59,10 +58,6 @@ class GenerateDummy(TestCase):
         "pt": torch.Size,
         "np": tuple,
     }
-    if is_tf_available():
-        import tensorflow as tf  # type: ignore[import]
-
-        _FRAMEWORK_TO_SHAPE_CLS["tf"] = tf.TensorShape
 
     def validate_shape_for_framework(
         self, generator: "DummyInputGenerator", input_name: str, framework: str, target_shape: Tuple[int, ...]
@@ -82,7 +77,7 @@ class GenerateDummy(TestCase):
             generated_tenor = generator.generate(input_name=input_name, framework=framework, int_dtype=target_dtype)
         else:
             generated_tenor = generator.generate(input_name=input_name, framework=framework, float_dtype=target_dtype)
-        dtype_funcs = {"np": DTYPE_MAPPER.np, "pt": DTYPE_MAPPER.pt, "tf": DTYPE_MAPPER.tf}
+        dtype_funcs = {"np": DTYPE_MAPPER.np, "pt": DTYPE_MAPPER.pt}
         target_dtype = dtype_funcs[framework](target_dtype)
         if generated_tenor.dtype != target_dtype:
             raise ValueError(
@@ -233,5 +228,5 @@ class GenerateDummy(TestCase):
         )
         self.validate_shape_for_all_frameworks(input_generator, "input_values", (batch_size, audio_sequence_length))
         self.validate_shape_for_all_frameworks(
-            input_generator, "input_feautres", (batch_size, feature_size, nb_max_frames)
+            input_generator, "input_features", (batch_size, feature_size, nb_max_frames)
         )

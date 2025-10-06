@@ -30,7 +30,7 @@ You need to have the following requirements installed to run the code below:
 
 ### Load and quantize a model
 
-The [`~optimum.gptq.GPTQQuantizer`] class is used to quantize your model. In order to quantize your model, you need to provide a few arguemnts:
+The [`~optimum.gptq.GPTQQuantizer`] class is used to quantize your model. In order to quantize your model, you need to provide a few arguments:
 - the number of bits: `bits`
 - the dataset used to calibrate the quantization: `dataset`
 - the model sequence length used to process the dataset: `model_seqlen`
@@ -51,7 +51,7 @@ quantized_model = quantizer.quantize_model(model, tokenizer)
 ```
 
 <Tip warning={true}>
-GPTQ quantization only works for text model for now. Futhermore, the quantization process can take a lot of time depending on one's hardware (175B model = 4 gpu hours using NVIDIA A100). Please check on the Hugging Face Hub if there is not already a GPTQ quantized version of the model you would like to quantize.
+GPTQ quantization only works for text model for now. Furthermore, the quantization process can take a lot of time depending on one's hardware (175B model = 4 gpu hours using NVIDIA A100). Please check on the Hugging Face Hub if there is not already a GPTQ quantized version of the model you would like to quantize.
 </Tip>
 
 ### Save the model

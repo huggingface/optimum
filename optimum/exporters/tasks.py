@@ -16,20 +16,20 @@
 
 import importlib
 import os
-import warnings
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
+import torch
 from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.errors import OfflineModeIsEnabled
 from packaging import version
-from requests.exceptions import ConnectionError as RequestsConnectionError
-from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
+from requests.exceptions import ConnectionError
+from transformers import AutoConfig, PretrainedConfig
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
 
-from ..utils.import_utils import is_diffusers_available
+from ..utils.import_utils import is_diffusers_available, is_torch_available
 from ..utils.logging import get_logger
 
 
@@ -38,34 +38,18 @@ if TYPE_CHECKING:
 
     if is_torch_available():
         from transformers import PreTrainedModel
-    elif is_tf_available():
-        from transformers import TFPreTrainedModel
+
+    if is_diffusers_available():
+        from diffusers import DiffusionPipeline
+
 
 logger = get_logger(__name__)
 
-if not is_torch_available() and not is_tf_available():
-    logger.warning(
-        "The export tasks are only supported for PyTorch or TensorFlow. You will not be able to export models"
-        " without one of these libraries installed."
-    )
 
-if is_torch_available():
-    import torch
+ExportConfigConstructor = Callable[["PretrainedConfig"], "ExporterConfig"]
 
 
-if is_diffusers_available():
-    from diffusers import DiffusionPipeline
-    from diffusers.pipelines.auto_pipeline import (
-        AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
-        AUTO_INPAINT_PIPELINES_MAPPING,
-        AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
-    )
-
-ExportConfigConstructor = Callable[[PretrainedConfig], "ExporterConfig"]
-TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
-
-
-def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> ExportConfigConstructor:
+def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> "ExportConfigConstructor":
     if "-with-past" in task:
         if not getattr(config_cls, "SUPPORTS_PAST", False):
             raise ValueError(f"{config_cls} does not support tasks with past.")
@@ -80,6 +64,22 @@ def get_diffusers_tasks_to_model_mapping():
 
     tasks_to_model_mapping = {}
 
+    try:
+        from diffusers.pipelines.auto_pipeline import (
+            AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+            AUTO_INPAINT_PIPELINES_MAPPING,
+            AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+        )
+    except Exception as e:
+        # Sometimes a user might have two incompatible versions of transformers and diffusers
+        # resulting in a transformers model export failing because of diffusers import.
+        logger.warning(
+            "optimum.exporters.tasks.get_diffusers_tasks_to_model_mapping method failed to import diffusers with the error below."
+            "Please make sure you have diffusers installed and compatible with your transformers version.\n\n"
+            f"{e}"
+        )
+        return tasks_to_model_mapping
+
     for task_name, model_mapping in (
         ("text-to-image", AUTO_TEXT2IMAGE_PIPELINES_MAPPING),
         ("image-to-image", AUTO_IMAGE2IMAGE_PIPELINES_MAPPING),
@@ -93,12 +93,10 @@ def get_diffusers_tasks_to_model_mapping():
     return tasks_to_model_mapping
 
 
-def get_transformers_tasks_to_model_mapping(tasks_to_model_loader, framework="pt"):
+def get_transformers_tasks_to_model_mapping(tasks_to_model_loader):
     """task -> model type -> model class mapping"""
-    if framework == "pt":
-        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_auto")
-    elif framework == "tf":
-        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
+
+    import transformers.models.auto.modeling_auto as auto_modeling_module
 
     tasks_to_model_mapping = {}
     for task_name, model_loaders in tasks_to_model_loader.items():
@@ -122,31 +120,22 @@ class TasksManager:
     Handles the `task name -> model class` and `architecture -> configuration` mappings.
     """
 
-    # Torch model loaders
+    # Torch auto model loaders
+    # (task -> auto-model class name)
     _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {}
     _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {}
     _TIMM_TASKS_TO_MODEL_LOADERS = {}
     _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {}
 
     # Torch model mappings
+    # (task -> model type / pipelines architecture -> model class name)
     _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = {}
     _DIFFUSERS_TASKS_TO_MODEL_MAPPINGS = {}
-
-    # TF model loaders
-    _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {}
-    _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {}
-
-    # TF model mappings
-    _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = {}
 
     if is_torch_available():
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
-        # auto-class _model_mapping to determine the right one.
-
-        # TODO: having several tasks pointing to the same auto-model class is bug prone to auto-detect the
-        # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
-        # on transformersInfo["auto_model"] and this dictionary.
+        # auto-class's _model_mapping to determine the right one (see get_transformers_tasks_to_model_mapping)
         _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
             "audio-classification": "AutoModelForAudioClassification",
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
@@ -163,7 +152,9 @@ class TasksManager:
                 "AutoModelForUniversalSegmentation",
             ),
             "image-to-image": "AutoModelForImageToImage",
+            # TODO: AutoModelForVision2Seq is deprecated and will be removed in Transformers v5
             "image-to-text": ("AutoModelForVision2Seq", "AutoModel"),
+            "image-text-to-text": "AutoModelForImageTextToText",
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "multiple-choice": "AutoModelForMultipleChoice",
@@ -181,12 +172,10 @@ class TasksManager:
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
 
-        _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = get_transformers_tasks_to_model_mapping(
-            _TRANSFORMERS_TASKS_TO_MODEL_LOADERS, framework="pt"
-        )
-
-        _TIMM_TASKS_TO_MODEL_LOADERS = {
-            "image-classification": "create_model",
+        _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
+            "image-to-image": "AutoPipelineForImage2Image",
+            "inpainting": "AutoPipelineForInpainting",
+            "text-to-image": "AutoPipelineForText2Image",
         }
 
         _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
@@ -194,14 +183,9 @@ class TasksManager:
             "sentence-similarity": "SentenceTransformer",
         }
 
-        if is_diffusers_available():
-            _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
-                "image-to-image": "AutoPipelineForImage2Image",
-                "inpainting": "AutoPipelineForInpainting",
-                "text-to-image": "AutoPipelineForText2Image",
-            }
-
-            _DIFFUSERS_TASKS_TO_MODEL_MAPPINGS = get_diffusers_tasks_to_model_mapping()
+        _TIMM_TASKS_TO_MODEL_LOADERS = {
+            "image-classification": "create_model",
+        }
 
         _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {
             "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
@@ -210,35 +194,11 @@ class TasksManager:
             "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
         }
 
-    if is_tf_available():
-        _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {
-            "document-question-answering": "TFAutoModelForDocumentQuestionAnswering",
-            "feature-extraction": "TFAutoModel",
-            "fill-mask": "TFAutoModelForMaskedLM",
-            "text-generation": "TFAutoModelForCausalLM",
-            "image-classification": "TFAutoModelForImageClassification",
-            "text2text-generation": "TFAutoModelForSeq2SeqLM",
-            "text-classification": "TFAutoModelForSequenceClassification",
-            "token-classification": "TFAutoModelForTokenClassification",
-            "multiple-choice": "TFAutoModelForMultipleChoice",
-            "question-answering": "TFAutoModelForQuestionAnswering",
-            "image-segmentation": "TFAutoModelForImageSegmentation",
-            "masked-im": "TFAutoModelForMaskedImageModeling",
-            "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
-            "automatic-speech-recognition": "TFAutoModelForSpeechSeq2Seq",
-            "audio-classification": "TFAutoModelForAudioClassification",
-            "image-to-text": "TFAutoModelForVision2Seq",
-            "zero-shot-image-classification": "TFAutoModelForZeroShotImageClassification",
-            "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
-        }
-
-        _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {
-            "transformers": _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS,
-        }
-
-        _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS = get_transformers_tasks_to_model_mapping(
-            _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS, framework="tf"
+        _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = get_transformers_tasks_to_model_mapping(
+            _TRANSFORMERS_TASKS_TO_MODEL_LOADERS
         )
+        if is_diffusers_available():
+            _DIFFUSERS_TASKS_TO_MODEL_MAPPINGS = get_diffusers_tasks_to_model_mapping()
 
     _SYNONYM_TASK_MAP = {
         "audio-ctc": "automatic-speech-recognition",
@@ -382,7 +342,7 @@ class TasksManager:
     @staticmethod
     def get_supported_tasks_for_model_type(
         model_type: str, exporter: str, model_name: Optional[str] = None, library_name: Optional[str] = None
-    ) -> TaskNameToExportConfigDict:
+    ) -> Dict[str, "ExportConfigConstructor"]:
         """
         Retrieves the `task -> exporter backend config constructors` map from the model type.
 
@@ -397,8 +357,8 @@ class TasksManager:
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
-            `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExporterConfig`
-            constructor.
+            `Dict[str, ExportConfigConstructor]`: The mapping between the supported tasks and the backend config
+            constructors for the specified model type.
         """
         if library_name is None:
             logger.warning(
@@ -477,12 +437,10 @@ class TasksManager:
         Validates if the framework requested for the export is both correct and available, otherwise throws an
         exception.
         """
-        if framework not in ["pt", "tf"]:
-            raise ValueError(f"Only two frameworks are supported for export: pt or tf, but {framework} was provided.")
+        if framework not in ["pt"]:
+            raise ValueError(f"Only one framework is supported for export: pt, but {framework} was provided.")
         elif framework == "pt" and not is_torch_available():
             raise RuntimeError("Cannot export model using PyTorch because no PyTorch package was found.")
-        elif framework == "tf" and not is_tf_available():
-            raise RuntimeError("Cannot export model using TensorFlow because no TensorFlow package was found.")
 
     @staticmethod
     def get_model_class_for_task(
@@ -527,7 +485,7 @@ class TasksManager:
             if framework == "pt":
                 tasks_to_model_loader = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP[library]
             else:
-                tasks_to_model_loader = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP[library]
+                raise ValueError(f"Only PyTorch is supported for export, but {framework} was provided.")
 
             loaded_library = importlib.import_module(library)
 
@@ -574,22 +532,11 @@ class TasksManager:
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
     ):
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         request_exception = None
         full_model_path = Path(model_name_or_path, subfolder)
-
         hf_api = HfApi(user_agent=http_user_agent(), token=token)
 
         if full_model_path.is_dir():
@@ -610,7 +557,7 @@ class TasksManager:
                 )
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
-            except (RequestsConnectionError, OfflineModeIsEnabled) as e:
+            except (ConnectionError, OfflineModeIsEnabled) as e:
                 snapshot_path = hf_api.snapshot_download(
                     repo_id=model_name_or_path,
                     cache_dir=cache_dir,
@@ -694,11 +641,11 @@ class TasksManager:
             # diffusers case
             framework = "pt"
         elif "config_sentence_transformers.json" in all_files:
-            # Sentence Transformers libary relies on PyTorch.
+            # Sentence Transformers library relies on PyTorch.
             framework = "pt"
         else:
             if request_exception is not None:
-                raise RequestsConnectionError(
+                raise ConnectionError(
                     f"The framework could not be automatically inferred. If using the command-line, please provide the argument --framework (pt,tf) Detailed error: {request_exception}"
                 )
             else:
@@ -710,10 +657,8 @@ class TasksManager:
 
         if is_torch_available():
             framework = framework or "pt"
-        elif is_tf_available():
-            framework = framework or "tf"
         else:
-            raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
+            raise EnvironmentError("PyTorch was not found in environment. Cannot export model.")
 
         logger.info(f"Framework not specified. Using {framework} to export the model.")
 
@@ -722,8 +667,8 @@ class TasksManager:
     @classmethod
     def _infer_task_from_model_or_model_class(
         cls,
-        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
-        model_class: Optional[Type[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]]] = None,
+        model: Optional[Union["PreTrainedModel", "DiffusionPipeline"]] = None,
+        model_class: Optional[Type[Union["PreTrainedModel", "DiffusionPipeline"]]] = None,
     ) -> str:
         if model is not None and model_class is not None:
             raise ValueError("Either a model or a model class must be provided, but both were given here.")
@@ -738,8 +683,6 @@ class TasksManager:
 
         if target_class_name.startswith("AutoModel"):
             tasks_to_model_loaders = cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS
-        elif target_class_name.startswith("TFAutoModel"):
-            tasks_to_model_loaders = cls._TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS
         elif target_class_name.startswith("AutoPipeline"):
             tasks_to_model_loaders = cls._DIFFUSERS_TASKS_TO_MODEL_LOADERS
 
@@ -755,10 +698,7 @@ class TasksManager:
         tasks_to_model_mapping = None
 
         if target_class_module.startswith("transformers"):
-            if target_class_name.startswith("TF"):
-                tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS
-            else:
-                tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS
+            tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS
         elif target_class_module.startswith("diffusers"):
             tasks_to_model_mapping = cls._DIFFUSERS_TASKS_TO_MODEL_MAPPINGS
 
@@ -800,7 +740,7 @@ class TasksManager:
                 model_info = HfApi(user_agent=http_user_agent(), token=token).model_info(
                     model_name_or_path, revision=revision, token=token
                 )
-            except (RequestsConnectionError, OfflineModeIsEnabled):
+            except (ConnectionError, OfflineModeIsEnabled):
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
                 )
@@ -863,7 +803,7 @@ class TasksManager:
     @classmethod
     def infer_task_from_model(
         cls,
-        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline", Type],
+        model: Union[str, "PreTrainedModel", "DiffusionPipeline", Type],
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -874,7 +814,7 @@ class TasksManager:
         Infers the task from the model repo, model instance, or model class.
 
         Args:
-            model (`Union[str, PreTrainedModel, TFPreTrainedModel, DiffusionPipeline, Type]`):
+            model (`Union[str, PreTrainedModel, DiffusionPipeline, Type]`):
                 The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
                 instance of a model, or a model class.
             subfolder (`str`, *optional*, defaults to `""`):
@@ -919,8 +859,8 @@ class TasksManager:
     @classmethod
     def _infer_library_from_model_or_model_class(
         cls,
-        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
-        model_class: Optional[Type[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]]] = None,
+        model: Optional[Union["PreTrainedModel", "DiffusionPipeline"]] = None,
+        model_class: Optional[Type[Union["PreTrainedModel", "DiffusionPipeline"]]] = None,
     ):
         inferred_library_name = None
         if model is not None and model_class is not None:
@@ -1022,7 +962,7 @@ class TasksManager:
     @classmethod
     def infer_library_from_model(
         cls,
-        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline", Type],
+        model: Union[str, "PreTrainedModel", "DiffusionPipeline", Type],
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -1032,7 +972,7 @@ class TasksManager:
         Infers the library from the model repo, model instance, or model class.
 
         Args:
-            model (`Union[str, PreTrainedModel, TFPreTrainedModel, DiffusionPipeline, Type]`):
+            model (`Union[str, PreTrainedModel, DiffusionPipeline, Type]`):
                 The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
                 instance of a model, or a model class.
             subfolder (`str`, defaults to `""`):
@@ -1068,7 +1008,7 @@ class TasksManager:
     @classmethod
     def standardize_model_attributes(
         cls,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
+        model: Union["PreTrainedModel", "DiffusionPipeline"],
         library_name: Optional[str] = None,
     ):
         """
@@ -1076,7 +1016,7 @@ class TasksManager:
         libraries to follow transformers style.
 
         Args:
-            model (`Union[PreTrainedModel, TFPreTrainedModel, DiffusionPipeline]`):
+            model (`Union[PreTrainedModel, DiffusionPipeline]`):
                 The instance of the model.
 
         """
@@ -1124,21 +1064,13 @@ class TasksManager:
         Returns:
             `List`: all the possible tasks.
         """
-        tasks = []
-        if is_torch_available():
-            framework = "pt"
-            mapping = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP
-        else:
-            framework = "tf"
-            mapping = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP
 
         tasks = []
-        for d in mapping.values():
+        for d in TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP.values():
             tasks += list(d.keys())
 
         for custom_class in TasksManager._CUSTOM_CLASSES:
-            if custom_class[0] == framework:
-                tasks.append(custom_class[2])
+            tasks.append(custom_class[2])
 
         tasks = list(set(tasks))
 
@@ -1157,7 +1089,7 @@ class TasksManager:
         device: Optional[Union["torch.device", str]] = None,
         library_name: Optional[str] = None,
         **model_kwargs,
-    ) -> Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]:
+    ) -> Union["PreTrainedModel", "DiffusionPipeline"]:
         """
         Retrieves a model from its name and the task to be enabled.
 
@@ -1234,6 +1166,8 @@ class TasksManager:
                     model_class_name = config.architectures[0]
 
         if library_name == "diffusers":
+            from diffusers import DiffusionPipeline
+
             config = DiffusionPipeline.load_config(model_name_or_path, **kwargs)
             class_name = config.get("_class_name", None)
             loaded_library = importlib.import_module(library_name)
@@ -1247,20 +1181,10 @@ class TasksManager:
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
             model = model.to(torch_dtype).to(device)
         elif library_name == "sentence_transformers":
-            cache_folder = model_kwargs.pop("cache_folder", None)
-            use_auth_token = model_kwargs.pop("use_auth_token", None)
             token = model_kwargs.pop("token", None)
+            cache_folder = model_kwargs.pop("cache_folder", None)
             trust_remote_code = model_kwargs.pop("trust_remote_code", False)
             model_kwargs["torch_dtype"] = torch_dtype
-
-            if use_auth_token is not None:
-                warnings.warn(
-                    "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                    FutureWarning,
-                )
-                if token is not None:
-                    raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-                token = use_auth_token
 
             model = model_class(
                 model_name_or_path,
@@ -1308,20 +1232,20 @@ class TasksManager:
     @staticmethod
     def get_exporter_config_constructor(
         exporter: str,
-        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None,
+        model: Optional["PreTrainedModel"] = None,
         task: str = "feature-extraction",
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
         exporter_config_kwargs: Optional[Dict[str, Any]] = None,
         library_name: Optional[str] = None,
-    ) -> ExportConfigConstructor:
+    ) -> "ExportConfigConstructor":
         """
         Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
 
         Args:
             exporter (`str`):
                 The exporter to use.
-            model (`Optional[Union[PreTrainedModel, TFPreTrainedModel]]`, defaults to `None`):
+            model (`Optional[PreTrainedModel]`, defaults to `None`):
                 The instance of the model.
             task (`str`, defaults to `"feature-extraction"`):
                 The task to retrieve the config for.
@@ -1358,7 +1282,7 @@ class TasksManager:
 
         if model_type is None:
             if hasattr(model.config, "export_model_type"):
-                # We can specifiy a custom `export_model_type` attribute in the config. Useful for timm, sentence_transformers
+                # We can specify a custom `export_model_type` attribute in the config. Useful for timm, sentence_transformers
                 model_type = model.config.export_model_type
             else:
                 model_type = getattr(model.config, "model_type", None)
