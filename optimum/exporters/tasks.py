@@ -16,60 +16,40 @@
 
 import importlib
 import os
-import warnings
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
+import torch
 from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.errors import OfflineModeIsEnabled
 from packaging import version
-from requests.exceptions import ConnectionError as RequestsConnectionError
-from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
-from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent, logging
+from requests.exceptions import ConnectionError
+from transformers import AutoConfig, PretrainedConfig
+from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
 
-from ..utils.import_utils import is_diffusers_available, is_onnx_available
+from ..utils.import_utils import is_diffusers_available, is_torch_available
+from ..utils.logging import get_logger
 
 
 if TYPE_CHECKING:
     from .base import ExporterConfig
 
-logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
+    if is_torch_available():
+        from transformers import PreTrainedModel
 
-if not is_torch_available() and not is_tf_available():
-    logger.warning(
-        "The export tasks are only supported for PyTorch or TensorFlow. You will not be able to export models"
-        " without one of these libraries installed."
-    )
-
-if is_torch_available():
-    import torch
-    from transformers import PreTrainedModel
-
-if is_tf_available():
-    from transformers import TFPreTrainedModel
-
-if is_diffusers_available():
-    from diffusers import DiffusionPipeline
-    from diffusers.pipelines.auto_pipeline import (
-        AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
-        AUTO_INPAINT_PIPELINES_MAPPING,
-        AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
-    )
-
-ExportConfigConstructor = Callable[[PretrainedConfig], "ExporterConfig"]
-TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
+    if is_diffusers_available():
+        from diffusers import DiffusionPipeline
 
 
-def is_backend_available(backend):
-    backend_availablilty = {
-        "onnx": is_onnx_available(),
-    }
-    return backend_availablilty[backend]
+logger = get_logger(__name__)
 
 
-def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> ExportConfigConstructor:
+ExportConfigConstructor = Callable[["PretrainedConfig"], "ExporterConfig"]
+
+
+def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> "ExportConfigConstructor":
     if "-with-past" in task:
         if not getattr(config_cls, "SUPPORTS_PAST", False):
             raise ValueError(f"{config_cls} does not support tasks with past.")
@@ -79,56 +59,26 @@ def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> Exp
     return constructor
 
 
-def supported_tasks_mapping(
-    *supported_tasks: Union[str, Tuple[str, Tuple[str, ...]]], **exporters: str
-) -> Dict[str, TaskNameToExportConfigDict]:
-    """
-    Generates the mapping between supported tasks and their corresponding `ExporterConfig` for a given model, for
-    every backend.
-
-    Args:
-        supported_tasks (`Tuple[Union[str, Tuple[str, Tuple[str, ...]]]`):
-            The names of the supported tasks.
-            If some task is supported by only a subset of all the backends, it can be specified as follows:
-                ```python
-                >>> ("multiple-choice", ("onnx",))
-                ```
-
-            The line above means that the multiple-choice task will be supported only by the ONNX backend.
-
-        exporters (`Dict[str, str]`):
-            The export backend name -> config class name mapping. For instance:
-            ```python
-            >>> exporters = {  # doctest: +SKIP
-            ...     "onnx": "BertOnnxConfig",
-            ...     ...
-            ... }
-            ```
-
-    Returns:
-        `Dict[str, TaskNameToExportConfigDict]`: The dictionary mapping a task to an `ExporterConfig` constructor.
-    """
-    mapping = {}
-    for backend, config_cls_name in exporters.items():
-        if is_backend_available(backend):
-            config_cls = getattr(
-                importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name
-            )
-            mapping[backend] = {}
-            for task in supported_tasks:
-                if isinstance(task, tuple):
-                    task, supported_backends_for_task = task
-                    if backend not in supported_backends_for_task:
-                        continue
-                config_constructor = make_backend_config_constructor_for_task(config_cls, task)
-                mapping[backend][task] = config_constructor
-    return mapping
-
-
 def get_diffusers_tasks_to_model_mapping():
-    """task -> model mapping (model type -> model class)"""
+    """task -> model type -> model class mapping"""
 
     tasks_to_model_mapping = {}
+
+    try:
+        from diffusers.pipelines.auto_pipeline import (
+            AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+            AUTO_INPAINT_PIPELINES_MAPPING,
+            AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+        )
+    except Exception as e:
+        # Sometimes a user might have two incompatible versions of transformers and diffusers
+        # resulting in a transformers model export failing because of diffusers import.
+        logger.warning(
+            "optimum.exporters.tasks.get_diffusers_tasks_to_model_mapping method failed to import diffusers with the error below."
+            "Please make sure you have diffusers installed and compatible with your transformers version.\n\n"
+            f"{e}"
+        )
+        return tasks_to_model_mapping
 
     for task_name, model_mapping in (
         ("text-to-image", AUTO_TEXT2IMAGE_PIPELINES_MAPPING),
@@ -143,13 +93,10 @@ def get_diffusers_tasks_to_model_mapping():
     return tasks_to_model_mapping
 
 
-def get_transformers_tasks_to_model_mapping(tasks_to_model_loader, framework="pt"):
-    """task -> model mapping (model type -> model class)"""
+def get_transformers_tasks_to_model_mapping(tasks_to_model_loader):
+    """task -> model type -> model class mapping"""
 
-    if framework == "pt":
-        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_auto")
-    elif framework == "tf":
-        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
+    import transformers.models.auto.modeling_auto as auto_modeling_module
 
     tasks_to_model_mapping = {}
     for task_name, model_loaders in tasks_to_model_loader.items():
@@ -161,8 +108,8 @@ def get_transformers_tasks_to_model_mapping(tasks_to_model_loader, framework="pt
             model_loader_class = getattr(auto_modeling_module, model_loader, None)
             if model_loader_class is not None:
                 # we can just update the model_type to model_class mapping since
-                # we can only have one task->model_type->model_class either way
-                # e.g. we merge automatic-speech-recognition's SpeechSeq2Seq and CTC models
+                # we can only have one task->model_type->model_class mapping either way
+                # e.g. we merge automatic-speech-recognition's SpeechSeq2Seq and CTC models without worrying
                 tasks_to_model_mapping[task_name].update(model_loader_class._model_mapping._model_mapping)
 
     return tasks_to_model_mapping
@@ -173,31 +120,22 @@ class TasksManager:
     Handles the `task name -> model class` and `architecture -> configuration` mappings.
     """
 
-    # Torch model loaders
+    # Torch auto model loaders
+    # (task -> auto-model class name)
     _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {}
     _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {}
     _TIMM_TASKS_TO_MODEL_LOADERS = {}
     _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {}
 
     # Torch model mappings
+    # (task -> model type / pipelines architecture -> model class name)
     _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = {}
     _DIFFUSERS_TASKS_TO_MODEL_MAPPINGS = {}
-
-    # TF model loaders
-    _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {}
-    _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {}
-
-    # TF model mappings
-    _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = {}
 
     if is_torch_available():
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
-        # auto-class _model_mapping to determine the right one.
-
-        # TODO: having several tasks pointing to the same auto-model class is bug prone to auto-detect the
-        # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
-        # on transformersInfo["auto_model"] and this dictionary.
+        # auto-class's _model_mapping to determine the right one (see get_transformers_tasks_to_model_mapping)
         _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
             "audio-classification": "AutoModelForAudioClassification",
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
@@ -214,7 +152,9 @@ class TasksManager:
                 "AutoModelForUniversalSegmentation",
             ),
             "image-to-image": "AutoModelForImageToImage",
+            # TODO: AutoModelForVision2Seq is deprecated and will be removed in Transformers v5
             "image-to-text": ("AutoModelForVision2Seq", "AutoModel"),
+            "image-text-to-text": "AutoModelForImageTextToText",
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "multiple-choice": "AutoModelForMultipleChoice",
@@ -232,12 +172,10 @@ class TasksManager:
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
 
-        _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = get_transformers_tasks_to_model_mapping(
-            _TRANSFORMERS_TASKS_TO_MODEL_LOADERS, framework="pt"
-        )
-
-        _TIMM_TASKS_TO_MODEL_LOADERS = {
-            "image-classification": "create_model",
+        _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
+            "image-to-image": "AutoPipelineForImage2Image",
+            "inpainting": "AutoPipelineForInpainting",
+            "text-to-image": "AutoPipelineForText2Image",
         }
 
         _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
@@ -245,14 +183,9 @@ class TasksManager:
             "sentence-similarity": "SentenceTransformer",
         }
 
-        if is_diffusers_available():
-            _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
-                "image-to-image": "AutoPipelineForImage2Image",
-                "inpainting": "AutoPipelineForInpainting",
-                "text-to-image": "AutoPipelineForText2Image",
-            }
-
-            _DIFFUSERS_TASKS_TO_MODEL_MAPPINGS = get_diffusers_tasks_to_model_mapping()
+        _TIMM_TASKS_TO_MODEL_LOADERS = {
+            "image-classification": "create_model",
+        }
 
         _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {
             "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
@@ -261,35 +194,11 @@ class TasksManager:
             "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
         }
 
-    if is_tf_available():
-        _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {
-            "document-question-answering": "TFAutoModelForDocumentQuestionAnswering",
-            "feature-extraction": "TFAutoModel",
-            "fill-mask": "TFAutoModelForMaskedLM",
-            "text-generation": "TFAutoModelForCausalLM",
-            "image-classification": "TFAutoModelForImageClassification",
-            "text2text-generation": "TFAutoModelForSeq2SeqLM",
-            "text-classification": "TFAutoModelForSequenceClassification",
-            "token-classification": "TFAutoModelForTokenClassification",
-            "multiple-choice": "TFAutoModelForMultipleChoice",
-            "question-answering": "TFAutoModelForQuestionAnswering",
-            "image-segmentation": "TFAutoModelForImageSegmentation",
-            "masked-im": "TFAutoModelForMaskedImageModeling",
-            "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
-            "automatic-speech-recognition": "TFAutoModelForSpeechSeq2Seq",
-            "audio-classification": "TFAutoModelForAudioClassification",
-            "image-to-text": "TFAutoModelForVision2Seq",
-            "zero-shot-image-classification": "TFAutoModelForZeroShotImageClassification",
-            "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
-        }
-
-        _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {
-            "transformers": _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS,
-        }
-
-        _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS = get_transformers_tasks_to_model_mapping(
-            _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS, framework="tf"
+        _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = get_transformers_tasks_to_model_mapping(
+            _TRANSFORMERS_TASKS_TO_MODEL_LOADERS
         )
+        if is_diffusers_available():
+            _DIFFUSERS_TASKS_TO_MODEL_MAPPINGS = get_diffusers_tasks_to_model_mapping()
 
     _SYNONYM_TASK_MAP = {
         "audio-ctc": "automatic-speech-recognition",
@@ -344,861 +253,11 @@ class TasksManager:
         "timm": "default-timm-config",
     }
 
-    _DIFFUSERS_SUPPORTED_MODEL_TYPE = {
-        "t5-encoder": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "clip-text": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "clip-text-with-projection": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "flux-transformer-2d": supported_tasks_mapping(
-            "semantic-segmentation",
-        ),
-        "sd3-transformer-2d": supported_tasks_mapping(
-            "semantic-segmentation",
-        ),
-        "unet-2d-condition": supported_tasks_mapping(
-            "semantic-segmentation",
-        ),
-        "vae-encoder": supported_tasks_mapping(
-            "semantic-segmentation",
-        ),
-        "vae-decoder": supported_tasks_mapping(
-            "semantic-segmentation",
-        ),
-    }
+    _SUPPORTED_MODEL_TYPE = {}
+    _TIMM_SUPPORTED_MODEL_TYPE = {}
+    _DIFFUSERS_SUPPORTED_MODEL_TYPE = {}
+    _SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE = {}
 
-    _TIMM_SUPPORTED_MODEL_TYPE = {
-        "default-timm-config": supported_tasks_mapping("image-classification"),
-    }
-
-    _SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE = {
-        "clip": supported_tasks_mapping(
-            "feature-extraction",
-            "sentence-similarity",
-        ),
-        "transformer": supported_tasks_mapping(
-            "feature-extraction",
-            "sentence-similarity",
-        ),
-    }
-
-    # Refere to official transformers model types in (we use the name as is, no changing of separators):
-    # https://github.com/huggingface/transformers/blob/main/src/transformers/models/auto/modeling_auto.py
-
-    # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
-    # Set of model topologies we support associated to the tasks supported by each topology and the factory
-    # TODO: remove `-with-past` tasks and rather rely on `variant`.
-    _SUPPORTED_MODEL_TYPE = {
-        "audio-spectrogram-transformer": supported_tasks_mapping(
-            "feature-extraction",
-            "audio-classification",
-        ),
-        "albert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "bart": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-            "text-classification",
-            "question-answering",
-        ),
-        # BEiT cannot be used with the masked image modeling autoclass, so this task is excluded here
-        "beit": supported_tasks_mapping("feature-extraction", "image-classification"),
-        "bert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            # the logic for text-generation is not supported for BERT
-            # "text-generation",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "rembert": supported_tasks_mapping(
-            "fill-mask",
-            "feature-extraction",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "big_bird": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "bigbird_pegasus": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-            "text-classification",
-            "question-answering",
-        ),
-        "blenderbot": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ),
-        "blenderbot-small": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ),
-        "bloom": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-            "token-classification",
-        ),
-        "camembert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            # the logic for text-generation is not supported for camembert
-            # "text-generation",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "chinese_clip": supported_tasks_mapping(
-            "feature-extraction",
-            "zero-shot-image-classification",
-        ),
-        "clip": supported_tasks_mapping(
-            "feature-extraction",
-            "zero-shot-image-classification",
-        ),
-        "clip_vision_model": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "codegen": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-        ),
-        "colpali": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "convbert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "convnext": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "convnextv2": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "cvt": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "d_fine": supported_tasks_mapping(
-            "object-detection",
-        ),
-        "data2vec-text": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "data2vec-vision": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-            # ONNX doesn't support `adaptive_avg_pool2d` yet
-            # "semantic-segmentation",
-        ),
-        "data2vec-audio": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-            "audio-classification",
-            "audio-frame-classification",
-            "audio-xvector",
-        ),
-        "deberta": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "token-classification",
-            "question-answering",
-        ),
-        "deberta-v2": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "token-classification",
-            "question-answering",
-        ),
-        "decision_transformer": supported_tasks_mapping(
-            "feature-extraction",
-            "reinforcement-learning",
-        ),
-        "deit": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-            "masked-im",
-        ),
-        "detr": supported_tasks_mapping(
-            "feature-extraction",
-            "object-detection",
-            "image-segmentation",
-        ),
-        "dinov2": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "distilbert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "donut": supported_tasks_mapping(
-            "image-to-text",
-            "image-to-text-with-past",
-            "document-question-answering",
-            "document-question-answering-with-past",
-        ),
-        "donut-swin": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "dpt": supported_tasks_mapping(
-            "feature-extraction",
-            "depth-estimation",
-            "image-segmentation",
-            "semantic-segmentation",
-        ),
-        "efficientnet": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "electra": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            # the logic for text-generation is not supported for electra
-            # "text-generation",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "encoder-decoder": supported_tasks_mapping(
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ),
-        "esm": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "token-classification",
-        ),
-        "falcon": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "question-answering",
-            "text-generation",
-            "text-generation-with-past",
-            "token-classification",
-        ),
-        "flaubert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "gemma": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-        ),
-        "glpn": supported_tasks_mapping(
-            "feature-extraction",
-            "depth-estimation",
-        ),
-        "gpt2": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-            "token-classification",
-        ),
-        "gpt_bigcode": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-            "token-classification",
-        ),
-        "gptj": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "question-answering",
-            "text-classification",
-        ),
-        "gpt_neo": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-        ),
-        "gpt_neox": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-        ),
-        "groupvit": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "hiera": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "hubert": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-            "audio-classification",
-        ),
-        "ibert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "imagegpt": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "internlm2": supported_tasks_mapping(
-            "text-generation",
-            "text-generation-with-past",
-        ),
-        "layoutlm": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "token-classification",
-        ),
-        "layoutlmv3": supported_tasks_mapping(
-            "feature-extraction",
-            "question-answering",
-            "text-classification",
-            "token-classification",
-        ),
-        "lilt": supported_tasks_mapping(
-            "feature-extraction",
-            "question-answering",
-            "text-classification",
-            "token-classification",
-        ),
-        "levit": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "longt5": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ),
-        "longformer": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "multiple-choice",
-            "question-answering",
-            "text-classification",
-            "token-classification",
-        ),
-        "marian": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-            "text-generation",
-            "text-generation-with-past",
-        ),
-        "markuplm": supported_tasks_mapping(
-            "feature-extraction",
-            "text-classification",
-            "token-classification",
-            "question-answering",
-        ),
-        "maskformer": supported_tasks_mapping(
-            "feature-extraction",
-            "image-segmentation",
-        ),
-        "mbart": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-            "text-classification",
-            "question-answering",
-        ),
-        "mgp-str": supported_tasks_mapping(
-            "feature-extraction",
-            "image-to-text",
-        ),
-        "mistral": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-        ),
-        "mctct": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-        ),
-        "mobilebert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "megatron-bert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "mobilevit": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-            "image-segmentation",
-        ),
-        "mobilenet_v1": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "mobilenet_v2": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "modernbert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "token-classification",
-        ),
-        "moonshine": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "automatic-speech-recognition",
-            "automatic-speech-recognition-with-past",
-        ),
-        "mpnet": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "mpt": supported_tasks_mapping(
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-        ),
-        "mt5": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ),
-        "musicgen": supported_tasks_mapping(
-            "text-to-audio",  # "variant" handles the "-with-past". We should generalize that.
-        ),
-        "m2m_100": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ),
-        "nystromformer": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "multiple-choice",
-            "question-answering",
-            "text-classification",
-            "token-classification",
-        ),
-        "owlv2": supported_tasks_mapping(
-            "feature-extraction",
-            "zero-shot-object-detection",
-        ),
-        "owlvit": supported_tasks_mapping(
-            "feature-extraction",
-            "zero-shot-object-detection",
-        ),
-        "opt": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "question-answering",
-            "text-classification",
-        ),
-        "patchtst": supported_tasks_mapping(
-            "feature-extraction",
-            "time-series-forecasting",
-        ),
-        "patchtsmixer": supported_tasks_mapping(
-            "feature-extraction",
-            "time-series-forecasting",
-        ),
-        "qwen2": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-            "token-classification",
-        ),
-        "qwen3": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-        ),
-        "qwen3_moe": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-            "token-classification",
-        ),
-        "llama": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-        ),
-        "granite": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-        ),
-        "olmo": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-        ),
-        "olmo2": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-        ),
-        "pegasus": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ),
-        "perceiver": supported_tasks_mapping(
-            "fill-mask",
-            "image-classification",
-            "text-classification",
-        ),
-        "phi": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-        ),
-        "phi3": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text-generation",
-            "text-generation-with-past",
-            "text-classification",
-        ),
-        "pix2struct": supported_tasks_mapping(
-            "image-to-text",
-            "image-to-text-with-past",
-            "visual-question-answering",
-            "visual-question-answering-with-past",
-        ),
-        "poolformer": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "pvt": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "regnet": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "resnet": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "roberta": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            # the logic for text-generation is not supported for roberta
-            # "text-generation",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "roformer": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            # the logic for text-generation is not supported for roformer
-            # "text-generation",
-            "text-classification",
-            "token-classification",
-            "multiple-choice",
-            "question-answering",
-        ),
-        "rt_detr": supported_tasks_mapping(
-            "object-detection",
-        ),
-        "rt_detr_v2": supported_tasks_mapping(
-            "object-detection",
-        ),
-        "sam": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "segformer": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-            "image-segmentation",
-            "semantic-segmentation",
-        ),
-        "sew": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-            "audio-classification",
-        ),
-        "sew-d": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-            "audio-classification",
-        ),
-        "siglip": supported_tasks_mapping(
-            "feature-extraction",
-            "zero-shot-image-classification",
-        ),
-        "siglip-text": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "siglip-text-with-projection": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "siglip_vision_model": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "speech_to_text": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "automatic-speech-recognition",
-            "automatic-speech-recognition-with-past",
-        ),
-        # TODO: SpeechT5 can also support audio-to-audio and automatic-speech-recognition.
-        "speecht5": supported_tasks_mapping(
-            "text-to-audio",
-        ),
-        "splinter": supported_tasks_mapping(
-            "feature-extraction",
-            "question-answering",
-        ),
-        "squeezebert": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "swin": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-            "masked-im",
-        ),
-        "swinv2": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-            "masked-im",
-        ),
-        "swin2sr": supported_tasks_mapping(
-            "feature-extraction",
-            "image-to-image",
-        ),
-        "t5": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ),
-        "table-transformer": supported_tasks_mapping(
-            "feature-extraction",
-            "object-detection",
-        ),
-        "trocr": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "image-to-text",
-            "image-to-text-with-past",
-        ),
-        "unispeech": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-            "audio-classification",
-        ),
-        "unispeech-sat": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-            "audio-classification",
-            "audio-frame-classification",
-            "audio-xvector",
-        ),
-        "vision-encoder-decoder": supported_tasks_mapping(
-            "image-to-text",
-            "image-to-text-with-past",
-            "document-question-answering",
-            "document-question-answering-with-past",
-        ),
-        "vit": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-            "masked-im",
-        ),
-        "vit_mae": supported_tasks_mapping(
-            "feature-extraction",
-        ),
-        "vit_msn": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-        ),
-        "vitpose": supported_tasks_mapping(
-            "keypoint-detection",
-        ),
-        "vits": supported_tasks_mapping(
-            "text-to-audio",
-        ),
-        "wavlm": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-            "audio-classification",
-            "audio-frame-classification",
-            "audio-xvector",
-        ),
-        "wav2vec2": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-            "audio-classification",
-            "audio-frame-classification",
-            "audio-xvector",
-        ),
-        "wav2vec2-conformer": supported_tasks_mapping(
-            "feature-extraction",
-            "automatic-speech-recognition",
-            "audio-classification",
-            "audio-frame-classification",
-            "audio-xvector",
-        ),
-        "whisper": supported_tasks_mapping(
-            "feature-extraction",
-            "feature-extraction-with-past",
-            "audio-classification",
-            "automatic-speech-recognition",
-            "automatic-speech-recognition-with-past",
-        ),
-        "xlm": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            # the logic for text-generation is not supported for xlm
-            # "text-generation",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "xlm-roberta": supported_tasks_mapping(
-            "feature-extraction",
-            "fill-mask",
-            # the logic for text-generation is not supported for xlm-roberta
-            # "text-generation",
-            "text-classification",
-            "multiple-choice",
-            "token-classification",
-            "question-answering",
-        ),
-        "yolos": supported_tasks_mapping(
-            "feature-extraction",
-            "object-detection",
-        ),
-    }
     _LIBRARY_TO_SUPPORTED_MODEL_TYPES = {
         "diffusers": _DIFFUSERS_SUPPORTED_MODEL_TYPE,
         "sentence_transformers": _SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE,
@@ -1211,14 +270,12 @@ class TasksManager:
         "clip-text-with-projection",
         "flux-transformer-2d",
         "sd3-transformer-2d",
-        "t5-encoder",
-        "unet-2d-condition",
-        "vae-encoder",
-        "vae-decoder",
         "siglip-text",
         "siglip-text-with-projection",
-        # transformers model part
-        "trocr",  # the decoder of a trocr vision-encoder-decoder
+        "t5-encoder",
+        "unet-2d-condition",
+        "vae-decoder",
+        "vae-encoder",
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())
@@ -1285,7 +342,7 @@ class TasksManager:
     @staticmethod
     def get_supported_tasks_for_model_type(
         model_type: str, exporter: str, model_name: Optional[str] = None, library_name: Optional[str] = None
-    ) -> TaskNameToExportConfigDict:
+    ) -> Dict[str, "ExportConfigConstructor"]:
         """
         Retrieves the `task -> exporter backend config constructors` map from the model type.
 
@@ -1300,8 +357,8 @@ class TasksManager:
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
-            `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExporterConfig`
-            constructor.
+            `Dict[str, ExportConfigConstructor]`: The mapping between the supported tasks and the backend config
+            constructors for the specified model type.
         """
         if library_name is None:
             logger.warning(
@@ -1380,12 +437,10 @@ class TasksManager:
         Validates if the framework requested for the export is both correct and available, otherwise throws an
         exception.
         """
-        if framework not in ["pt", "tf"]:
-            raise ValueError(f"Only two frameworks are supported for export: pt or tf, but {framework} was provided.")
+        if framework not in ["pt"]:
+            raise ValueError(f"Only one framework is supported for export: pt, but {framework} was provided.")
         elif framework == "pt" and not is_torch_available():
             raise RuntimeError("Cannot export model using PyTorch because no PyTorch package was found.")
-        elif framework == "tf" and not is_tf_available():
-            raise RuntimeError("Cannot export model using TensorFlow because no TensorFlow package was found.")
 
     @staticmethod
     def get_model_class_for_task(
@@ -1430,7 +485,7 @@ class TasksManager:
             if framework == "pt":
                 tasks_to_model_loader = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP[library]
             else:
-                tasks_to_model_loader = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP[library]
+                raise ValueError(f"Only PyTorch is supported for export, but {framework} was provided.")
 
             loaded_library = importlib.import_module(library)
 
@@ -1477,22 +532,11 @@ class TasksManager:
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
     ):
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         request_exception = None
         full_model_path = Path(model_name_or_path, subfolder)
-
         hf_api = HfApi(user_agent=http_user_agent(), token=token)
 
         if full_model_path.is_dir():
@@ -1513,7 +557,7 @@ class TasksManager:
                 )
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
-            except (RequestsConnectionError, OfflineModeIsEnabled) as e:
+            except (ConnectionError, OfflineModeIsEnabled) as e:
                 snapshot_path = hf_api.snapshot_download(
                     repo_id=model_name_or_path,
                     cache_dir=cache_dir,
@@ -1597,11 +641,11 @@ class TasksManager:
             # diffusers case
             framework = "pt"
         elif "config_sentence_transformers.json" in all_files:
-            # Sentence Transformers libary relies on PyTorch.
+            # Sentence Transformers library relies on PyTorch.
             framework = "pt"
         else:
             if request_exception is not None:
-                raise RequestsConnectionError(
+                raise ConnectionError(
                     f"The framework could not be automatically inferred. If using the command-line, please provide the argument --framework (pt,tf) Detailed error: {request_exception}"
                 )
             else:
@@ -1613,10 +657,8 @@ class TasksManager:
 
         if is_torch_available():
             framework = framework or "pt"
-        elif is_tf_available():
-            framework = framework or "tf"
         else:
-            raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
+            raise EnvironmentError("PyTorch was not found in environment. Cannot export model.")
 
         logger.info(f"Framework not specified. Using {framework} to export the model.")
 
@@ -1625,8 +667,8 @@ class TasksManager:
     @classmethod
     def _infer_task_from_model_or_model_class(
         cls,
-        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
-        model_class: Optional[Type[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]]] = None,
+        model: Optional[Union["PreTrainedModel", "DiffusionPipeline"]] = None,
+        model_class: Optional[Type[Union["PreTrainedModel", "DiffusionPipeline"]]] = None,
     ) -> str:
         if model is not None and model_class is not None:
             raise ValueError("Either a model or a model class must be provided, but both were given here.")
@@ -1641,8 +683,6 @@ class TasksManager:
 
         if target_class_name.startswith("AutoModel"):
             tasks_to_model_loaders = cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS
-        elif target_class_name.startswith("TFAutoModel"):
-            tasks_to_model_loaders = cls._TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS
         elif target_class_name.startswith("AutoPipeline"):
             tasks_to_model_loaders = cls._DIFFUSERS_TASKS_TO_MODEL_LOADERS
 
@@ -1658,10 +698,7 @@ class TasksManager:
         tasks_to_model_mapping = None
 
         if target_class_module.startswith("transformers"):
-            if target_class_name.startswith("TF"):
-                tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS
-            else:
-                tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS
+            tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS
         elif target_class_module.startswith("diffusers"):
             tasks_to_model_mapping = cls._DIFFUSERS_TASKS_TO_MODEL_MAPPINGS
 
@@ -1703,7 +740,7 @@ class TasksManager:
                 model_info = HfApi(user_agent=http_user_agent(), token=token).model_info(
                     model_name_or_path, revision=revision, token=token
                 )
-            except (RequestsConnectionError, OfflineModeIsEnabled):
+            except (ConnectionError, OfflineModeIsEnabled):
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
                 )
@@ -1766,7 +803,7 @@ class TasksManager:
     @classmethod
     def infer_task_from_model(
         cls,
-        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline", Type],
+        model: Union[str, "PreTrainedModel", "DiffusionPipeline", Type],
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -1777,7 +814,7 @@ class TasksManager:
         Infers the task from the model repo, model instance, or model class.
 
         Args:
-            model (`Union[str, PreTrainedModel, TFPreTrainedModel, DiffusionPipeline, Type]`):
+            model (`Union[str, PreTrainedModel, DiffusionPipeline, Type]`):
                 The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
                 instance of a model, or a model class.
             subfolder (`str`, *optional*, defaults to `""`):
@@ -1822,8 +859,8 @@ class TasksManager:
     @classmethod
     def _infer_library_from_model_or_model_class(
         cls,
-        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
-        model_class: Optional[Type[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]]] = None,
+        model: Optional[Union["PreTrainedModel", "DiffusionPipeline"]] = None,
+        model_class: Optional[Type[Union["PreTrainedModel", "DiffusionPipeline"]]] = None,
     ):
         inferred_library_name = None
         if model is not None and model_class is not None:
@@ -1925,7 +962,7 @@ class TasksManager:
     @classmethod
     def infer_library_from_model(
         cls,
-        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline", Type],
+        model: Union[str, "PreTrainedModel", "DiffusionPipeline", Type],
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -1935,7 +972,7 @@ class TasksManager:
         Infers the library from the model repo, model instance, or model class.
 
         Args:
-            model (`Union[str, PreTrainedModel, TFPreTrainedModel, DiffusionPipeline, Type]`):
+            model (`Union[str, PreTrainedModel, DiffusionPipeline, Type]`):
                 The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
                 instance of a model, or a model class.
             subfolder (`str`, defaults to `""`):
@@ -1971,7 +1008,7 @@ class TasksManager:
     @classmethod
     def standardize_model_attributes(
         cls,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
+        model: Union["PreTrainedModel", "DiffusionPipeline"],
         library_name: Optional[str] = None,
     ):
         """
@@ -1979,7 +1016,7 @@ class TasksManager:
         libraries to follow transformers style.
 
         Args:
-            model (`Union[PreTrainedModel, TFPreTrainedModel, DiffusionPipeline]`):
+            model (`Union[PreTrainedModel, DiffusionPipeline]`):
                 The instance of the model.
 
         """
@@ -2027,21 +1064,13 @@ class TasksManager:
         Returns:
             `List`: all the possible tasks.
         """
-        tasks = []
-        if is_torch_available():
-            framework = "pt"
-            mapping = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP
-        else:
-            framework = "tf"
-            mapping = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP
 
         tasks = []
-        for d in mapping.values():
+        for d in TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP.values():
             tasks += list(d.keys())
 
         for custom_class in TasksManager._CUSTOM_CLASSES:
-            if custom_class[0] == framework:
-                tasks.append(custom_class[2])
+            tasks.append(custom_class[2])
 
         tasks = list(set(tasks))
 
@@ -2060,7 +1089,7 @@ class TasksManager:
         device: Optional[Union["torch.device", str]] = None,
         library_name: Optional[str] = None,
         **model_kwargs,
-    ) -> Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]:
+    ) -> Union["PreTrainedModel", "DiffusionPipeline"]:
         """
         Retrieves a model from its name and the task to be enabled.
 
@@ -2137,6 +1166,8 @@ class TasksManager:
                     model_class_name = config.architectures[0]
 
         if library_name == "diffusers":
+            from diffusers import DiffusionPipeline
+
             config = DiffusionPipeline.load_config(model_name_or_path, **kwargs)
             class_name = config.get("_class_name", None)
             loaded_library = importlib.import_module(library_name)
@@ -2150,20 +1181,10 @@ class TasksManager:
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
             model = model.to(torch_dtype).to(device)
         elif library_name == "sentence_transformers":
-            cache_folder = model_kwargs.pop("cache_folder", None)
-            use_auth_token = model_kwargs.pop("use_auth_token", None)
             token = model_kwargs.pop("token", None)
+            cache_folder = model_kwargs.pop("cache_folder", None)
             trust_remote_code = model_kwargs.pop("trust_remote_code", False)
             model_kwargs["torch_dtype"] = torch_dtype
-
-            if use_auth_token is not None:
-                warnings.warn(
-                    "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                    FutureWarning,
-                )
-                if token is not None:
-                    raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-                token = use_auth_token
 
             model = model_class(
                 model_name_or_path,
@@ -2211,20 +1232,20 @@ class TasksManager:
     @staticmethod
     def get_exporter_config_constructor(
         exporter: str,
-        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None,
+        model: Optional["PreTrainedModel"] = None,
         task: str = "feature-extraction",
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
         exporter_config_kwargs: Optional[Dict[str, Any]] = None,
         library_name: Optional[str] = None,
-    ) -> ExportConfigConstructor:
+    ) -> "ExportConfigConstructor":
         """
         Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
 
         Args:
             exporter (`str`):
                 The exporter to use.
-            model (`Optional[Union[PreTrainedModel, TFPreTrainedModel]]`, defaults to `None`):
+            model (`Optional[PreTrainedModel]`, defaults to `None`):
                 The instance of the model.
             task (`str`, defaults to `"feature-extraction"`):
                 The task to retrieve the config for.
@@ -2261,7 +1282,7 @@ class TasksManager:
 
         if model_type is None:
             if hasattr(model.config, "export_model_type"):
-                # We can specifiy a custom `export_model_type` attribute in the config. Useful for timm, sentence_transformers
+                # We can specify a custom `export_model_type` attribute in the config. Useful for timm, sentence_transformers
                 model_type = model.config.export_model_type
             else:
                 model_type = getattr(model.config, "model_type", None)

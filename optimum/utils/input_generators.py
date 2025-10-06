@@ -19,10 +19,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, Union
 
-import numpy as np
-
-from ..utils import is_diffusers_version, is_tf_available, is_torch_available, is_transformers_version
-from ..utils.save_utils import maybe_load_preprocessors
+from ..utils.import_utils import is_diffusers_version, is_torch_available, is_transformers_version
 from .normalized_config import (
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
@@ -32,22 +29,13 @@ from .normalized_config import (
 )
 
 
-if is_torch_available():
-    import torch
-
-if is_tf_available():
-    import tensorflow as tf  # type: ignore
-
-
 def check_framework_is_available(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         framework = kwargs.get("framework", "pt")
         pt_asked_but_not_available = framework == "pt" and not is_torch_available()
-        tf_asked_but_not_available = framework == "tf" and not is_tf_available()
-        if (pt_asked_but_not_available or tf_asked_but_not_available) and framework != "np":
-            framework_name = "PyTorch" if framework == "pt" else "TensorFlow"
-            raise RuntimeError(f"Requested the {framework_name} framework, but it does not seem installed.")
+        if pt_asked_but_not_available:
+            raise RuntimeError(f"Requested the {framework} framework, but it does not seem installed.")
         return func(*args, **kwargs)
 
     return wrapper
@@ -74,6 +62,8 @@ DEFAULT_DUMMY_SHAPES = {
 class DTYPE_MAPPER:
     @classmethod
     def np(cls, dtype):
+        import numpy as np
+
         mapping = {
             "fp32": np.float32,
             "fp16": np.float16,
@@ -86,6 +76,8 @@ class DTYPE_MAPPER:
 
     @classmethod
     def pt(cls, dtype):
+        import torch
+
         mapping = {
             "fp32": torch.float32,
             "fp16": torch.float16,
@@ -94,19 +86,6 @@ class DTYPE_MAPPER:
             "int32": torch.int32,
             "int8": torch.int8,
             "bool": torch.bool,
-        }
-        return mapping[dtype]
-
-    @classmethod
-    def tf(cls, dtype):
-        mapping = {
-            "fp32": tf.float32,
-            "fp16": tf.float16,
-            "bf16": tf.bfloat16,
-            "int64": tf.int64,
-            "int32": tf.int32,
-            "int8": tf.int8,
-            "bool": tf.bool,
         }
         return mapping[dtype]
 
@@ -176,10 +155,12 @@ class DummyInputGenerator(ABC):
             A random tensor in the requested framework.
         """
         if framework == "pt":
+            import torch
+
             return torch.randint(low=min_value, high=max_value, size=shape, dtype=DTYPE_MAPPER.pt(dtype))
-        elif framework == "tf":
-            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=DTYPE_MAPPER.tf(dtype))
         else:
+            import numpy as np
+
             return np.random.randint(min_value, high=max_value, size=shape, dtype=DTYPE_MAPPER.np(dtype))
 
     @staticmethod
@@ -204,6 +185,8 @@ class DummyInputGenerator(ABC):
         shape = tuple(shape)
         mask_length = random.randint(1, shape[-1] - 1)
         if framework == "pt":
+            import torch
+
             mask_tensor = torch.cat(
                 [
                     torch.ones(*shape[:-1], shape[-1] - mask_length, dtype=DTYPE_MAPPER.pt(dtype)),
@@ -213,17 +196,9 @@ class DummyInputGenerator(ABC):
             )
             if padding_side == "left":
                 mask_tensor = torch.flip(mask_tensor, [-1])
-        elif framework == "tf":
-            mask_tensor = tf.concat(
-                [
-                    tf.ones((*shape[:-1], shape[-1] - mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
-                    tf.zeros((*shape[:-1], mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
-                ],
-                axis=-1,
-            )
-            if padding_side == "left":
-                mask_tensor = tf.reverse(mask_tensor, [-1])
         else:
+            import numpy as np
+
             mask_tensor = np.concatenate(
                 [
                     np.ones((*shape[:-1], shape[-1] - mask_length), dtype=DTYPE_MAPPER.np(dtype)),
@@ -259,11 +234,12 @@ class DummyInputGenerator(ABC):
             A random tensor in the requested framework.
         """
         if framework == "pt":
-            tensor = torch.empty(shape, dtype=DTYPE_MAPPER.pt(dtype)).uniform_(min_value, max_value)
-            return tensor
-        elif framework == "tf":
-            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=DTYPE_MAPPER.tf(dtype))
+            import torch
+
+            return torch.empty(shape, dtype=DTYPE_MAPPER.pt(dtype)).uniform_(min_value, max_value)
         else:
+            import numpy as np
+
             return np.random.uniform(low=min_value, high=max_value, size=shape).astype(DTYPE_MAPPER.np(dtype))
 
     @staticmethod
@@ -288,21 +264,27 @@ class DummyInputGenerator(ABC):
             A constant tensor in the requested framework.
         """
         if framework == "pt":
+            import torch
+
             return torch.full(shape, value, dtype=dtype)
-        elif framework == "tf":
-            return tf.constant(value, dtype=dtype, shape=shape)
         else:
+            import numpy as np
+
             return np.full(shape, value, dtype=dtype)
 
     @staticmethod
     def _infer_framework_from_input(input_) -> str:
         framework = None
-        if is_torch_available() and isinstance(input_, torch.Tensor):
-            framework = "pt"
-        elif is_tf_available() and isinstance(input_, tf.Tensor):
-            framework = "tf"
-        elif isinstance(input_, np.ndarray):
+
+        import numpy as np
+
+        if is_torch_available():
+            import torch
+
+        if isinstance(input_, np.ndarray):
             framework = "np"
+        elif is_torch_available() and isinstance(input_, torch.Tensor):
+            framework = "pt"
         else:
             raise RuntimeError(f"Could not infer the framework from {input_}")
         return framework
@@ -324,10 +306,12 @@ class DummyInputGenerator(ABC):
             raise ValueError("You did not provide any inputs to concat")
         framework = cls._infer_framework_from_input(inputs[0])
         if framework == "pt":
+            import torch
+
             return torch.cat(inputs, dim=dim)
-        elif framework == "tf":
-            return tf.concat(inputs, axis=dim)
         else:
+            import numpy as np
+
             return np.concatenate(inputs, axis=dim)
 
     @classmethod
@@ -460,14 +444,19 @@ class LongformerDummyTextInputGenerator(DummyTextInputGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "global_attention_mask":
             attention_mask = super().generate(
-                "attention_mask", framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+                "attention_mask",
+                framework=framework,
+                int_dtype=int_dtype,
+                float_dtype=float_dtype,
             )
 
             if framework == "pt":
+                import torch
+
                 global_attention_mask = torch.zeros_like(attention_mask)
-            elif framework == "tf":
-                global_attention_mask = tf.zeros_like(attention_mask)
             else:
+                import numpy as np
+
                 global_attention_mask = np.zeros_like(attention_mask)
 
             return global_attention_mask
@@ -1199,6 +1188,53 @@ class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             ]
 
 
+class DeepSeekV3DummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            **kwargs,
+        )
+        self.num_attention_heads = normalized_config.num_attention_heads
+        self.qk_rope_head_dim = normalized_config.qk_rope_head_dim
+        self.qk_nope_head_dim = normalized_config.qk_nope_head_dim
+        self.v_head_dim = normalized_config.v_head_dim
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        past_key_shape = (
+            self.batch_size,
+            self.num_attention_heads,
+            self.sequence_length,
+            self.qk_rope_head_dim + self.qk_nope_head_dim,  # Combines rope and nope heads
+        )
+        past_value_shape = (
+            self.batch_size,
+            self.num_attention_heads,
+            self.sequence_length,
+            self.v_head_dim,
+        )
+        return [
+            (
+                self.random_float_tensor(past_key_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(past_value_shape, framework=framework, dtype=float_dtype),
+            )
+            for _ in range(self.num_layers)
+        ]
+
+
 class MultiQueryPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
     def __init__(
         self,
@@ -1691,6 +1727,10 @@ class Dinov2DummyInputGenerator(DummyVisionInputGenerator):
             height=height,
             **kwargs,
         )
+
+        # TODO: the processors should be passed to the generator instead of being loaded here
+        from ..utils.save_utils import maybe_load_preprocessors
+
         preprocessor = maybe_load_preprocessors(normalized_config._name_or_path)[-1]
 
         if preprocessor is not None and hasattr(preprocessor, "crop_size"):
@@ -1718,6 +1758,9 @@ class DummyVisionStaticInputGenerator(DummyVisionInputGenerator):
             height=height,
             **kwargs,
         )
+
+        # TODO: the processors should be passed to the generator instead of being loaded here
+        from ..utils.save_utils import maybe_load_preprocessors
 
         preprocessor = maybe_load_preprocessors(normalized_config._name_or_path)[-1]
         if preprocessor is not None and hasattr(preprocessor, "size"):

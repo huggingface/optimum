@@ -267,7 +267,7 @@ class TimeBenchmark:
             benchmark_duration_ns = self.benchmark_duration * SEC_TO_NS_SCALE
             print(f"Running time tracking in {self.benchmark_duration:.1f}s.")
             while sum(self.latencies) < benchmark_duration_ns:
-                # TODO not trak GPU/CPU <--> numpy/torch, need to change the implementation of forward
+                # TODO not track GPU/CPU <--> numpy/torch, need to change the implementation of forward
                 with self.track():
                     self.model.forward(**inputs)
 

@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 class TextClassificationProcessing(TaskProcessor):
     ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
     DEFAULT_DATASET_ARGS = {"path": "glue", "name": "sst2"}
-    DEFAUL_DATASET_DATA_KEYS = {"primary": "sentence"}
+    DEFAULT_DATASET_DATA_KEYS = {"primary": "sentence"}
     ALLOWED_DATA_KEY_NAMES = {"primary", "secondary"}
     DEFAULT_REF_KEYS = ["label"]
 

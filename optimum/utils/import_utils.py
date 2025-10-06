@@ -21,7 +21,6 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import List, Optional, Tuple, Union
 
-import numpy as np
 from packaging import version
 
 
@@ -32,9 +31,8 @@ TRANSFORMERS_MINIMUM_VERSION = version.parse("4.36.0")
 DIFFUSERS_MINIMUM_VERSION = version.parse("0.22.0")
 AUTOGPTQ_MINIMUM_VERSION = version.parse("0.4.99")  # Allows 0.5.0.dev0
 GPTQMODEL_MINIMUM_VERSION = version.parse("1.6.0")
+ORT_QUANTIZE_MINIMUM_VERSION = version.parse("1.4.0")  # TODO: remove as optimm-onnx requires >=1.15.0
 
-# This is the minimal required version to support some ONNX Runtime features
-ORT_QUANTIZE_MINIMUM_VERSION = version.parse("1.4.0")
 
 STR_OPERATION_TO_FUNC = {">": op.gt, ">=": op.ge, "==": op.eq, "!=": op.ne, "<=": op.le, "<": op.lt}
 
@@ -81,21 +79,24 @@ def _is_package_available(
         return package_exists
 
 
-_onnx_available = _is_package_available("onnx")
-_pydantic_available = _is_package_available("pydantic")
-_accelerate_available = _is_package_available("accelerate")
-_auto_gptq_available = _is_package_available("auto_gptq")
-_gptqmodel_available = _is_package_available("gptqmodel")
 _timm_available = _is_package_available("timm")
-_sentence_transformers_available = _is_package_available("sentence_transformers")
+_onnx_available = _is_package_available("onnx")
 _datasets_available = _is_package_available("datasets")
 _tensorrt_available = _is_package_available("tensorrt")
+_pydantic_available = _is_package_available("pydantic")
+_openvino_available = _is_package_available("openvino")
+_auto_gptq_available = _is_package_available("auto_gptq")
+_gptqmodel_available = _is_package_available("gptqmodel")
+_accelerate_available = _is_package_available("accelerate")
+_optimum_onnx_available = _is_package_available("optimum.onnx")
+_optimum_intel_available = _is_package_available("optimum.intel")
+_ipex_available = _is_package_available("intel_extension_for_pytorch")
+_sentence_transformers_available = _is_package_available("sentence_transformers")
 _diffusers_available, _diffusers_version = _is_package_available("diffusers", return_version=True)
 _transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
 _torch_available, _torch_version = _is_package_available("torch", return_version=True)
-_onnxruntime_available, _onnxruntime_version = _is_package_available(
+_onnxruntime_available = _is_package_available(
     "onnxruntime",
-    return_version=True,
     pkg_distributions=[
         "onnxruntime-gpu",
         "onnxruntime-rocm",
@@ -116,33 +117,7 @@ _onnxruntime_available, _onnxruntime_version = _is_package_available(
         "ort-rocm-nightly",
     ],
 )
-_tf_available, _tf_version = _is_package_available(
-    "tensorflow",
-    return_version=True,
-    pkg_distributions=[
-        "tensorflow",
-        "tensorflow-cpu",
-        "tensorflow-gpu",
-        "tensorflow-rocm",
-        "tensorflow-macos",
-        "tensorflow-aarch64",
-        "tf-nightly",
-        "tf-nightly-cpu",
-        "tf-nightly-gpu",
-        "tf-nightly-rocm",
-        "tf-nightly-macos",
-        "intel-tensorflow",
-        "intel-tensorflow-avx512",
-    ],
-)
 _onnxslim_available = _is_package_available("onnxslim")
-
-if _tf_available and version.parse(_tf_version) < version.parse("2"):
-    logger.warning(
-        "TensorFlow 2.0 or higher is required to use the TensorFlow backend. "
-        "Please install the latest version of TensorFlow, or switch to another backend."
-    )
-    _tf_available = False
 
 
 # This function was copied from: https://github.com/huggingface/accelerate/blob/874c4967d94badd24f893064cc3bef45f57cadf7/src/accelerate/utils/versions.py#L319
@@ -191,9 +166,7 @@ def is_torch_version(operation: str, reference_version: str):
     if not _torch_available:
         return False
 
-    import torch
-
-    return compare_versions(version.parse(version.parse(torch.__version__).base_version), operation, reference_version)
+    return compare_versions(version.parse(_torch_version), operation, reference_version)
 
 
 _is_torch_onnx_support_available = _torch_available and is_torch_version(">=", TORCH_MINIMUM_VERSION.base_version)
@@ -247,10 +220,6 @@ def is_torch_available():
     return _torch_available
 
 
-def is_tf_available():
-    return _tf_available
-
-
 def is_auto_gptq_available():
     if _auto_gptq_available:
         v = version.parse(importlib.metadata.version("auto_gptq"))
@@ -277,76 +246,26 @@ def is_onnxslim_available():
     return _onnxslim_available
 
 
-@contextmanager
-def check_if_pytorch_greater(target_version: str, message: str):
-    r"""
-    A context manager that does nothing except checking if the PyTorch version is greater than `pt_version`
-    """
-    import torch
-
-    if not version.parse(torch.__version__) >= version.parse(target_version):
-        raise ImportError(
-            f"Found an incompatible version of PyTorch. Found version {torch.__version__}, but only {target_version} and above are supported. {message}"
-        )
-    try:
-        yield
-    finally:
-        pass
+def is_ipex_available():
+    return _ipex_available
 
 
-# TODO : Remove check_if_transformers_greater, check_if_diffusers_greater, check_if_torch_greater
-def check_if_transformers_greater(target_version: Union[str, version.Version]) -> bool:
-    """
-    Checks whether the current install of transformers is greater than or equal to the target version.
-
-    Args:
-        target_version (`Union[str, packaging.version.Version]`): version used as the reference for comparison.
-
-    Returns:
-        bool: whether the check is True or not.
-    """
-    import transformers
-
-    if isinstance(target_version, str):
-        target_version = version.parse(target_version)
-
-    return version.parse(transformers.__version__) >= target_version
+def is_openvino_available():
+    return _openvino_available
 
 
-def check_if_diffusers_greater(target_version: str) -> bool:
-    """
-    Checks whether the current install of diffusers is greater than or equal to the target version.
-
-    Args:
-        target_version (str): version used as the reference for comparison.
-
-    Returns:
-        bool: whether the check is True or not.
-    """
-    if not _diffusers_available:
-        return False
-
-    return version.parse(_diffusers_version) >= version.parse(target_version)
+def is_optimum_onnx_available():
+    return _optimum_onnx_available
 
 
-def check_if_torch_greater(target_version: str) -> bool:
-    """
-    Checks whether the current install of torch is greater than or equal to the target version.
-
-    Args:
-        target_version (str): version used as the reference for comparison.
-
-    Returns:
-        bool: whether the check is True or not.
-    """
-    if not _torch_available:
-        return False
-
-    return version.parse(_torch_version) >= version.parse(target_version)
+def is_optimum_intel_available():
+    return _optimum_intel_available
 
 
 @contextmanager
 def require_numpy_strictly_lower(package_version: str, message: str):
+    import numpy as np
+
     if not version.parse(np.__version__) < version.parse(package_version):
         raise ImportError(
             f"Found an incompatible version of numpy. Found version {np.__version__}, but expected numpy<{version}. {message}"

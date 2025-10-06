@@ -16,11 +16,12 @@ Exporting a model from one framework to some format (also called backend here) i
 - Configuration classes containing the information for each model to perform the export.
 - Exporting functions using the proper configuration for the model to export.
 
-The role of the [`~optimum.exporters.tasks.TasksManager`] is to be the main entry-point to load a model given a name and a task, and to get the proper configuration for a given (architecture, backend) couple. That way, there is a centralized place to register the `task -> model class` and `(architecture, backend) -> configuration` mappings. This allows the export functions to use this, and to rely on the various checks it provides.
+The role of the [`~optimum.exporters.tasks.TasksManager`] is to be the main entry-point to load a model given a name and a task, and to get the proper configuration for a given (architecture, backend) couple. 
+That way, there is a centralized place to register the `task -> model class` and `(architecture, backend) -> configuration` mappings. This allows the export functions to use this, and to rely on the various checks it provides.
 
 ## Task names
 
-The tasks supported might depend on the backend, but here are the mappings between a task name and the auto class for both PyTorch and TensorFlow.
+The tasks supported might depend on the backend, but here are the mappings between a task name and the auto class for PyTorch.
 
 <Tip>
 
@@ -42,37 +43,51 @@ It is possible to know which tasks are supported for a model for a given backend
 
 ### PyTorch
 
-| Task                                 | Auto Class                           |
-|--------------------------------------|--------------------------------------|
-| `text-generation`, `text-generation-with-past`   | `AutoModelForCausalLM`               |
-| `feature-extraction`, `feature-extraction-with-past`       | `AutoModel`                          |
-| `fill-mask`                          | `AutoModelForMaskedLM`               |
-| `question-answering`                 | `AutoModelForQuestionAnswering`      |
-| `text2text-generation`, `text2text-generation-with-past` | `AutoModelForSeq2SeqLM`              |
-| `text-classification`            | `AutoModelForSequenceClassification` |
-| `token-classification`               | `AutoModelForTokenClassification`    |
-| `multiple-choice`                    | `AutoModelForMultipleChoice`         |
-| `image-classification`               | `AutoModelForImageClassification`    |
-| `object-detection`                   | `AutoModelForObjectDetection`        |
-| `image-segmentation`                 | `AutoModelForImageSegmentation`      |
-| `masked-im`                          | `AutoModelForMaskedImageModeling`    |
-| `semantic-segmentation`              | `AutoModelForSemanticSegmentation`   |
-| `automatic-speech-recognition`                      | `AutoModelForSpeechSeq2Seq`          |
+#### Transformers
 
-### TensorFlow
+| Task                             | Auto Class                                                    |
+|----------------------------------|---------------------------------------------------------------|
+| `audio-classification`           | `AutoModelForAudioClassification`                             |
+| `audio-frame-classification`     | `AutoModelForAudioFrameClassification`                        |
+| `audio-xvector`                  | `AutoModelForAudioXVector`                                    |
+| `automatic-speech-recognition`   | `AutoModelForSpeechSeq2Seq`, `AutoModelForCTC`                |
+| `depth-estimation`               | `AutoModelForDepthEstimation`                                 |
+| `feature-extraction`             | `AutoModel`                                                   |
+| `fill-mask`                      | `AutoModelForMaskedLM`                                        |
+| `image-classification`           | `AutoModelForImageClassification`                             |
+| `image-to-image`                 | `AutoModelForImageToImage`                                    |
+| `image-to-text`                  | `AutoModelForVision2Seq`, `AutoModel`                         |
+| `image-text-to-text`             | `AutoModelForImageTextToText`                                 |
+| `mask-generation`                | `AutoModel`                                                   |
+| `masked-im`                      | `AutoModelForMaskedImageModeling`                             |
+| `multiple-choice`                | `AutoModelForMultipleChoice`                                  |
+| `object-detection`               | `AutoModelForObjectDetection`                                 |
+| `question-answering`             | `AutoModelForQuestionAnswering`                               |
+| `reinforcement-learning`         | `AutoModel`                                                   |
+| `semantic-segmentation`          | `AutoModelForSemanticSegmentation`                            |
+| `text-to-audio`                  | `AutoModelForTextToSpectrogram`, `AutoModelForTextToWaveform` |
+| `text-generation`                | `AutoModelForCausalLM`                                        |
+| `text2text-generation`           | `AutoModelForSeq2SeqLM`                                       |
+| `text-classification`            | `AutoModelForSequenceClassification`                          |
+| `token-classification`           | `AutoModelForTokenClassification`                             |
+| `visual-question-answering`      | `AutoModelForVisualQuestionAnswering`                         |
+| `zero-shot-image-classification` | `AutoModelForZeroShotImageClassification`                     |
+| `zero-shot-object-detection`     | `AutoModelForZeroShotObjectDetection`                         |
 
-| Task                                 | Auto Class                             |
-|--------------------------------------|----------------------------------------|
-| `text-generation`, `text-generation-with-past`   | `TFAutoModelForCausalLM`               |
-| `default`, `default-with-past`       | `TFAutoModel`                          |
-| `fill-mask`                          | `TFAutoModelForMaskedLM`               |
-| `question-answering`                 | `TFAutoModelForQuestionAnswering`      |
-| `text2text-generation`, `text2text-generation-with-past` | `TFAutoModelForSeq2SeqLM`              |
-| `text-classification`            | `TFAutoModelForSequenceClassification` |
-| `token-classification`               | `TFAutoModelForTokenClassification`    |
-| `multiple-choice`                    | `TFAutoModelForMultipleChoice`         |
-| `semantic-segmentation`              | `TFAutoModelForSemanticSegmentation`   |
+#### Diffusers
 
+| Task             | Auto Class                   |
+|------------------|------------------------------|
+| `text-to-image`  | `AutoPipelineForText2Image`  |
+| `image-to-image` | `AutoPipelineForImage2Image` |
+| `inpainting`     | `AutoPipelineForInpainting`  |
+
+#### Sentence Transformers
+
+| Task                  | Auto Class            |
+|-----------------------|-----------------------|
+| `feature-extraction`  | `SentenceTransformer` |
+| `sentence-similarity` | `SentenceTransformer` |
 
 ## Reference
 

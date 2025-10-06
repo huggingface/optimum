@@ -1,4 +1,4 @@
-name: Optimum CLI / Python - Test - Subpackage (ONNX)
+name: Optimum Pipelines / Python - Test - Subpackage (ONNX)
 
 on:
   push:
@@ -54,7 +54,7 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/cli -vvvv --durations=0
+          pytest tests/pipelines -vvvv --durations=0
         working-directory: optimum
 
       - name: Install dependencies (editable mode)
@@ -65,5 +65,5 @@ jobs:
 
       - name: Test with pytest (editable mode)
         run: |
-          pytest tests/cli -vvvv --durations=0
+          pytest tests/pipelines -vvvv --durations=0
         working-directory: optimum

@@ -1,4 +1,4 @@
-name: Exporters Common / Python - Test
+name: Exporters Common / Python - Test - Subpackage (ONNX)
 
 on:
   push:
@@ -11,6 +11,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  UV_SYSTEM_PYTHON: 1
+  UV_TORCH_BACKEND: cpu
+  OPTIMUM_ONNX_REF: main
   TRANSFORMERS_IS_CI: true
 
 jobs:
@@ -18,14 +21,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-22.04]
         python-version: [3.9]
+        runs-on: [ubuntu-22.04, windows-2022]
 
     runs-on: ${{ matrix.runs-on }}
 
     steps:
-      - name: Checkout code
+      - name: Checkout optimum
         uses: actions/checkout@v4
+        with:
+          path: optimum
+          fetch-depth: 0
+
+      - name: checkout optimum-onnx
+        uses: actions/checkout@v4
+        with:
+          repository: huggingface/optimum-onnx
+          ref: ${{ env.OPTIMUM_ONNX_REF }}
+          path: optimum-onnx
+          fetch-depth: 0
 
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -34,10 +48,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,exporters]
+          pip install --upgrade pip uv
+          uv pip install ./optimum-onnx
+          uv pip install ./optimum[tests]
 
       - name: Test with pytest
         run: |
           pytest tests/exporters/common -vvvv --durations=0 -n auto
+        working-directory: optimum
+
+      - name: Install dependencies (editable mode)
+        run: |
+          uv pip uninstall optimum-onnx optimum
+          uv pip install -e ./optimum-onnx
+          uv pip install -e ./optimum[tests]
+
+      - name: Test with pytest (editable mode)
+        run: |
+          pytest tests/exporters/common -vvvv --durations=0 -n auto
+        working-directory: optimum

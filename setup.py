@@ -43,24 +43,23 @@ QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
 BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
 EXTRAS_REQUIRE = {
+    ###########################################################################
+    # until optimum-onnx is released on PyPI
     "onnx": "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
     "onnxruntime": "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
     "onnxruntime-gpu": "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
-    # TODO: remove exporters (onnxruntime), exporters-gpu (onnxruntime) in v2.0
-    "exporters": "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
-    "exporters-gpu": "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
     ###########################################################################
+    "amd": "optimum-amd",
+    "furiosa": "optimum-furiosa",
+    "graphcore": "optimum-graphcore",
+    "habana": "optimum-habana>=1.17.0",
     "intel": "optimum-intel>=1.23.0",
-    "openvino": "optimum-intel[openvino]>=1.23.0",
+    "ipex": "optimum-intel[ipex]>=1.23.0",
     "nncf": "optimum-intel[nncf]>=1.23.0",
     "neural-compressor": "optimum-intel[neural-compressor]>=1.23.0",
-    "ipex": "optimum-intel[ipex]>=1.23.0",
-    "habana": "optimum-habana>=1.17.0",
-    "neuronx": ["optimum-neuron[neuronx]>=0.0.28"],
-    "graphcore": "optimum-graphcore",
-    "furiosa": "optimum-furiosa",
-    "amd": "optimum-amd",
-    "quanto": ["optimum-quanto>=0.2.4"],
+    "openvino": "optimum-intel[openvino]>=1.23.0",
+    "quanto": "optimum-quanto>=0.2.4",
+    ###########################################################################
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,

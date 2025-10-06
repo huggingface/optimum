@@ -77,13 +77,13 @@ class DecompTracer(GraphAppendingTracer):
 
 class DecompositionInterpreter(Interpreter):
     """
-    DecompositionInterpreter takes the high-level graph module, run the iternal nodes following the topo order, and decompose
+    DecompositionInterpreter takes the high-level graph module, run the internal nodes following the topo order, and decompose
     high-level pytorch operators into core aten operators by utilizing torch dispatch infrastructure along the way.
 
     Notes:
         - Certain primitive layers(like `nn.Linear`, `nn.Embedding`, and activation layers) are preserved because we have specific
           heuristic based parallelization strategy for them so that we can conveniently replace them into their parallelized counterparts
-          in the orignal graph module.
+          in the original graph module.
 
         - The traced graph is a low-level equivalent representation of the original graph module, and is only used for
           parallel axis propagation and analysis, the original graph module is still used for real execution.
