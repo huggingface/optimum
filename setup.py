@@ -43,12 +43,6 @@ QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
 BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
 EXTRAS_REQUIRE = {
-    ###########################################################################
-    # until optimum-onnx is released on PyPI
-    "onnx": "optimum-onnx @ git+https://github.com/huggingface/optimum-onnx.git",
-    "onnxruntime": "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git",
-    "onnxruntime-gpu": "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git",
-    ###########################################################################
     "amd": "optimum-amd",
     "furiosa": "optimum-furiosa",
     "graphcore": "optimum-graphcore",
@@ -57,6 +51,9 @@ EXTRAS_REQUIRE = {
     "ipex": "optimum-intel[ipex]>=1.23.0",
     "nncf": "optimum-intel[nncf]>=1.23.0",
     "neural-compressor": "optimum-intel[neural-compressor]>=1.23.0",
+    "onnx": "optimum-onnx",
+    "onnxruntime": "optimum-onnx[onnxruntime]",
+    "onnxruntime-gpu": "optimum-onnx[onnxruntime-gpu]",
     "openvino": "optimum-intel[openvino]>=1.23.0",
     "quanto": "optimum-quanto>=0.2.4",
     ###########################################################################
