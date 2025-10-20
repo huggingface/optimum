@@ -41,9 +41,11 @@ If you'd like to use the accelerator-specific features of Optimum, you can check
 | Accelerator                                                                         | Installation                                                                |
 | :---------------------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
 | [ONNX](https://huggingface.co/docs/optimum-onnx/en/index)                           | `pip install --upgrade --upgrade-strategy eager optimum[onnx]`              |
+| [ONNX Runtime](https://huggingface.co/docs/optimum-onnx/onnxruntime/overview)       | `pip install --upgrade --upgrade-strategy eager optimum[onnxruntime]`       |
+| [ONNX Runtime GPU](https://huggingface.co/docs/optimum-onnx/onnxruntime/overview)   | `pip install --upgrade --upgrade-strategy eager optimum[onnxruntime-gpu]`   |
 | [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)          | `pip install --upgrade --upgrade-strategy eager optimum[neural-compressor]` |
 | [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                         | `pip install --upgrade --upgrade-strategy eager optimum[openvino]`          |
-| [IPEX](https://huggingface.co/docs/optimum/intel/ipex/inference)                    | `pip install --upgrade --upgrade-strategy eager optimum[ipex]`              |
+| [IPEX](https://huggingface.co/docs/optimum/intel/index)                             | `pip install --upgrade --upgrade-strategy eager optimum[ipex]`              |
 | [NVIDIA TensorRT-LLM](https://huggingface.co/docs/optimum/main/en/nvidia_overview)  | `docker run -it --gpus all --ipc host huggingface/optimum-nvidia`           |
 | [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index) | `pip install --upgrade --upgrade-strategy eager optimum[amd]`               |
 | [AWS Trainum & Inferentia](https://huggingface.co/docs/optimum-neuron/index)        | `pip install --upgrade --upgrade-strategy eager optimum[neuronx]`           |
@@ -79,7 +81,7 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### ONNX + ONNX Runtime
 
-🚨🚨🚨 ONNX integration moving to [`optimum-onnx`](https://github.com/huggingface/optimum-onnx) so make sure to follow the installation instructions 🚨🚨🚨
+🚨🚨🚨 ONNX integration was moved to [`optimum-onnx`](https://github.com/huggingface/optimum-onnx) so make sure to follow the installation instructions 🚨🚨🚨
 
 Before you begin, make sure you have all the necessary libraries installed :
 
@@ -87,11 +89,11 @@ Before you begin, make sure you have all the necessary libraries installed :
 pip install --upgrade --upgrade-strategy eager optimum[onnx]
 ```
 
-It is possible to export Transformers, Diffusers, Sentence Transformers and timm models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily.
+It is possible to export Transformers, Diffusers, Sentence Transformers and Timm models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily.
 
 For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum-onnx/en/onnx/usage_guides/export_a_model).
 
-Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend.
+Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seamless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend.
 
 For this make sure you have ONNX Runtime installed, fore more information check out the [installation instructions](https://onnxruntime.ai/docs/install/).
 
@@ -149,13 +151,3 @@ pip install --upgrade --upgrade-strategy eager optimum[neuronx]
 ```
 
 You can find examples in the [documentation](https://huggingface.co/docs/optimum-neuron/index) and in the [tutorials](https://huggingface.co/docs/optimum-neuron/tutorials/fine_tune_bert).
-
-### ONNX Runtime
-
-Before you begin, make sure you have all the necessary libraries installed :
-
-```bash
-pip install optimum[onnxruntime-training]
-```
-
-You can find examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).

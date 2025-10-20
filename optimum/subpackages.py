@@ -29,12 +29,9 @@ logger = logging.getLogger(__name__)
 
 def load_namespace_modules(namespace: str, module: str):
     """Load modules with a specific name inside a namespace
-
     This method operates on namespace packages:
     https://packaging.python.org/en/latest/guides/packaging-namespace-packages/
-
     For each package inside the specified `namespace`, it looks for the specified `module` and loads it.
-
     Args:
         namespace (`str`):
             The namespace containing modules to be loaded.
@@ -45,32 +42,36 @@ def load_namespace_modules(namespace: str, module: str):
         dist_name = dist.metadata["Name"]
         if dist_name is None:
             continue
-        if dist_name == f"{namespace}-benchmark":
-            continue
         if not dist_name.startswith(f"{namespace}-"):
             continue
+        if dist_name not in {"optimum-quanto", "optimum-nvidia"}:
+            # find_spec(optimum.backend.subpackage) loads optimum.backend as well
+            # which slows down the CLI startup time greatly (e.g. importing optimum.onnx)
+            # adding this early exit speeds up the cli to the same speed as without subpackages
+            continue
+
         package_import_name = dist_name.replace("-", ".")
         module_import_name = f"{package_import_name}.{module}"
         if module_import_name in sys.modules:
             # Module already loaded
             continue
+
         backend_spec = find_spec(module_import_name)
         if backend_spec is None:
             continue
+
         try:
             imported_module = module_from_spec(backend_spec)
             sys.modules[module_import_name] = imported_module
             backend_spec.loader.exec_module(imported_module)
             logger.debug(f"Successfully loaded {module_import_name}")
         except Exception as e:
-            logger.error(f"An exception occured while loading {module_import_name}: {e}.")
+            logger.error(f"An exception occurred while loading {module_import_name}: {e}.")
 
 
 def load_subpackages():
     """Load optimum subpackages
-
     This method goes through packages inside the `optimum` namespace and loads the `subpackage` module if it exists.
-
     This module is then in charge of registering the subpackage commands.
     """
     SUBPACKAGE_LOADER = "subpackage"

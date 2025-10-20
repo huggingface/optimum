@@ -59,7 +59,7 @@ def parallelize_model(
         parallel_ctx (`ParallelExecutionCtx`):
             Parallel execution context containing process groups the current process belongs to.
         *model_args (`Any`):
-            Additional postional arguments for intializing the model if a model id is passed.
+            Additional positional arguments for initializing the model if a model id is passed.
         revision (`str`, defaults to `main`):
             Model revision for weights downloading if a model id is passed.
         cache_dir (`Optional[str]`, defaults to `None`):
@@ -69,7 +69,7 @@ def parallelize_model(
         skip_load_weights (`bool`, defaults to `False`):
             Whether to skip loading weights from disk to model.
         **kwargs (`Dict[str, Any]`):
-            Addtional keyword arguments for overriding fields in parallel config, model config and `Model.__init__`.
+            Additional keyword arguments for overriding fields in parallel config, model config and `Model.__init__`.
     """
     revision = kwargs.pop("revision", "main")
     cache_dir = kwargs.pop("cache_dir", None)

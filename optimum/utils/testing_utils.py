@@ -23,8 +23,6 @@ import unittest
 from collections.abc import MutableMapping
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
-import torch
-
 from . import (
     is_accelerate_available,
     is_auto_gptq_available,
@@ -69,6 +67,8 @@ def require_auto_gptq(test_case):
 
 def require_torch_gpu(test_case):
     """Decorator marking a test that requires CUDA and PyTorch."""
+    import torch
+
     torch_device = "cuda" if torch.cuda.is_available() else "cpu"
 
     return unittest.skipUnless(torch_device == "cuda", "test requires CUDA")(test_case)

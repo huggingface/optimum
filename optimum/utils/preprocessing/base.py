@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Base class to peform task-specific preprocessing and evaluation."""
+"""Base class to perform task-specific preprocessing and evaluation."""
 
 import copy
 import functools
@@ -41,7 +41,7 @@ Preprocessor = Union[PreTrainedTokenizerBase, BaseImageProcessor]
 class TaskProcessor(ABC):
     ACCEPTED_PREPROCESSOR_CLASSES: Tuple[Type, ...]
     DEFAULT_DATASET_ARGS: Union[str, Dict[str, Any]]
-    DEFAUL_DATASET_DATA_KEYS: Dict[str, str]
+    DEFAULT_DATASET_DATA_KEYS: Dict[str, str]
     ALLOWED_DATA_KEY_NAMES: Set[str]
     DEFAULT_REF_KEYS: List[str]
 
@@ -156,7 +156,7 @@ class TaskProcessor(ABC):
                 )
             smallest_split = min(dataset.items(), key=lambda item: item[1].num_rows)[0]
             logger.info(
-                "Since no split was explicitely provided and load_smallest_split=True, using the smallest split of the "
+                "Since no split was explicitly provided and load_smallest_split=True, using the smallest split of the "
                 f'dataset called "{smallest_split}".'
             )
             dataset = dataset[smallest_split]
@@ -229,7 +229,7 @@ class TaskProcessor(ABC):
             if common_keys:
                 ", ".join(common_keys)
                 logger.warning(
-                    "The following provided arguments will be overriden because they are hardcoded when using "
+                    "The following provided arguments will be overridden because they are hardcoded when using "
                     "load_default_dataset: {override_config_key}."
                 )
             kwargs = copy.deepcopy(load_dataset_kwargs)
@@ -240,7 +240,7 @@ class TaskProcessor(ABC):
 
         return self.load_dataset(
             path,
-            data_keys=self.DEFAUL_DATASET_DATA_KEYS,
+            data_keys=self.DEFAULT_DATASET_DATA_KEYS,
             ref_keys=self.DEFAULT_REF_KEYS,
             only_keep_necessary_columns=only_keep_necessary_columns,
             load_smallest_split=load_smallest_split,

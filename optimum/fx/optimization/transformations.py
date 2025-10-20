@@ -37,10 +37,10 @@ except ImportError:
         def wrapper_with_forced_tracing(*_args, **_kwargs):
             import torch.fx._symbolic_trace
 
-            orginal_flag = torch.fx._symbolic_trace._is_fx_tracing_flag
+            original_flag = torch.fx._symbolic_trace._is_fx_tracing_flag
             torch.fx._symbolic_trace._is_fx_tracing_flag = True
             out = wrapper(*_args, **_kwargs)
-            torch.fx._symbolic_trace._is_fx_tracing_flag = orginal_flag
+            torch.fx._symbolic_trace._is_fx_tracing_flag = original_flag
             return out
 
         return wrapper_with_forced_tracing, target

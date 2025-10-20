@@ -146,13 +146,13 @@ class ParallelAxisSolverPass(AnalyzeBase):
     A pass which tries to automatically identify parallel layers in the graph. There are three steps
     involved to find a possible parallel solution given the traced graph module and process group.
 
-        - Decompostion & Functionalization
+        - Decomposition & Functionalization
             The vanilla graph traced by dynamo frontend is a high-level graph which contains high-level
             pytorch ops, and there could be thousands of them, which makes graph analysis hard in order
             to cover all cases. So we decompose the high-level graph into low-level graph which only
             conrtains core aten ops, which is a much smaller set. And functionalization is also needed
             to remove inplace ops in the graph so that we get `aten.Add` instead of `aten.Add_` in the
-            graph, which furthur reduces the op set we need to consider.
+            graph, which further reduces the op set we need to consider.
 
         - Parallel Axis Propagation
             We need to write parallel axis propagation rules for aten ops in the decomposed and functionalized
@@ -435,7 +435,7 @@ class ParallelLayerReplacePass(PassBase):
 
 class InitializeOrLoadWeightsPass(PassBase):
     """
-    Weights loading and intialization pass, will initialize parameters on current rank and load weights from disk
+    Weights loading and initialization pass, will initialize parameters on current rank and load weights from disk
     if necessary.
     """
 

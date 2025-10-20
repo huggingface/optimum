@@ -36,7 +36,6 @@ markers = [
     "cuda_ep_test",
     "trt_ep_test",
     "rocm_ep_test",
-    "tensorflow_test",
     "datasets_test",
     "run_in_series",
     "run_slow",

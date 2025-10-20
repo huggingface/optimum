@@ -14,11 +14,11 @@
 # limitations under the License.
 """optimum.exporters command-line interface base classes."""
 
-from .. import BaseOptimumCLICommand, CommandInfo
+from ..base import BaseOptimumCLICommand, CommandInfo
 
 
 class ExportCommand(BaseOptimumCLICommand):
     COMMAND = CommandInfo(
         name="export",
-        help="Export PyTorch and TensorFlow models to several format.",
+        help="Export PyTorch models to several format.",
     )
