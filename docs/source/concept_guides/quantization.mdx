@@ -161,7 +161,7 @@ this works well with activations.
 
 To effectively quantize a model to `int8`, the steps to follow are:
 
-1. Choose which operators to quantize. Good operators to quantize are the one dominating it terms of computation time,
+1. Choose which operators to quantize. Good operators to quantize are the one dominating in terms of computation time,
 for instance linear projections and matrix multiplications.
 2. Try post-training dynamic quantization, if it is fast enough stop here, otherwise continue to step 3.
 3. Try post-training static quantization which can be faster than dynamic quantization but often with a drop in terms of
