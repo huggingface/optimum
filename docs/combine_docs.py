@@ -106,23 +106,32 @@ def add_subpackage_doc(base_toc: List, subpackage: str):
         subpackage (str): subpackage name
     """
 
-    section_title = EXTERNAL_DOCUMENTATION[subpackage]
-    # Update optimum table of contents
-    base_toc.insert(
-        SUBPACKAGE_TOC_INSERT_INDEX,
-        {
-            "sections": [
-                {
-                    # Ideally this should directly point at https://huggingface.co/docs/optimum-xxx/index
-                    # Current hacky solution is to have a redirection in _redirects.yml
-                    "local": f"docs/optimum-{subpackage}/index",
-                    "title": f"🤗 Optimum {section_title}",
-                }
-            ],
-            "title": TITLE_SECTION.get(section_title, section_title),
-            "isExpanded": False,
-        },
-    )
+    if subpackage == "habana":
+        new_section = {
+            "local": f"docs/optimum-habana/index",
+            "title": f"🤗 Optimum For Intel Gaudi",
+        }
+        for i, toc_element in enumerate(base_toc):
+            if toc_element["title"] == "Intel":
+                base_toc[i]["sections"].append(new_section)
+    else:
+        section_title = EXTERNAL_DOCUMENTATION[subpackage]
+        # Update optimum table of contents
+        base_toc.insert(
+            SUBPACKAGE_TOC_INSERT_INDEX,
+            {
+                "sections": [
+                    {
+                        # Ideally this should directly point at https://huggingface.co/docs/optimum-xxx/index
+                        # Current hacky solution is to have a redirection in _redirects.yml
+                        "local": f"docs/optimum-{subpackage}/index",
+                        "title": f"🤗 Optimum {section_title}",
+                    }
+                ],
+                "title": TITLE_SECTION.get(section_title, section_title),
+                "isExpanded": False,
+            },
+        )
 
 
 def main():
