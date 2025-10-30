@@ -107,14 +107,13 @@ def add_subpackage_doc(base_toc: List, subpackage: str):
     """
 
     if subpackage == "habana":
-        print("HERE", base_toc)
+        # For optimum-habana, we don't create a new section but add it under Intel
         new_section = {
             "local": "docs/optimum-habana/index",
             "title": "🤗 Optimum For Intel Gaudi",
         }
         for i, toc_element in enumerate(base_toc):
             if toc_element["title"] == "Intel":
-                print("AAA", toc_element, base_toc[i])
                 base_toc[i]["sections"].append(new_section)
     else:
         section_title = EXTERNAL_DOCUMENTATION[subpackage]
