@@ -48,7 +48,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip uv
+          python -m pip install --upgrade pip uv
           uv pip install ./optimum-onnx
           uv pip install ./optimum[tests]
 
