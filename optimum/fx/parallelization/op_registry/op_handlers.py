@@ -29,9 +29,19 @@ class Registry:
     """
 
     def __init__(self) -> None:
+        """Initialize the registry with an empty mapping."""
         self.mapping = {}
 
     def register(self, op_types):
+        """
+        Register handler classes for specified operation types.
+        
+        Args:
+            op_types: Single operation type or list/tuple of operation types to register
+            
+        Returns:
+            Decorator function that registers the handler class
+        """
         def wrapper(cls):
             if isinstance(op_types, (list, tuple)):
                 for op_type in op_types:
@@ -43,6 +53,7 @@ class Registry:
         return wrapper
 
     def is_supported(self, op_type) -> bool:
+        """Check if an operation type is supported by the registry."""
         return op_type in self.mapping
 
 
@@ -50,18 +61,43 @@ REGISTRY = Registry()
 
 
 class OpParallelAxisPropagateHandler:
+    """Base class for handling parallel axis propagation in PyTorch operations."""
+    
     def __init__(self, node: Node, meta_key: str, config: Config) -> None:
+        """
+        Initialize the handler with node information and configuration.
+        
+        Args:
+            node: The FX graph node to process
+            meta_key: Key for accessing metadata
+            config: Configuration object containing parallelization settings
+        """
         self.node = node
         self.meta_key = meta_key
         self.config = config
 
     def extract_axis(self, arg: Any) -> Optional[int]:
+        """
+        Extract the parallel axis from a node argument.
+        
+        Args:
+            arg: The argument to extract axis from
+            
+        Returns:
+            The parallel axis if found, None otherwise
+        """
         if not isinstance(arg, Node):
             return None
         return arg.meta[self.meta_key].get("parallel_axis", None)
 
     @abstractmethod
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis information through the operation.
+        
+        Returns:
+            List of possible parallel axes for the output
+        """
         raise NotImplementedError
 
 
@@ -129,7 +165,10 @@ class OpParallelAxisPropagateHandler:
     ]
 )
 class UnaryOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for unary operations that preserve parallel axis from input to output."""
+    
     def propagate(self) -> List[int]:
+        """Propagate the parallel axis from the single input to the output."""
         arg = self.node.all_input_nodes[0]
         axis = self.extract_axis(arg)
         return [axis]
@@ -163,7 +202,15 @@ class UnaryOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
     ]
 )
 class BinaryOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for binary operations that combine parallel axes from two inputs."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axes from two inputs, handling broadcasting and axis alignment.
+        
+        Returns:
+            List containing the compatible parallel axis or empty list if incompatible
+        """
         input_nodes = self.node.all_input_nodes
         # only one node
         if len(input_nodes) == 1:
@@ -213,9 +260,17 @@ class BinaryOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
     ]
 )
 class ReductionOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for reduction operations that may eliminate or preserve parallel axes."""
+    
     def extract_dims(
         self,
     ) -> List[int]:
+        """
+        Extract the dimensions being reduced and keepdim flag from the operation.
+        
+        Returns:
+            Tuple of (dimensions being reduced, keepdim flag)
+        """
         ndim = self.node.meta["val"].ndim
         dims = None
         if "dim" in self.node.kwargs:
@@ -238,6 +293,12 @@ class ReductionOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
         return dims, keepdim
 
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through reduction, adjusting for eliminated dimensions.
+        
+        Returns:
+            List containing the adjusted parallel axis or empty list if axis is reduced
+        """
         dims, keepdim = self.extract_dims()
         arg = self.node.all_input_nodes[0]
         axis = self.extract_axis(arg)
@@ -252,7 +313,15 @@ class ReductionOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 @REGISTRY.register(torch.ops.aten.view.default)
 class ViewLikeOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for view operations that reshape tensors while preserving data."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through view operation by matching tensor sizes.
+        
+        Returns:
+            List of possible parallel axes in the reshaped tensor
+        """
         arg = self.node.args[0]
         axis = self.extract_axis(arg)
         if axis is None:
@@ -274,7 +343,15 @@ class ViewLikeOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 @REGISTRY.register(torch.ops.aten.unsqueeze.default)
 class UnsqueezeParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for unsqueeze operations that add singleton dimensions."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through unsqueeze, adjusting for the new dimension.
+        
+        Returns:
+            List containing the adjusted parallel axis
+        """
         arg, dim = self.node.args[0], self.node.args[1]
         ndim = arg.meta["val"].ndim
         axis = self.extract_axis(arg)
@@ -293,7 +370,15 @@ class UnsqueezeParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
     ]
 )
 class SqueezeParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for squeeze operations that remove singleton dimensions."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through squeeze, adjusting for removed dimensions.
+        
+        Returns:
+            List containing the adjusted parallel axis or empty list if axis is squeezed
+        """
         arg, dims = self.node.args[0], self.node.args[1]
         axis = self.extract_axis(arg)
         if axis is None:
@@ -311,7 +396,15 @@ class SqueezeParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 @REGISTRY.register(torch.ops.aten.permute.default)
 class PermuteParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for permute operations that reorder tensor dimensions."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through permutation by finding the new position.
+        
+        Returns:
+            List containing the new parallel axis position or empty list if not found
+        """
         arg, dims = self.node.args[0], self.node.args[1]
         ndim = arg.meta["val"].ndim
         axis = self.extract_axis(arg)
@@ -326,7 +419,15 @@ class PermuteParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 @REGISTRY.register(torch.ops.aten.slice.Tensor)
 class SliceParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for slice operations that extract tensor subsets."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through slice, checking if slicing affects the parallel dimension.
+        
+        Returns:
+            List containing the parallel axis or empty list if slicing conflicts with parallelization
+        """
         arg, slice_dim = self.node.args[0], self.node.args[1]
         axis = self.extract_axis(arg)
         if axis is None:
@@ -350,7 +451,15 @@ class SliceParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 @REGISTRY.register(torch.ops.aten.expand.default)
 class ExpandParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for expand operations that broadcast tensors to larger sizes."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through expand, adjusting for added dimensions.
+        
+        Returns:
+            List containing the adjusted parallel axis
+        """
         arg, size = self.node.args[0], self.node.args[1]
         axis = self.extract_axis(arg)
         if axis is None:
@@ -361,7 +470,15 @@ class ExpandParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 @REGISTRY.register(torch.ops.aten.cat.default)
 class CatParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for concatenation operations that join tensors along a dimension."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through concatenation, ensuring all inputs have compatible axes.
+        
+        Returns:
+            List containing the parallel axis or empty list if concatenation conflicts with parallelization
+        """
         nodes, cat_axis = self.node.all_input_nodes, self.node.args[1]
         axis, ndim = self.extract_axis(nodes[0]), nodes[0].meta["val"].ndim
         cat_axis = (cat_axis + ndim) % ndim
@@ -375,7 +492,15 @@ class CatParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 @REGISTRY.register(torch.ops.aten.constant_pad_nd.default)
 class PadParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for padding operations that add values to tensor boundaries."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through padding, checking if padding affects the parallel dimension.
+        
+        Returns:
+            List containing the parallel axis or empty list if padding conflicts with parallelization
+        """
         pad, ndim = self.node.args[1], self.node.args[0].meta["val"].ndim
         axis = self.extract_axis(self.node.args[0])
         if axis is None:
@@ -387,7 +512,15 @@ class PadParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 @REGISTRY.register(torch.ops.aten.copy.default)
 class CopyParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for copy operations that transfer data between tensors."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through copy, ensuring source and destination have compatible axes.
+        
+        Returns:
+            List containing the parallel axis or empty list if axes are incompatible
+        """
         dst, src = self.node.all_input_nodes
         axis_dst = self.extract_axis(dst)
         axis_src = self.extract_axis(src)
@@ -398,7 +531,15 @@ class CopyParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 @REGISTRY.register(torch.nn.functional.scaled_dot_product_attention)
 class SpdaAttnParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Handler for scaled dot-product attention operations."""
+    
     def propagate(self) -> List[int]:
+        """
+        Propagate parallel axis through attention, ensuring query, key, and value have compatible axes.
+        
+        Returns:
+            List containing the parallel axis or empty list if axes are incompatible
+        """
         q, k, v = self.node.args[:3]
         q_axis = self.extract_axis(q)
         # parallel axis must be the head dimension if being parallelized
@@ -408,8 +549,16 @@ class SpdaAttnParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
 
 
 class FallbackParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
+    """Fallback handler for operations not explicitly registered in the registry."""
+    
     def propagate(self) -> List[int]:
-        # by default we don't parallelize inputs and constants(except parameters embedded in modules)
+        """
+        Handle parallel axis propagation for unregistered operations using heuristics.
+        
+        Returns:
+            List of possible parallel axes based on operation type and input analysis
+        """
+        # by default we don't parallelize inputs and constants(except parameters embeded in modules)
         if self.node.op in ["placeholder", "get_attr"]:
             return [None]
         elif self.node.op == "output":
