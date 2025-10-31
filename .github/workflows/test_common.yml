@@ -37,7 +37,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip uv
+          python -m pip install --upgrade pip uv
           uv pip install .[tests]
 
       - name: Test with pytest
