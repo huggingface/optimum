@@ -310,9 +310,9 @@ class NormalizedConfigManager:
         "whisper": WhisperLikeNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
-        "qwen2": NormalizedTextConfig,
-        "qwen3": NormalizedTextConfig,
-        "qwen3_moe": NormalizedTextConfig,
+        "qwen2": NormalizedTextConfigWithGQA,
+        "qwen3": NormalizedTextConfigWithGQA,
+        "qwen3_moe": NormalizedTextConfigWithGQA,
         "smollm3": NormalizedTextConfig,
         "granite": NormalizedTextConfigWithGQA,
     }
