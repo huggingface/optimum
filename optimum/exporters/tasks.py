@@ -29,13 +29,6 @@ from requests.exceptions import ConnectionError
 from transformers import AutoConfig, PretrainedConfig
 from transformers.utils import SAFE_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
 
-
-# TF2_WEIGHTS_NAME is not available in recent transformers versions
-try:
-    from transformers.utils import TF2_WEIGHTS_NAME
-except Exception:
-    TF2_WEIGHTS_NAME = None
-
 from ..utils.import_utils import is_diffusers_available, is_torch_available
 from ..utils.logging import get_logger
 
@@ -633,19 +626,9 @@ class TasksManager:
             or (file.startswith(safe_weight_name) and file.endswith(safe_weight_extension))
             for file in all_files
         ]
-        if TF2_WEIGHTS_NAME is not None:
-            weight_name = Path(TF2_WEIGHTS_NAME).stem
-            weight_extension = Path(TF2_WEIGHTS_NAME).suffix
-            is_tf_weight_file = [
-                file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files
-            ]
-        else:
-            is_tf_weight_file = [False] * len(all_files)
 
         if any(is_pt_weight_file):
             framework = "pt"
-        elif any(is_tf_weight_file):
-            framework = "tf"
         elif "model_index.json" in all_files and any(
             file.endswith((pt_weight_extension, safe_weight_extension)) for file in all_files
         ):
@@ -662,15 +645,8 @@ class TasksManager:
             else:
                 msg = (
                     "Cannot determine framework from given checkpoint location. "
-                    f"There should be a {Path(WEIGHTS_NAME).stem}*{Path(WEIGHTS_NAME).suffix} for PyTorch"
+                    f"There should be a {Path(WEIGHTS_NAME).stem}*{Path(WEIGHTS_NAME).suffix} for PyTorch."
                 )
-                if TF2_WEIGHTS_NAME:
-                    msg += f" or {Path(TF2_WEIGHTS_NAME).stem}*{Path(TF2_WEIGHTS_NAME).suffix} for TensorFlow."
-                else:
-                    msg += (
-                        ". TensorFlow checkpoints are not supported with this transformers version "
-                        "(TF2 constants removed)."
-                    )
                 raise FileNotFoundError(msg)
 
         if is_torch_available():
