@@ -27,7 +27,7 @@ from huggingface_hub.errors import OfflineModeIsEnabled
 from packaging import version
 from requests.exceptions import ConnectionError
 from transformers import AutoConfig, PretrainedConfig
-from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
+from transformers.utils import SAFE_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
 
 from ..utils.import_utils import is_diffusers_available, is_torch_available
 from ..utils.logging import get_logger
@@ -627,14 +627,8 @@ class TasksManager:
             for file in all_files
         ]
 
-        weight_name = Path(TF2_WEIGHTS_NAME).stem
-        weight_extension = Path(TF2_WEIGHTS_NAME).suffix
-        is_tf_weight_file = [file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files]
-
         if any(is_pt_weight_file):
             framework = "pt"
-        elif any(is_tf_weight_file):
-            framework = "tf"
         elif "model_index.json" in all_files and any(
             file.endswith((pt_weight_extension, safe_weight_extension)) for file in all_files
         ):
@@ -649,11 +643,11 @@ class TasksManager:
                     f"The framework could not be automatically inferred. If using the command-line, please provide the argument --framework (pt,tf) Detailed error: {request_exception}"
                 )
             else:
-                raise FileNotFoundError(
-                    "Cannot determine framework from given checkpoint location."
-                    f" There should be a {Path(WEIGHTS_NAME).stem}*{Path(WEIGHTS_NAME).suffix} for PyTorch"
-                    f" or {Path(TF2_WEIGHTS_NAME).stem}*{Path(TF2_WEIGHTS_NAME).suffix} for TensorFlow."
+                msg = (
+                    "Cannot determine framework from given checkpoint location. "
+                    f"There should be a {Path(WEIGHTS_NAME).stem}*{Path(WEIGHTS_NAME).suffix} for PyTorch."
                 )
+                raise FileNotFoundError(msg)
 
         if is_torch_available():
             framework = framework or "pt"
