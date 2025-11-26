@@ -58,8 +58,8 @@ if is_auto_gptq_available():
 
 if is_gptqmodel_available():
     from gptqmodel import exllama_set_max_input_length
-    from gptqmodel.quantization import GPTQ
-    from gptqmodel.utils.importer import hf_select_quant_linear
+    from gptqmodel.quantization import GPTQ, METHOD
+    from gptqmodel.utils.importer import hf_select_quant_linear_v2
     from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
     from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init
     from gptqmodel.version import __version__ as gptqmodel_version
@@ -101,7 +101,7 @@ class GPTQQuantizer(object):
         max_input_length: Optional[int] = None,
         cache_block_outputs: Optional[bool] = True,
         modules_in_block_to_quantize: Optional[List[List[str]]] = None,
-        checkpoint_format: str = "gptq",
+        format: str = "gptq",
         meta: Optional[Dict[str, any]] = None,
         backend: Optional[str] = None,
         *args,
@@ -155,7 +155,7 @@ class GPTQQuantizer(object):
                 List list of module names to quantize in the block specified. This argument is useful to exclude certain linear modules from being quantized.
                 The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially.
                 If not set, we will quantize all linear layers. Example: `inside_layer_modules=[["self_attention.query_key_value"], ["mlp.dense_h_to_4h"]]`
-            checkpoint_format (`str`, *optional*, defaults to `gptq`):
+            format (`str`, *optional*, defaults to `gptq`):
                 GPTQ weight format. `gptq`(v1) is supported by both gptqmodel and auto-gptq. `gptq_v2` is gptqmodel only.
             meta (`Dict[str, any]`, *optional*):
                 Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
@@ -171,7 +171,7 @@ class GPTQQuantizer(object):
         self.desc_act = desc_act
         self.sym = sym
         self.true_sequential = true_sequential
-        self.checkpoint_format = checkpoint_format.lower()
+        self.format = format.lower()
         self.meta = meta
         self.backend = backend.lower() if backend is not None else None
         self.use_cuda_fp16 = use_cuda_fp16
@@ -197,7 +197,7 @@ class GPTQQuantizer(object):
             "true_sequential",
             "quant_method",
             "modules_in_block_to_quantize",
-            "checkpoint_format",
+            "format",
             "meta",
         ]
 
@@ -222,12 +222,13 @@ class GPTQQuantizer(object):
 
     def select_quant_linear(self, device_map: Union[str, dict], pack: bool = False):
         if is_gptqmodel_available():
-            self.quant_linear = hf_select_quant_linear(
+            self.quant_linear = hf_select_quant_linear_v2(
                 bits=self.bits,
                 group_size=self.group_size,
                 desc_act=self.desc_act,
                 sym=self.sym,
-                checkpoint_format=self.checkpoint_format,
+                format=self.format,
+                quant_method=METHOD.GPTQ,
                 meta=self.meta,
                 device_map=device_map,
                 backend=self.backend,
@@ -430,7 +431,7 @@ class GPTQQuantizer(object):
                 "Asymmetric sym=False quantization is not supported with auto-gptq. Please use gptqmodel: `pip install gptqmodel`"
             )
 
-        if self.checkpoint_format == "gptq_v2" and not is_gptqmodel_available():
+        if self.format == "gptq_v2" and not is_gptqmodel_available():
             raise ValueError(
                 "gptq_v2 format only supported with gptqmodel. Please install gptqmodel: `pip install gptqmodel`"
             )
@@ -438,8 +439,8 @@ class GPTQQuantizer(object):
         model.eval()
 
         # gptqmodel internal is gptq_v2 for asym support, gptq(v1) can only support sym=True
-        if is_gptqmodel_available() and self.checkpoint_format != "gptq_v2":
-            self.checkpoint_format = "gptq_v2"
+        if is_gptqmodel_available() and self.format != "gptq_v2":
+            self.format = "gptq_v2"
 
         # For Transformer model
         has_config = False
@@ -730,7 +731,7 @@ class GPTQQuantizer(object):
 
         if is_gptqmodel_available():
             model, _ = hf_convert_gptq_v1_to_v2_format(
-                model, self.bits, self.quant_linear, self.checkpoint_format, self.meta
+                model, self.bits, self.quant_linear, self.format, self.meta
             )
 
         model.quantize_config = StoreAttr()
@@ -804,10 +805,10 @@ class GPTQQuantizer(object):
         # convert gptqmodel internal gptq_v2 format to v1 for max compatibility
         if is_gptqmodel_available():
             model, converted = hf_convert_gptq_v2_to_v1_format(
-                model, self.sym, self.bits, self.quant_linear, self.checkpoint_format, self.meta
+                model, self.sym, self.bits, self.quant_linear, self.format, self.meta
             )
             if converted:
-                self.checkpoint_format = "gptq"
+                self.format = "gptq"
 
         os.makedirs(save_dir, exist_ok=True)
         model.save_pretrained(save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
