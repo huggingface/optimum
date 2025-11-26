@@ -26,20 +26,21 @@ from optimum.gptq.data import get_dataset
 from optimum.gptq.eval import evaluate_perplexity
 from optimum.gptq.utils import get_block_name_with_pattern, get_preceding_modules, get_seqlen
 from optimum.utils import recurse_getattr
-from optimum.utils.import_utils import is_accelerate_available, is_auto_gptq_available
-from optimum.utils.testing_utils import require_auto_gptq, require_torch_gpu
+from optimum.utils.import_utils import is_gptqmodel_available, is_accelerate_available
+from optimum.utils.testing_utils import require_gptqmodel, require_torch_gpu
 
 
-if is_auto_gptq_available():
-    from auto_gptq import AutoGPTQForCausalLM
-    from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
+if is_gptqmodel_available():
+    from gptqmodel import GPTQModel, BACKEND
+    from gptqmodel.quantization import METHOD, FORMAT
+    from gptqmodel.utils.importer import hf_select_quant_linear_v2
 
 if is_accelerate_available():
     from accelerate import init_empty_weights
 
 
 @slow
-@require_auto_gptq
+@require_gptqmodel
 @require_torch_gpu
 class GPTQTest(unittest.TestCase):
     model_name = "bigscience/bloom-560m"
@@ -52,14 +53,13 @@ class GPTQTest(unittest.TestCase):
     bits = 4
     group_size = 128
     desc_act = False
-    disable_exllama = True
-    exllama_config = None
+    backend = BACKEND.AUTO
     cache_block_outputs = True
     modules_in_block_to_quantize = None
     device_map_for_quantization = "cuda"
     device_for_inference = 0
     dataset = [
-        "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
+        "gptqmodel is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
     ]
 
     # called only once for all tests in this class
@@ -84,8 +84,7 @@ class GPTQTest(unittest.TestCase):
             dataset=cls.dataset,
             group_size=cls.group_size,
             desc_act=cls.desc_act,
-            disable_exllama=cls.disable_exllama,
-            exllama_config=cls.exllama_config,
+            backend=cls.backend,
             cache_block_outputs=cls.cache_block_outputs,
             modules_in_block_to_quantize=cls.modules_in_block_to_quantize,
         )
@@ -117,15 +116,15 @@ class GPTQTest(unittest.TestCase):
         A simple test to check if the model conversion has been done correctly by checking on the
         the class type of the linear layers of the converted models
         """
-
-        QuantLinear = dynamically_import_QuantLinear(
-            use_triton=False,
-            use_qigen=False,
-            desc_act=self.desc_act,
-            group_size=self.group_size,
+        QuantLinear = hf_select_quant_linear_v2(
             bits=self.bits,
-            disable_exllama=self.disable_exllama or self.exllama_config["version"] != 1,
-            disable_exllamav2=self.disable_exllama or self.exllama_config["version"] != 2,
+            group_size=self.group_size,
+            desc_act=False,
+            sym=False,
+            format=FORMAT.GPTQ,
+            backend=self.backend,
+            quant_method=METHOD.GPTQ,
+            pack=False,
         )
         self.assertTrue(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__ == QuantLinear)
 
@@ -149,19 +148,18 @@ class GPTQTest(unittest.TestCase):
                 empty_model,
                 save_folder=tmpdirname,
                 device_map={"": self.device_for_inference},
-                disable_exllama=self.disable_exllama,
-                exllama_config=self.exllama_config,
+                backend=self.backend,
             )
-            if self.disable_exllama:
-                self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
-            else:
-                self.check_quantized_layers_type(quantized_model_from_saved, "exllama")
+            # if self.disable_exllama:
+            #     self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
+            # else:
+            self.check_quantized_layers_type(quantized_model_from_saved, "exllama")
 
-            # transformers and auto-gptq compatibility
+            # transformers and gptqmodel compatibility
             # quantized models are more compatible with device map than
             # device context managers (they're never used in transformers testing suite)
             _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})
-            _ = AutoGPTQForCausalLM.from_quantized(tmpdirname, device_map={"": self.device_for_inference})
+            _ = GPTQModel.load(tmpdirname, device_map={"": self.device_for_inference})
 
 
 class GPTQTestCPUInit(GPTQTest):
@@ -172,12 +170,10 @@ class GPTQTestCPUInit(GPTQTest):
 
 
 class GPTQTestExllama(GPTQTest):
-    disable_exllama = False
-    exllama_config = {"version": 1}
+    backend = BACKEND.EXLLAMA_V1
 
 
 class GPTQTestActOrder(GPTQTest):
-    disable_exllama = True
     desc_act = True
 
     def test_serialization(self):
@@ -201,15 +197,15 @@ class GPTQTestActOrder(GPTQTest):
                 empty_model,
                 save_folder=tmpdirname,
                 device_map={"": self.device_for_inference},
-                exllama_config={"version": 1},
+                backend=BACKEND.EXLLAMA_V1,
             )
             self.check_quantized_layers_type(quantized_model_from_saved, "exllama")
 
-            # transformers and auto-gptq compatibility
+            # transformers and gptqmodel compatibility
             # quantized models are more compatible with device map than
             # device context managers (they're never used in transformers testing suite)
             _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})
-            _ = AutoGPTQForCausalLM.from_quantized(tmpdirname, device_map={"": self.device_for_inference})
+            _ = GPTQModel.load(tmpdirname, device_map={"": self.device_for_inference})
 
     def test_exllama_max_input_length(self):
         """
@@ -228,7 +224,7 @@ class GPTQTestActOrder(GPTQTest):
                 empty_model,
                 save_folder=tmpdirname,
                 device_map={"": self.device_for_inference},
-                exllama_config={"version": 1},
+                backend=BACKEND.EXLLAMA_V1,
                 max_input_length=4028,
             )
             self.check_quantized_layers_type(quantized_model_from_saved, "exllama")
@@ -248,8 +244,7 @@ class GPTQTestActOrder(GPTQTest):
 
 class GPTQTestExllamav2(GPTQTest):
     desc_act = False
-    disable_exllama = True
-    exllama_config = {"version": 2}
+    backend = BACKEND.EXLLAMA_V2
 
     def test_serialization(self):
         # don't need to test
@@ -275,11 +270,11 @@ class GPTQTestExllamav2(GPTQTest):
             )
             self.check_quantized_layers_type(quantized_model_from_saved, "exllamav2")
 
-            # transformers and auto-gptq compatibility
+            # transformers and gptqmodel compatibility
             # quantized models are more compatible with device map than
             # device context managers (they're never used in transformers testing suite)
             _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})
-            _ = AutoGPTQForCausalLM.from_quantized(tmpdirname, device_map={"": self.device_for_inference})
+            _ = GPTQModel.load(tmpdirname, device_map={"": self.device_for_inference})
 
 
 class GPTQTestNoBlockCaching(GPTQTest):

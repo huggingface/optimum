@@ -219,18 +219,6 @@ def is_tensorrt_available():
 def is_torch_available():
     return _torch_available
 
-
-def is_auto_gptq_available():
-    if _auto_gptq_available:
-        v = version.parse(importlib.metadata.version("auto_gptq"))
-        if v >= AUTOGPTQ_MINIMUM_VERSION:
-            return True
-        else:
-            raise ImportError(
-                f"Found an incompatible version of auto-gptq. Found version {v}, but only version >= {AUTOGPTQ_MINIMUM_VERSION} are supported"
-            )
-
-
 def is_gptqmodel_available():
     if _gptqmodel_available:
         v = version.parse(importlib.metadata.version("gptqmodel"))

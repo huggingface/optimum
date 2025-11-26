@@ -25,7 +25,7 @@ from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 from . import (
     is_accelerate_available,
-    is_auto_gptq_available,
+    is_gptqmodel_available,
     is_datasets_available,
     is_diffusers_available,
     is_sentence_transformers_available,
@@ -58,11 +58,11 @@ def require_accelerate(test_case):
     return unittest.skipUnless(is_accelerate_available(), "test requires accelerate")(test_case)
 
 
-def require_auto_gptq(test_case):
+def require_gptqmodel(test_case):
     """
     Decorator marking a test that requires auto-gptq. These tests are skipped when auto-gptq isn't installed.
     """
-    return unittest.skipUnless(is_auto_gptq_available(), "test requires auto-gptq")(test_case)
+    return unittest.skipUnless(is_gptqmodel_available(), "test requires gptqmodel")(test_case)
 
 
 def require_torch_gpu(test_case):
