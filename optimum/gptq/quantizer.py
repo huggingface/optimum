@@ -483,14 +483,14 @@ class GPTQQuantizer(object):
                 module = module.to(to_device)
             blocks[0] = blocks[0].to(to_device)
 
-        def store_input_hook(_, input, *args):
-            kwargs = args[0]
-            if input is None:
-                if "hidden_states" in kwargs:
-                    input = (nested_move_to(kwargs["hidden_states"], cur_layer_device),)
-                else:
-                    raise ValueError("No input value found in the forward pass")
-            layer_inputs.append(input)
+        def store_input_hook(module, args, kwargs):
+            layer_input: List[torch.Tensor] = []
+            if kwargs.get("hidden_states") is not None:
+                layer_input.append(nested_move_to(kwargs["hidden_states"], device=cur_layer_device))
+            else:
+                layer_input.append(nested_move_to(args[0], device=cur_layer_device))
+
+            layer_inputs.append(layer_input)
             other_kwargs = {}
             for k, v in kwargs.items():  # make sure other arguments also be captured
                 if k not in ["hidden_states"]:
@@ -603,7 +603,9 @@ class GPTQQuantizer(object):
             if self.cache_block_outputs:
                 for j in range(len(dataset)):
                     layer_output = block(*layer_inputs[j], **layer_input_kwargs[j])
-                    layer_outputs.append(layer_output)
+                    primary = layer_output[0] if isinstance(layer_output, tuple) else layer_output
+                    primary = nested_move_to(primary, device=cur_layer_device)
+                    layer_outputs.append([primary])
 
                 # put back to device
                 if not has_device_map:
