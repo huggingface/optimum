@@ -126,10 +126,10 @@ class GPTQTest(unittest.TestCase):
             quant_method=METHOD.GPTQ,
             pack=False,
         )
-        self.assertTrue(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__ == QuantLinear)
+        self.assertEqual(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__, QuantLinear)
 
     def check_quantized_layers_type(self, model, value):
-        self.assertTrue(model.transformer.h[0].mlp.dense_4h_to_h.QUANT_TYPE == value)
+        self.assertEqual(model.transformer.h[0].mlp.dense_4h_to_h.QUANT_TYPE, value)
 
     def test_serialization(self):
         """
@@ -231,14 +231,14 @@ class GPTQTestActOrder(GPTQTest):
 
             prompt = "I am in Paris and" * 1000
             inp = self.tokenizer(prompt, return_tensors="pt").to(0)
-            self.assertTrue(inp["input_ids"].shape[1] > 4028)
+            self.assertGreater(inp["input_ids"].shape[1], 4028)
             with self.assertRaises(RuntimeError) as cm:
                 quantized_model_from_saved.generate(**inp, num_beams=1, min_new_tokens=3, max_new_tokens=3)
-                self.assertTrue("temp_state buffer is too small" in str(cm.exception))
+                self.assertIn("temp_state buffer is too small", str(cm.exception))
 
             prompt = "I am in Paris and" * 500
             inp = self.tokenizer(prompt, return_tensors="pt").to(0)
-            self.assertTrue(inp["input_ids"].shape[1] < 4028)
+            self.assertLess(inp["input_ids"].shape[1], 4028)
             quantized_model_from_saved.generate(**inp, num_beams=1, min_new_tokens=3, max_new_tokens=3)
 
 
@@ -292,7 +292,7 @@ class GPTQTestModuleQuant(GPTQTest):
 
     def test_not_converted_layers(self):
         # self_attention.dense should not be converted
-        self.assertTrue(self.quantized_model.transformer.h[0].self_attention.dense.__class__.__name__ == "Linear")
+        self.assertEqual(self.quantized_model.transformer.h[0].self_attention.dense.__class__.__name__, "Linear")
 
 
 class GPTQUtilsTest(unittest.TestCase):
