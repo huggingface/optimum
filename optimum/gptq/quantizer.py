@@ -177,7 +177,8 @@ class GPTQQuantizer(object):
             true_sequential=self.true_sequential,
             format=FORMAT(self.format) if isinstance(self.format, str) else self.format,
             quant_method=METHOD(self.quant_method) if isinstance(self.quant_method, str) else self.quant_method,
-            meta=self.meta
+            meta=self.meta,
+            offload_to_disk=False,
         )
 
         self.serialization_keys = [
