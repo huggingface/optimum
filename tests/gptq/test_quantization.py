@@ -52,6 +52,7 @@ class GPTQTest(unittest.TestCase):
 
     bits = 4
     group_size = 128
+    sym = True
     desc_act = False
     backend = BACKEND.AUTO
     cache_block_outputs = True
@@ -83,6 +84,7 @@ class GPTQTest(unittest.TestCase):
             bits=cls.bits,
             dataset=cls.dataset,
             group_size=cls.group_size,
+            sym=cls.sym,
             desc_act=cls.desc_act,
             backend=cls.backend,
             cache_block_outputs=cls.cache_block_outputs,
@@ -119,12 +121,13 @@ class GPTQTest(unittest.TestCase):
         QuantLinear = hf_select_quant_linear_v2(
             bits=self.bits,
             group_size=self.group_size,
-            desc_act=False,
-            sym=False,
+            desc_act=self.desc_act,
+            sym=self.sym,
             format=FORMAT.GPTQ,
-            backend=self.backend,
             quant_method=METHOD.GPTQ,
-            pack=False,
+            device_map=self.device_map_for_quantization,
+            backend=self.backend,
+            pack=True,
         )
         self.assertEqual(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__, QuantLinear)
 
@@ -137,6 +140,7 @@ class GPTQTest(unittest.TestCase):
         """
 
         with tempfile.TemporaryDirectory() as tmpdirname:
+            self.tokenizer.save_pretrained(tmpdirname)
             self.quantizer.save(self.quantized_model, tmpdirname)
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
@@ -153,7 +157,7 @@ class GPTQTest(unittest.TestCase):
             # if self.disable_exllama:
             #     self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
             # else:
-            self.check_quantized_layers_type(quantized_model_from_saved, "exllama")
+            self.check_quantized_layers_type(quantized_model_from_saved, "marlin")
 
             # transformers and gptqmodel compatibility
             # quantized models are more compatible with device map than
@@ -175,6 +179,7 @@ class GPTQTestExllama(GPTQTest):
 
 class GPTQTestActOrder(GPTQTest):
     desc_act = True
+    expected_quantized_perplexity = 33
 
     def test_serialization(self):
         # act_order don't work with qlinear_cuda kernel
@@ -186,6 +191,7 @@ class GPTQTestActOrder(GPTQTest):
         """
 
         with tempfile.TemporaryDirectory() as tmpdirname:
+            self.tokenizer.save_pretrained(tmpdirname)
             self.quantizer.save(self.quantized_model, tmpdirname)
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():

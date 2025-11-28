@@ -49,8 +49,8 @@ if is_accelerate_available():
     from accelerate.hooks import remove_hook_from_module
 
 if is_gptqmodel_available():
-    from gptqmodel import exllama_set_max_input_length, BACKEND
-    from gptqmodel.quantization import GPTQ, METHOD
+    from gptqmodel import exllama_set_max_input_length, BACKEND, QuantizeConfig
+    from gptqmodel.quantization import GPTQ, METHOD, FORMAT
     from gptqmodel.utils.importer import hf_select_quant_linear_v2
     from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
     from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init
@@ -75,6 +75,7 @@ class GPTQQuantizer(object):
             group_size: int = 128,
             damp_percent: float = 0.1,
             desc_act: bool = False,
+            act_group_aware: bool = True,
             sym: bool = True,
             true_sequential: bool = True,
             model_seqlen: Optional[int] = None,
@@ -107,6 +108,9 @@ class GPTQQuantizer(object):
                 Whether to quantize columns in order of decreasing activation size.
                 Setting it to False can significantly speed up inference but the perplexity may become slightly worse.
                 Also known as act-order.
+            act_group_aware (`bool`, *optional*, defaults to `True`):
+                Use GAR (group aware activation order) during quantization. Has measurable positive impact on quantization
+                quality. Only applicable when `desc_act = False`. Will forced to be `False` when `desc_act = True`.
             sym (`bool`, defaults to `True`):
                 Whether to use symmetric quantization.
             true_sequential (`bool`, defaults to `True`):
@@ -147,6 +151,7 @@ class GPTQQuantizer(object):
         self.group_size = group_size
         self.damp_percent = damp_percent
         self.desc_act = desc_act
+        self.act_group_aware = act_group_aware
         self.sym = sym
         self.true_sequential = true_sequential
         self.format = format.lower()
@@ -161,6 +166,19 @@ class GPTQQuantizer(object):
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
         self.modules_in_block_to_quantize = modules_in_block_to_quantize
+
+        self.quantizeConfig = QuantizeConfig(
+            bits=self.bits,
+            group_size=self.group_size,
+            damp_percent=self.damp_percent,
+            desc_act=self.desc_act,
+            act_group_aware=self.act_group_aware,
+            sym=self.sym,
+            true_sequential=self.true_sequential,
+            format=FORMAT(self.format) if isinstance(self.format, str) else self.format,
+            quant_method=METHOD(self.quant_method) if isinstance(self.quant_method, str) else self.quant_method,
+            meta=self.meta
+        )
 
         self.serialization_keys = [
             "bits",
@@ -557,7 +575,7 @@ class GPTQQuantizer(object):
                 handles = []
                 # add hook for each layer in subset_layers
                 for name in subset_layers:
-                    gptq[name] = GPTQ(subset_layers[name])
+                    gptq[name] = GPTQ(subset_layers[name], qcfg=self.quantizeConfig)
                     gptq[name].quantizer.configure(bits=self.bits, sym=self.sym, perchannel=True)
 
                     def add_batch(name):
