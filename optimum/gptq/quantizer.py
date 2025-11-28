@@ -186,6 +186,7 @@ class GPTQQuantizer(object):
             "group_size",
             "damp_percent",
             "desc_act",
+            "act_group_aware",
             "sym",
             "true_sequential",
             "quant_method",

@@ -54,7 +54,9 @@ class GPTQTest(unittest.TestCase):
     group_size = 128
     sym = True
     desc_act = False
-    backend = BACKEND.AUTO
+    act_group_aware = True
+    quant_backend = BACKEND.AUTO
+    load_backend = BACKEND.AUTO
     cache_block_outputs = True
     modules_in_block_to_quantize = None
     device_map_for_quantization = "cuda"
@@ -86,7 +88,8 @@ class GPTQTest(unittest.TestCase):
             group_size=cls.group_size,
             sym=cls.sym,
             desc_act=cls.desc_act,
-            backend=cls.backend,
+            act_group_aware=cls.act_group_aware,
+            backend=cls.quant_backend,
             cache_block_outputs=cls.cache_block_outputs,
             modules_in_block_to_quantize=cls.modules_in_block_to_quantize,
         )
@@ -126,7 +129,7 @@ class GPTQTest(unittest.TestCase):
             format=FORMAT.GPTQ,
             quant_method=METHOD.GPTQ,
             device_map=self.device_map_for_quantization,
-            backend=self.backend,
+            backend=self.quant_backend,
             pack=True,
         )
         self.assertEqual(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__, QuantLinear)
@@ -152,12 +155,13 @@ class GPTQTest(unittest.TestCase):
                 empty_model,
                 save_folder=tmpdirname,
                 device_map={"": self.device_for_inference},
-                backend=self.backend,
+                backend=self.load_backend,
             )
-            # if self.disable_exllama:
-            #     self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
-            # else:
-            self.check_quantized_layers_type(quantized_model_from_saved, "marlin")
+
+            expect_quant_type = "marlin"
+            if self.load_backend == BACKEND.EXLLAMA_V1:
+                expect_quant_type = "exllama"
+            self.check_quantized_layers_type(quantized_model_from_saved, expect_quant_type)
 
             # transformers and gptqmodel compatibility
             # quantized models are more compatible with device map than
@@ -174,11 +178,13 @@ class GPTQTestCPUInit(GPTQTest):
 
 
 class GPTQTestExllama(GPTQTest):
-    backend = BACKEND.EXLLAMA_V1
+    load_backend = BACKEND.EXLLAMA_V1
 
 
 class GPTQTestActOrder(GPTQTest):
+    # `act_group_aware` == `True` requires `desc_act` == `False` when both are explicitly set
     desc_act = True
+    act_group_aware = False
     expected_quantized_perplexity = 33
 
     def test_serialization(self):
@@ -250,7 +256,7 @@ class GPTQTestActOrder(GPTQTest):
 
 class GPTQTestExllamav2(GPTQTest):
     desc_act = False
-    backend = BACKEND.EXLLAMA_V2
+    load_backend = BACKEND.EXLLAMA_V2
 
     def test_serialization(self):
         # don't need to test
@@ -262,6 +268,7 @@ class GPTQTestExllamav2(GPTQTest):
         """
 
         with tempfile.TemporaryDirectory() as tmpdirname:
+            self.tokenizer.save_pretrained(tmpdirname)
             self.quantizer.save(self.quantized_model, tmpdirname)
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
@@ -271,6 +278,7 @@ class GPTQTestExllamav2(GPTQTest):
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
                 empty_model,
+                backend=self.load_backend,
                 save_folder=tmpdirname,
                 device_map={"": self.device_for_inference},
             )
