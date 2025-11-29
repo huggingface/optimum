@@ -578,7 +578,7 @@ class TasksManager:
                 if not isinstance(model_name_or_path, str):
                     model_name_or_path = str(model_name_or_path)
                 # Download the specific file with optional custom local filename
-                downloaded_path = download_file_with_filename(
+                download_file_with_filename(
                     repo_id=model_name_or_path,
                     filename=filename,
                     local_filename=local_filename,
