@@ -534,10 +534,66 @@ class TasksManager:
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
+        filename: Optional[str] = None,
+        local_filename: Optional[str] = None,
     ):
+        """
+        Get the list of files in a model repository or local directory.
+
+        Args:
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
+            subfolder (`str`, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            cache_dir (`str`, defaults to `HUGGINGFACE_HUB_CACHE`):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            token (`Optional[Union[bool, str]]`, defaults to `None`):
+                The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+                when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
+            revision (`Optional[str]`, defaults to `None`):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            filename (`Optional[str]`, defaults to `None`):
+                If specified, download only this specific file from the repository. When provided, `hf_hub_download`
+                will be used instead of `snapshot_download` to allow for custom filename support.
+            local_filename (`Optional[str]`, defaults to `None`):
+                The local filename to use when caching the file. Only used when `filename` is provided.
+                This parameter allows you to specify a custom name for the cached file, which is particularly
+                useful for repositories like xenova that may have specific naming requirements.
+
+        Returns:
+            `Tuple[List[str], Optional[Exception]]`: A tuple containing the list of files and an optional exception.
+        """
+        from ..utils.file_utils import download_file_with_filename
+
         request_exception = None
         full_model_path = Path(model_name_or_path, subfolder)
         hf_api = HfApi(user_agent=http_user_agent(), token=token)
+
+        # If a specific filename is requested, use hf_hub_download instead of snapshot_download
+        # This allows for custom local_filename support
+        if filename is not None and not full_model_path.is_dir():
+            try:
+                if not isinstance(model_name_or_path, str):
+                    model_name_or_path = str(model_name_or_path)
+                # Download the specific file with optional custom local filename
+                downloaded_path = download_file_with_filename(
+                    repo_id=model_name_or_path,
+                    filename=filename,
+                    local_filename=local_filename,
+                    subfolder=subfolder,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    token=token,
+                    repo_type="model",
+                )
+                # Return the single file in a list format
+                all_files = [filename]
+                return all_files, request_exception
+            except Exception as e:
+                request_exception = e
+                return [], request_exception
 
         if full_model_path.is_dir():
             all_files = [
