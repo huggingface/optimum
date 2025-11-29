@@ -15,12 +15,9 @@
 
 """Tests for file utility functions."""
 
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from optimum.utils.file_utils import download_file_with_filename, validate_file_exists
 
@@ -196,4 +193,3 @@ class TestValidateFileExists:
             revision=None,
             token=None,
         )
-
