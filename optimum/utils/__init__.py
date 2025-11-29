@@ -105,6 +105,11 @@ from .input_generators import (
     T5DummySeq2SeqPastKeyValuesGenerator,
     VitPoseDummyInputGenerator,
 )
+from .file_utils import (
+    download_file_with_filename,
+    find_files_matching_pattern,
+    validate_file_exists,
+)
 from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (
     NormalizedConfig,
