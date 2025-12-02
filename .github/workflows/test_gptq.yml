@@ -42,6 +42,6 @@ jobs:
             --volume ${{ github.workspace }}:/workspace
             --workdir /workspace
           run: |
-            pip install auto-gptq
-            pip install -e .[tests]
+            pip install gptqmodel
+            pip install .[tests]
             pytest tests/gptq -s -vvvv --durations=0
