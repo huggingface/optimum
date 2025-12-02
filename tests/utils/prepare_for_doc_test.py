@@ -12,31 +12,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Style utils to preprocess files for doc tests.
+"""Style utils to preprocess files for doc tests.
 
-    The doc processing function can be run on a list of files and/or
-    directories of files. It will recursively check if the files have
-    a python code snippet by looking for a ```python or ```py syntax.
-    In the default mode - `remove_new_line==False` the script will
-    add a new line before every python code ending ``` line to make
-    the docstrings ready for pytest doctests.
-    However, we don't want to have empty lines displayed in the
-    official documentation which is why the new line command can be
-    reversed by adding the flag `--remove_new_line` which sets
-    `remove_new_line==True`.
+The doc processing function can be run on a list of files and/or
+directories of files. It will recursively check if the files have
+a python code snippet by looking for a ```python or ```py syntax.
+In the default mode - `remove_new_line==False` the script will
+add a new line before every python code ending ``` line to make
+the docstrings ready for pytest doctests.
+However, we don't want to have empty lines displayed in the
+official documentation which is why the new line command can be
+reversed by adding the flag `--remove_new_line` which sets
+`remove_new_line==True`.
 
-    When debugging the doc tests locally, please make sure to
-    always run:
+When debugging the doc tests locally, please make sure to
+always run:
 
-    ```python utils/prepare_for_doc_test.py src docs```
+```python utils/prepare_for_doc_test.py src docs```
 
-    before running the doc tests:
+before running the doc tests:
 
-    ```pytest --doctest-modules $(cat utils/documentation_tests.txt) -sv --doctest-continue-on-failure --doctest-glob="*.mdx"```
+```pytest --doctest-modules $(cat utils/documentation_tests.txt) -sv --doctest-continue-on-failure --doctest-glob="*.mdx"```
 
-    Afterwards you should revert the changes by running
+Afterwards you should revert the changes by running
 
-    ```python utils/prepare_for_doc_test.py src docs --remove_new_line```
+```python utils/prepare_for_doc_test.py src docs --remove_new_line```
 """
 
 import argparse

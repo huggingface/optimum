@@ -218,6 +218,7 @@ def is_tensorrt_available():
 def is_torch_available():
     return _torch_available
 
+
 def is_gptqmodel_available():
     if _gptqmodel_available:
         v = version.parse(importlib.metadata.version("gptqmodel"))

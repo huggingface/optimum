@@ -69,28 +69,28 @@ class GPTQQuantizer(object):
     """
 
     def __init__(
-            self,
-            bits: int,
-            dataset: Optional[Union[List[str], str]] = None,
-            group_size: int = 128,
-            damp_percent: float = 0.1,
-            desc_act: bool = False,
-            act_group_aware: bool = True,
-            sym: bool = True,
-            true_sequential: bool = True,
-            model_seqlen: Optional[int] = None,
-            block_name_to_quantize: Optional[str] = None,
-            module_name_preceding_first_block: Optional[List[str]] = None,
-            batch_size: int = 1,
-            pad_token_id: Optional[int] = None,
-            max_input_length: Optional[int] = None,
-            cache_block_outputs: Optional[bool] = True,
-            modules_in_block_to_quantize: Optional[List[List[str]]] = None,
-            format: str = "gptq",
-            meta: Optional[Dict[str, any]] = None,
-            backend: Optional[str] = None,
-            *args,
-            **kwargs,
+        self,
+        bits: int,
+        dataset: Optional[Union[List[str], str]] = None,
+        group_size: int = 128,
+        damp_percent: float = 0.1,
+        desc_act: bool = False,
+        act_group_aware: bool = True,
+        sym: bool = True,
+        true_sequential: bool = True,
+        model_seqlen: Optional[int] = None,
+        block_name_to_quantize: Optional[str] = None,
+        module_name_preceding_first_block: Optional[List[str]] = None,
+        batch_size: int = 1,
+        pad_token_id: Optional[int] = None,
+        max_input_length: Optional[int] = None,
+        cache_block_outputs: Optional[bool] = True,
+        modules_in_block_to_quantize: Optional[List[List[str]]] = None,
+        format: str = "gptq",
+        meta: Optional[Dict[str, any]] = None,
+        backend: Optional[str] = None,
+        *args,
+        **kwargs,
     ):
         """
         Args:
@@ -661,29 +661,24 @@ class GPTQQuantizer(object):
             model (`nn.Module`):
                 The input model
         """
+
         class StoreAttr(object):
             pass
 
         if is_gptqmodel_available():
-            model, _ = hf_convert_gptq_v1_to_v2_format(
-                model, self.bits, self.quant_linear, self.format, self.meta
-            )
+            model, _ = hf_convert_gptq_v1_to_v2_format(model, self.bits, self.quant_linear, self.format, self.meta)
 
         model.quantize_config = StoreAttr()
         model.quantize_config.desc_act = self.desc_act
         model = gptq_post_init(model, use_act_order=self.desc_act)
-        if (
-                self.desc_act
-                and self.backend == BACKEND.EXLLAMA_V1
-                and self.max_input_length is not None
-        ):
+        if self.desc_act and self.backend == BACKEND.EXLLAMA_V1 and self.max_input_length is not None:
             model = exllama_set_max_input_length(model, self.max_input_length)
         return model
 
     def pack_model(
-            self,
-            model: nn.Module,
-            quantizers: Dict[str, Tuple],
+        self,
+        model: nn.Module,
+        quantizers: Dict[str, Tuple],
     ):
         """
         Pack the model by replacing the layers by quantized layers
@@ -752,18 +747,18 @@ class GPTQQuantizer(object):
 
 
 def load_quantized_model(
-        model: nn.Module,
-        save_folder: str,
-        backend: BACKEND = BACKEND.AUTO,
-        quant_config_name: str = GPTQ_CONFIG,
-        state_dict_name: Optional[str] = None,
-        device_map: Optional[str] = None,
-        max_memory: Optional[Dict] = None,
-        no_split_module_classes: Optional[Dict] = None,
-        offload_folder: Optional[str] = None,
-        offload_buffers: Optional[str] = None,
-        offload_state_dict: bool = False,
-        max_input_length: Optional[int] = None,
+    model: nn.Module,
+    save_folder: str,
+    backend: BACKEND = BACKEND.AUTO,
+    quant_config_name: str = GPTQ_CONFIG,
+    state_dict_name: Optional[str] = None,
+    device_map: Optional[str] = None,
+    max_memory: Optional[Dict] = None,
+    no_split_module_classes: Optional[Dict] = None,
+    offload_folder: Optional[str] = None,
+    offload_buffers: Optional[str] = None,
+    offload_state_dict: bool = False,
+    max_input_length: Optional[int] = None,
 ):
     """
     Load quantized weights from the save_folder into the converted model and dispatch the weights according to the device_map.
