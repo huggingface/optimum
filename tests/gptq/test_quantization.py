@@ -26,13 +26,13 @@ from optimum.gptq.data import get_dataset
 from optimum.gptq.eval import evaluate_perplexity
 from optimum.gptq.utils import get_block_name_with_pattern, get_preceding_modules, get_seqlen
 from optimum.utils import recurse_getattr
-from optimum.utils.import_utils import is_gptqmodel_available, is_accelerate_available
+from optimum.utils.import_utils import is_accelerate_available, is_gptqmodel_available
 from optimum.utils.testing_utils import require_gptqmodel, require_torch_gpu
 
 
 if is_gptqmodel_available():
-    from gptqmodel import GPTQModel, BACKEND
-    from gptqmodel.quantization import METHOD, FORMAT
+    from gptqmodel import BACKEND, GPTQModel
+    from gptqmodel.quantization import FORMAT, METHOD
     from gptqmodel.utils.importer import hf_select_quant_linear_v2
 
 if is_accelerate_available():

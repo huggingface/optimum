@@ -12,15 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import importlib
 import json
 import os
-from enum import Enum
 from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-from packaging import version
 from torch import nn
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer
@@ -41,6 +38,7 @@ from .utils import (
     nested_move_to,
 )
 
+
 if is_accelerate_available():
     from accelerate import (
         cpu_offload_with_hook,
@@ -49,8 +47,8 @@ if is_accelerate_available():
     from accelerate.hooks import remove_hook_from_module
 
 if is_gptqmodel_available():
-    from gptqmodel import exllama_set_max_input_length, BACKEND, QuantizeConfig
-    from gptqmodel.quantization import GPTQ, METHOD, FORMAT
+    from gptqmodel import BACKEND, QuantizeConfig, exllama_set_max_input_length
+    from gptqmodel.quantization import FORMAT, GPTQ, METHOD
     from gptqmodel.utils.importer import hf_select_quant_linear_v2
     from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
     from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init

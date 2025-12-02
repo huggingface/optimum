@@ -25,9 +25,9 @@ from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 from . import (
     is_accelerate_available,
-    is_gptqmodel_available,
     is_datasets_available,
     is_diffusers_available,
+    is_gptqmodel_available,
     is_sentence_transformers_available,
     is_timm_available,
 )
