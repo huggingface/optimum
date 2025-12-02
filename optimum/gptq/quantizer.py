@@ -747,7 +747,7 @@ class GPTQQuantizer(object):
 def load_quantized_model(
     model: nn.Module,
     save_folder: str,
-    backend: BACKEND = BACKEND.AUTO,
+    backend: str = "auto",
     quant_config_name: str = GPTQ_CONFIG,
     state_dict_name: Optional[str] = None,
     device_map: Optional[str] = None,
@@ -807,7 +807,12 @@ def load_quantized_model(
         )
     if device_map is None:
         device_map = {"": torch.cuda.current_device()}
-        logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
+        logger.info("The device_map was not initialized.Setting device_map to `{'':torch.cuda.current_device()}`.")
+
+    if isinstance(backend, str):
+        backend = BACKEND(backend.lower())
+    elif not isinstance(backend, BACKEND):
+        raise ValueError(f"backend should be of type str or BACKEND enum. Found {type(backend)}")
 
     # this branch will check if model is from huggingface
     try:
@@ -820,6 +825,7 @@ def load_quantized_model(
         raise ValueError(
             f"Failed to load quantization config from {save_folder} (lookup for traceback): {err}\nTip: If the save directory is saved from a transformers.PreTrainedModel, make sure that `config.json` contains a 'quantization_config' key."
         ) from err
+
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.backend = backend
     quantizer.max_input_length = max_input_length
