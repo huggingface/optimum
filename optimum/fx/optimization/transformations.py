@@ -26,27 +26,6 @@ from torch.fx import GraphModule, Node, Proxy
 from transformers.file_utils import add_end_docstrings
 
 
-def _gen_constructor_wrapper(target):
-    @functools.wraps(target)
-    def wrapper(*args, **kwargs):
-        proxy = None
-
-        def check_has_proxy(v):
-            if isinstance(v, Proxy):
-                nonlocal proxy
-                proxy = v
-
-        torch.fx.node.map_aggregate(args, check_has_proxy)
-        torch.fx.node.map_aggregate(kwargs, check_has_proxy)
-
-        if proxy is not None:
-            return proxy.tracer.create_proxy("call_function", target, args, kwargs)
-        else:
-            return target(*args, **kwargs)
-
-    return wrapper, target
-
-
 _ATTRIBUTES_DOCSTRING = r"""
 Attributes:
     preserves_computation (`bool`, defaults to `False`):
@@ -820,3 +799,24 @@ def compose(*args: Transformation, inplace: bool = True) -> Transformation:
                 return ComposeTransformation._reverse_composition(graph_module)
 
     return ComposeTransformation()
+
+
+def _gen_constructor_wrapper(target):
+    @functools.wraps(target)
+    def wrapper(*args, **kwargs):
+        proxy = None
+
+        def check_has_proxy(v):
+            if isinstance(v, Proxy):
+                nonlocal proxy
+                proxy = v
+
+        torch.fx.node.map_aggregate(args, check_has_proxy)
+        torch.fx.node.map_aggregate(kwargs, check_has_proxy)
+
+        if proxy is not None:
+            return proxy.tracer.create_proxy("call_function", target, args, kwargs)
+        else:
+            return target(*args, **kwargs)
+
+    return wrapper, target
