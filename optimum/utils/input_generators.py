@@ -42,7 +42,7 @@ def check_framework_is_available(func):
 
 
 DEFAULT_DUMMY_SHAPES = {
-    "batch_size": 2,
+    "batch_size": 1,
     "sequence_length": 16,
     "num_choices": 4,
     # image
@@ -56,6 +56,10 @@ DEFAULT_DUMMY_SHAPES = {
     "feature_size": 80,
     "nb_max_frames": 3000,
     "audio_sequence_length": 16000,
+    # video
+    "num_frames": 2,
+    "video_width": 128,
+    "video_height": 128,
 }
 
 
@@ -923,6 +927,133 @@ class DummyAudioInputGenerator(DummyInputGenerator):
             )
 
 
+class DummyVideoInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("hidden_states", "sample", "latent_sample")
+
+    def __init__(
+        self, 
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_frames: int = DEFAULT_DUMMY_SHAPES["num_frames"],
+        video_height: int = DEFAULT_DUMMY_SHAPES["video_height"],
+        video_width: int = DEFAULT_DUMMY_SHAPES["video_width"],
+        **kwargs,
+    ):
+        self.task = task
+        self.normalized_config = normalized_config
+        
+        self.in_channels = self.normalized_config.in_channels
+        self.latent_channels = getattr(self.normalized_config, "z_dim", None)
+
+        self.batch_size = batch_size
+        self.num_frames = num_frames
+        self.video_height = video_height
+        self.video_width = video_width
+
+        self.scale_factor_temporal = getattr(self.normalized_config, "scale_factor_temporal", None)
+        self.scale_factor_spatial = getattr(self.normalized_config, "scale_factor_spatial", None)
+        
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "latent_sample":
+            return self.random_float_tensor(
+                shape=[self.batch_size, 
+                       self.latent_channels, 
+                       1 + ((self.num_frames - 1) // self.scale_factor_temporal), 
+                       self.video_height // self.scale_factor_spatial, 
+                       self.video_width // self.scale_factor_spatial],
+                framework=framework,
+                dtype=float_dtype,
+            )
+        return self.random_float_tensor(
+                shape=[self.batch_size, self.in_channels, self.num_frames, self.video_height, self.video_width],
+                framework=framework,
+                dtype=float_dtype,
+            )
+
+class DummyWanTimestepInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("timestep")
+
+    def __init__(
+        self, 
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_frames: int = DEFAULT_DUMMY_SHAPES["num_frames"],
+        video_height: int = DEFAULT_DUMMY_SHAPES["video_height"],
+        video_width: int = DEFAULT_DUMMY_SHAPES["video_width"],
+        **kwargs,
+    ):
+        self.task = task
+        self.normalized_config = normalized_config
+
+        self.in_channels = self.normalized_config.in_channels
+        self.expand_timesteps = self.normalized_config.expand_timesteps
+        self.vae_scale_factor_temporal = self.normalized_config.vae_scale_factor_temporal
+        self.vae_scale_factor_spatial = self.normalized_config.vae_scale_factor_spatial
+        
+        self.batch_size = batch_size
+        self.num_frames = num_frames
+        self.video_height = video_height
+        self.video_width = video_width
+
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if self.expand_timesteps is True: #Wan2.2
+            num_latent_frames = (self.num_frames - 1) // self.vae_scale_factor_temporal + 1
+            num_latent_height = self.video_height // self.vae_scale_factor_spatial
+            num_latent_width = self.video_width // self.vae_scale_factor_spatial
+            return self.random_float_tensor(
+                shape=[self.batch_size, num_latent_frames * (num_latent_height // 2) * (num_latent_width //2 )],
+                framework=framework,
+                dtype=float_dtype,
+            )
+        return self.random_float_tensor(
+            shape=[self.batch_size],
+            framework=framework,
+            dtype=float_dtype,
+        )
+
+
+class DummyWanControlInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("control_hidden_states", "control_hidden_states_scale")
+
+    def __init__(
+        self, 
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_frames: int = DEFAULT_DUMMY_SHAPES["num_frames"],
+        video_height: int = DEFAULT_DUMMY_SHAPES["video_height"],
+        video_width: int = DEFAULT_DUMMY_SHAPES["video_width"],
+        **kwargs,
+    ):
+        self.task = task
+        self.normalized_config = normalized_config
+
+        self.vace_num_layers = self.normalized_config.vace_num_layers
+        self.vace_in_channels = self.normalized_config.vace_in_channels
+         
+        self.batch_size = batch_size
+        self.num_frames = num_frames
+        self.video_height = video_height
+        self.video_width = video_width
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "control_hidden_states":
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.vace_in_channels, self.num_frames, self.video_height, self.video_width],
+                framework=framework,
+                dtype=float_dtype,
+            )
+        return self.random_float_tensor(
+                shape=[self.vace_num_layers],
+                min_value=0,
+                max_value=1,
+                framework=framework,
+                dtype=float_dtype,
+            )
+            
 class DummyTimestepInputGenerator(DummyInputGenerator):
     """
     Generates dummy time step inputs.

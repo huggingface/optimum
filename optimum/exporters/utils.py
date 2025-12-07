@@ -78,12 +78,14 @@ _DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE = {
     "SD3Transformer2DModel": "sd3-transformer-2d",
     "UNet2DConditionModel": "unet-2d-condition",
     "T5EncoderModel": "t5-encoder",
+    "UMT5EncoderModel": "umt5-encoder",
+    "WanTransformer3DModel": "wan-transformer-3d",
+    "WanVACETransformer3DModel": "wan-vace-transformer-3d",
 }
 
 
 def _get_diffusers_submodel_type(submodel):
     return _DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE.get(submodel.__class__.__name__)
-
 
 def _get_submodels_for_export_diffusion(
     pipeline: "DiffusionPipeline",
@@ -96,6 +98,7 @@ def _get_submodels_for_export_diffusion(
 
     is_sdxl = pipeline.__class__.__name__.startswith("StableDiffusionXL")
     is_sd3 = pipeline.__class__.__name__.startswith("StableDiffusion3")
+    is_wan = pipeline.__class__.__name__.startswith("Wan")
 
     # Text encoder
     text_encoder = getattr(pipeline, "text_encoder", None)
@@ -105,11 +108,16 @@ def _get_submodels_for_export_diffusion(
             text_encoder.text_model.config.output_hidden_states = True
 
         text_encoder.config.export_model_type = _get_diffusers_submodel_type(text_encoder)
+        if text_encoder.__class__.__name__ == "UMT5EncoderModel":
+            orig_forward = text_encoder.forward
+            text_encoder.forward = lambda input_ids, attention_mask: orig_forward(input_ids=input_ids,attention_mask=attention_mask).last_hidden_state
+
         models_for_export["text_encoder"] = text_encoder
 
     # Text encoder 2
     text_encoder_2 = getattr(pipeline, "text_encoder_2", None)
     if text_encoder_2 is not None:
+        print("text encoder 2")
         if is_sdxl or is_sd3:
             text_encoder_2.config.output_hidden_states = True
             text_encoder_2.text_model.config.output_hidden_states = True
@@ -120,6 +128,7 @@ def _get_submodels_for_export_diffusion(
     # Text encoder 3
     text_encoder_3 = getattr(pipeline, "text_encoder_3", None)
     if text_encoder_3 is not None:
+        print("text encoder 3")
         text_encoder_3.config.export_model_type = _get_diffusers_submodel_type(text_encoder_3)
         models_for_export["text_encoder_3"] = text_encoder_3
 
@@ -143,22 +152,57 @@ def _get_submodels_for_export_diffusion(
     if transformer is not None:
         transformer.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
         transformer.config.time_cond_proj_dim = getattr(pipeline.transformer.config, "time_cond_proj_dim", None)
-        transformer.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
+        if is_wan is True:
+            # scale_factor_temporal
+            transformer.config.text_encoder_projection_dim = getattr(pipeline.transformer.config, "text_dim", None)
+            transformer.config.expand_timesteps = getattr(pipeline.config, "expand_timesteps", False)
+            transformer.config.vae_scale_factor_temporal = getattr(pipeline.vae.config, "scale_factor_temporal", 4)
+            transformer.config.vae_scale_factor_spatial = getattr(pipeline.vae.config, "scale_factor_spatial", 8)
+            vace_layers = getattr(pipeline.transformer.config, "vace_layers", None)
+            if vace_layers is not None:
+                transformer.config.vace_num_layers = len(vace_layers)
+            transformer.config.vace_in_channels = getattr(pipeline.transformer.config, "vace_in_channels", 96)
+            transformer.config.vocab_size = 256384
+        else:
+            transformer.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
         transformer.config.export_model_type = _get_diffusers_submodel_type(transformer)
         models_for_export["transformer"] = transformer
+
+    # Transformer_2
+    transformer_2 = getattr(pipeline, "transformer_2", None)
+    if transformer_2 is not None:
+        transformer_2.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
+        transformer_2.config.time_cond_proj_dim = getattr(pipeline.transformer.config, "time_cond_proj_dim", None)
+        if is_wan is True:
+            transformer_2.config.text_encoder_projection_dim = getattr(pipeline.transformer_2.config, "text_dim", None)
+            transformer_2.config.expand_timesteps = getattr(pipeline.config, "expand_timesteps", False)
+            transformer_2.config.vae_scale_factor_temporal = getattr(pipeline.vae.config, "scale_factor_temporal", 4)
+            transformer_2.config.vae_scale_factor_spatial = getattr(pipeline.vae.config, "scale_factor_spatial", 8)
+            vace_layers = getattr(pipeline.transformer_2.config, "vace_layers", None)
+            if vace_layers is not None:
+                transformer_2.config.vace_num_layers = len(vace_layers)
+            transformer_2.config.vace_in_channels = getattr(pipeline.transformer_2.config, "vace_in_channels", 96)
+            transformer_2.config.vocab_size = 256384
+        else:
+            transformer_2.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
+        transformer_2.config.export_model_type = _get_diffusers_submodel_type(transformer)
+        models_for_export["transformer_2"] = transformer_2
 
     # VAE Encoder
     vae_encoder = copy.deepcopy(pipeline.vae)
 
     # we return the distribution parameters to be able to recreate it in the decoder
     vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample)["latent_dist"].parameters}
-    models_for_export["vae_encoder"] = vae_encoder
+    if vae_encoder.__class__.__name__ == "AutoencoderKLWan":
+        vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample).latent_dist.mode()}
+        
+    #models_for_export["vae_encoder"] = vae_encoder
 
     # VAE Decoder
     vae_decoder = copy.deepcopy(pipeline.vae)
 
-    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
-    models_for_export["vae_decoder"] = vae_decoder
+    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)        
+    #models_for_export["vae_decoder"] = vae_decoder
 
     return models_for_export
 
@@ -332,32 +376,40 @@ def get_diffusion_models_for_export(
         models_for_export["transformer"] = (models_for_export["transformer"], transformer_export_config)
 
     # VAE Encoder
-    vae_encoder = models_for_export["vae_encoder"]
-    vae_config_constructor = TasksManager.get_exporter_config_constructor(
-        model=vae_encoder,
-        exporter=exporter,
-        library_name="diffusers",
-        task="semantic-segmentation",
-        model_type="vae-encoder",
-    )
-    vae_encoder_export_config = vae_config_constructor(
-        vae_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
-    )
-    models_for_export["vae_encoder"] = (vae_encoder, vae_encoder_export_config)
+    if "vae_encoder" in models_for_export:
+        vae_encoder = models_for_export["vae_encoder"]
+        encoder_model_type = "vae-encoder"
+        if vae_encoder.__class__.__name__ == "AutoencoderKLWan":
+            encoder_model_type = "vae-encoder-video"
+        vae_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=vae_encoder,
+            exporter=exporter,
+            library_name="diffusers",
+            task="semantic-segmentation",
+            model_type=encoder_model_type,
+        )
+        vae_encoder_export_config = vae_config_constructor(
+            vae_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+        )
+        models_for_export["vae_encoder"] = (vae_encoder, vae_encoder_export_config)
 
     # VAE Decoder
-    vae_decoder = models_for_export["vae_decoder"]
-    vae_config_constructor = TasksManager.get_exporter_config_constructor(
-        model=vae_decoder,
-        exporter=exporter,
-        library_name="diffusers",
-        task="semantic-segmentation",
-        model_type="vae-decoder",
-    )
-    vae_decoder_export_config = vae_config_constructor(
-        vae_decoder.config, int_dtype=int_dtype, float_dtype=float_dtype
-    )
-    models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_export_config)
+    if "vae_decoder" in models_for_export:
+        vae_decoder = models_for_export["vae_decoder"]
+        decoder_model_type = "vae-decoder"
+        if vae_decoder.__class__.__name__ == "AutoencoderKLWan":
+            decoder_model_type = "vae-decoder-video"
+        vae_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=vae_decoder,
+            exporter=exporter,
+            library_name="diffusers",
+            task="semantic-segmentation",
+            model_type=decoder_model_type,
+        )
+        vae_decoder_export_config = vae_config_constructor(
+            vae_decoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+        )
+        models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_export_config)
 
     return models_for_export
 
