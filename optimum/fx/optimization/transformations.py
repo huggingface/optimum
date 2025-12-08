@@ -22,28 +22,8 @@ from abc import ABC, abstractmethod
 from typing import List
 
 import torch
-from torch.fx import GraphModule, Node
+from torch.fx import GraphModule, Node, Proxy
 from transformers.file_utils import add_end_docstrings
-
-
-try:
-    from transformers.utils.fx import _gen_constructor_wrapper
-except ImportError:
-    from transformers.utils.fx import gen_constructor_wrapper
-
-    def _gen_constructor_wrapper(*args, **kwargs):
-        wrapper, target = gen_constructor_wrapper(*args, **kwargs)
-
-        def wrapper_with_forced_tracing(*_args, **_kwargs):
-            import torch.fx._symbolic_trace
-
-            original_flag = torch.fx._symbolic_trace._is_fx_tracing_flag
-            torch.fx._symbolic_trace._is_fx_tracing_flag = True
-            out = wrapper(*_args, **_kwargs)
-            torch.fx._symbolic_trace._is_fx_tracing_flag = original_flag
-            return out
-
-        return wrapper_with_forced_tracing, target
 
 
 _ATTRIBUTES_DOCSTRING = r"""
@@ -819,3 +799,24 @@ def compose(*args: Transformation, inplace: bool = True) -> Transformation:
                 return ComposeTransformation._reverse_composition(graph_module)
 
     return ComposeTransformation()
+
+
+def _gen_constructor_wrapper(target):
+    @functools.wraps(target)
+    def wrapper(*args, **kwargs):
+        proxy = None
+
+        def check_has_proxy(v):
+            if isinstance(v, Proxy):
+                nonlocal proxy
+                proxy = v
+
+        torch.fx.node.map_aggregate(args, check_has_proxy)
+        torch.fx.node.map_aggregate(kwargs, check_has_proxy)
+
+        if proxy is not None:
+            return proxy.tracer.create_proxy("call_function", target, args, kwargs)
+        else:
+            return target(*args, **kwargs)
+
+    return wrapper, target

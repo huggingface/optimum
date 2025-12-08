@@ -50,7 +50,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip uv
           uv pip install ./optimum-onnx
-          uv pip install ./optimum[tests]
+          uv pip install ./optimum[tests] --prerelease=allow
 
       - name: Test with pytest
         run: |
@@ -61,7 +61,7 @@ jobs:
         run: |
           uv pip uninstall optimum-onnx optimum
           uv pip install -e ./optimum-onnx
-          uv pip install -e ./optimum[tests]
+          uv pip install -e ./optimum[tests] --prerelease=allow
 
       - name: Test with pytest (editable mode)
         run: |
