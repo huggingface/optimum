@@ -77,6 +77,7 @@ _DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE = {
     "FluxTransformer2DModel": "flux-transformer-2d",
     "SD3Transformer2DModel": "sd3-transformer-2d",
     "UNet2DConditionModel": "unet-2d-condition",
+    "UNet3DConditionModel": "unet-3d-condition",
     "T5EncoderModel": "t5-encoder",
     "UMT5EncoderModel": "umt5-encoder",
     "WanTransformer3DModel": "wan-transformer-3d",
@@ -110,14 +111,13 @@ def _get_submodels_for_export_diffusion(
         text_encoder.config.export_model_type = _get_diffusers_submodel_type(text_encoder)
         if text_encoder.__class__.__name__ == "UMT5EncoderModel":
             orig_forward = text_encoder.forward
-            text_encoder.forward = lambda input_ids, attention_mask: orig_forward(input_ids=input_ids,attention_mask=attention_mask).last_hidden_state
-
+            text_encoder.forward = lambda input_ids, attention_mask: \
+            orig_forward(input_ids=input_ids,attention_mask=attention_mask).last_hidden_state
         models_for_export["text_encoder"] = text_encoder
 
     # Text encoder 2
     text_encoder_2 = getattr(pipeline, "text_encoder_2", None)
     if text_encoder_2 is not None:
-        print("text encoder 2")
         if is_sdxl or is_sd3:
             text_encoder_2.config.output_hidden_states = True
             text_encoder_2.text_model.config.output_hidden_states = True
@@ -128,7 +128,6 @@ def _get_submodels_for_export_diffusion(
     # Text encoder 3
     text_encoder_3 = getattr(pipeline, "text_encoder_3", None)
     if text_encoder_3 is not None:
-        print("text encoder 3")
         text_encoder_3.config.export_model_type = _get_diffusers_submodel_type(text_encoder_3)
         models_for_export["text_encoder_3"] = text_encoder_3
 
@@ -144,6 +143,10 @@ def _get_submodels_for_export_diffusion(
             if not is_sdxl
             else pipeline.text_encoder_2.config.projection_dim
         )
+        hidden_size = getattr(pipeline.text_encoder.config, "hidden_size", None)
+        if unet.__class__.__name__ == "UNet3DConditionModel":
+            unet.config.text_encoder_projection_dim = hidden_size
+            unet.config.vocab_size = getattr(pipeline.text_encoder.config, "vocab_size", 4096)
         unet.config.export_model_type = _get_diffusers_submodel_type(unet)
         models_for_export["unet"] = unet
 
@@ -191,18 +194,20 @@ def _get_submodels_for_export_diffusion(
     # VAE Encoder
     vae_encoder = copy.deepcopy(pipeline.vae)
 
-    # we return the distribution parameters to be able to recreate it in the decoder
-    vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample)["latent_dist"].parameters}
     if vae_encoder.__class__.__name__ == "AutoencoderKLWan":
         vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample).latent_dist.mode()}
+    else:
+        vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample)["latent_dist"].parameters}
         
-    #models_for_export["vae_encoder"] = vae_encoder
+    models_for_export["vae_encoder"] = vae_encoder
+
+    print(vae_encoder.config)
 
     # VAE Decoder
     vae_decoder = copy.deepcopy(pipeline.vae)
 
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)        
-    #models_for_export["vae_decoder"] = vae_decoder
+    models_for_export["vae_decoder"] = vae_decoder
 
     return models_for_export
 
