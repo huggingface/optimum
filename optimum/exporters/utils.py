@@ -81,7 +81,6 @@ _DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE = {
     "T5EncoderModel": "t5-encoder",
     "UMT5EncoderModel": "umt5-encoder",
     "WanTransformer3DModel": "wan-transformer-3d",
-    "WanVACETransformer3DModel": "wan-vace-transformer-3d",
 }
 
 
@@ -196,12 +195,13 @@ def _get_submodels_for_export_diffusion(
 
     if vae_encoder.__class__.__name__ == "AutoencoderKLWan":
         vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample).latent_dist.mode()}
+        transformer.config.z_dim = getattr(vae_encoder.config, "z_dim", None)
+        if transformer_2 is not None:
+            transformer_2.config.z_dim = getattr(vae_encoder.config, "z_dim", None)
     else:
         vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample)["latent_dist"].parameters}
         
     models_for_export["vae_encoder"] = vae_encoder
-
-    print(vae_encoder.config)
 
     # VAE Decoder
     vae_decoder = copy.deepcopy(pipeline.vae)

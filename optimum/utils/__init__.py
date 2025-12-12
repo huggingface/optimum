@@ -95,7 +95,6 @@ from .input_generators import (
     DummyVideoInputGenerator,
     DummyXPathSeqInputGenerator,
     DummyWanTimestepInputGenerator,
-    DummyWanControlInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
