@@ -45,7 +45,7 @@ jobs:
         run: |
           pip install --upgrade pip uv
           uv pip install .[tests]
-          pip install "gptqmodel>=5.6.10" --no-build-isolation
+          uv install "gptqmodel>=5.6.12" --no-build-isolation
 
       - name: Run tests
         run: |
