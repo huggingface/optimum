@@ -18,30 +18,35 @@ on:
     # every day at midnight
     - cron: "0 0 * * *"
 
+env:
+  UV_SYSTEM_PYTHON: 1
+  HF_HOME: /mnt/cache/
+  TRANSFORMERS_IS_CI: true
+
 jobs:
   test_gptq:
     runs-on:
       group: aws-g6-4xlarge-plus
 
+    container:
+      image: nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04
+      options: --gpus all --shm-size 16G --volume /mnt/cache/:/mnt/cache/
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run tests
-        uses: addnab/docker-run-action@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          image: pytorch/pytorch:2.2.2-cuda12.1-cudnn8-runtime
-          # latest auto-gptq was built with pytorch 2.2 and cuda 12.1
-          options: |
-            --rm
-            --gpus all
-            --shm-size 16G
-            --env RUN_SLOW=1
-            --env HF_HOME=/mnt/cache/
-            --volume /mnt/cache/:/mnt/cache/
-            --volume ${{ github.workspace }}:/workspace
-            --workdir /workspace
-          run: |
-            pip install auto-gptq
-            pip install -e .[tests]
-            pytest tests/gptq -s -vvvv --durations=0
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip uv
+          uv pip install .[tests]
+          uv pip install "gptqmodel>=5.6.12" --no-build-isolation
+
+      - name: Run tests
+        run: |
+          pytest tests/gptq -s -vvvv --durations=0

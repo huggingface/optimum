@@ -35,7 +35,6 @@ from .import_utils import (
     TORCH_MINIMUM_VERSION,
     TRANSFORMERS_MINIMUM_VERSION,
     is_accelerate_available,
-    is_auto_gptq_available,
     is_datasets_available,
     is_diffusers_available,
     is_diffusers_version,

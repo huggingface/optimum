@@ -85,7 +85,6 @@ _datasets_available = _is_package_available("datasets")
 _tensorrt_available = _is_package_available("tensorrt")
 _pydantic_available = _is_package_available("pydantic")
 _openvino_available = _is_package_available("openvino")
-_auto_gptq_available = _is_package_available("auto_gptq")
 _gptqmodel_available = _is_package_available("gptqmodel")
 _accelerate_available = _is_package_available("accelerate")
 _optimum_onnx_available = _is_package_available("optimum.onnx")
@@ -218,17 +217,6 @@ def is_tensorrt_available():
 
 def is_torch_available():
     return _torch_available
-
-
-def is_auto_gptq_available():
-    if _auto_gptq_available:
-        v = version.parse(importlib.metadata.version("auto_gptq"))
-        if v >= AUTOGPTQ_MINIMUM_VERSION:
-            return True
-        else:
-            raise ImportError(
-                f"Found an incompatible version of auto-gptq. Found version {v}, but only version >= {AUTOGPTQ_MINIMUM_VERSION} are supported"
-            )
 
 
 def is_gptqmodel_available():
