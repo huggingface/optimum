@@ -2,7 +2,7 @@ name: FX Optimization / Python - Test
 
 on:
   push:
-    branches: [main]
+    branches: [main, v*-release]
   pull_request:
     branches: [main]
 
