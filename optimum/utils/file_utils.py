@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 from typing import List, Optional, Union
 
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, hf_hub_download
 from transformers.utils import http_user_agent
 
 
@@ -91,3 +91,76 @@ def find_files_matching_pattern(
         files = [Path(p) for p in repo_files if re.match(pattern, p)]
 
     return files
+
+
+def download_file_with_filename(
+    repo_id: str,
+    filename: str,
+    local_filename: Optional[str] = None,
+    subfolder: str = "",
+    revision: Optional[str] = None,
+    cache_dir: Optional[str] = None,
+    token: Optional[Union[bool, str]] = None,
+    repo_type: Optional[str] = None,
+) -> str:
+    """
+    Download a specific file from a Hugging Face Hub repository with an optional custom local filename.
+
+    This function is useful when you need to download a file (e.g., an ONNX model) and cache it with a specific
+    filename, which is particularly important for repositories like xenova that may have specific naming requirements.
+
+    Args:
+        repo_id (`str`):
+            The repository ID on the Hugging Face Hub.
+        filename (`str`):
+            The name of the file to download from the repository.
+        local_filename (`Optional[str]`, defaults to `None`):
+            The local filename to use when caching the file. If `None`, the original filename is used.
+            This parameter allows you to specify a custom name for the cached file.
+        subfolder (`str`, defaults to `""`):
+            In case the file is located inside a subfolder of the repository, you can specify the subfolder name here.
+        revision (`Optional[str]`, defaults to `None`):
+            Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+        cache_dir (`Optional[str]`, defaults to `None`):
+            Path to a directory in which a downloaded file should be cached if the standard cache should not be used.
+        token (`Optional[Union[bool, str]]`, defaults to `None`):
+            The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+            when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
+        repo_type (`Optional[str]`, defaults to `None`):
+            The type of repository. Can be `"model"`, `"dataset"`, or `"space"`. Defaults to `"model"`.
+
+    Returns:
+        `str`: The path to the downloaded file.
+
+    Example:
+        ```python
+        # Download an ONNX file with a custom local filename
+        file_path = download_file_with_filename(
+            repo_id="xenova/model-name",
+            filename="model.onnx",
+            local_filename="custom_model.onnx",
+            cache_dir="./cache"
+        )
+        ```
+    """
+    if repo_type is None:
+        repo_type = "model"
+
+    # Construct the full filename path including subfolder
+    if subfolder:
+        full_filename = f"{subfolder}/{filename}"
+    else:
+        full_filename = filename
+
+    # Use hf_hub_download which supports local_filename parameter
+    downloaded_path = hf_hub_download(
+        repo_id=repo_id,
+        filename=full_filename,
+        local_filename=local_filename,
+        revision=revision,
+        cache_dir=cache_dir,
+        token=token,
+        repo_type=repo_type,
+    )
+
+    return downloaded_path

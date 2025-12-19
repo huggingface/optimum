@@ -27,6 +27,11 @@ from .constant import (
     DIFFUSION_PIPELINE_CONFIG_FILE_NAME,
     ONNX_WEIGHTS_NAME,
 )
+from .file_utils import (
+    download_file_with_filename,
+    find_files_matching_pattern,
+    validate_file_exists,
+)
 from .import_utils import (
     AUTOGPTQ_MINIMUM_VERSION,
     DIFFUSERS_MINIMUM_VERSION,
