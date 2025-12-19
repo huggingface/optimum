@@ -43,9 +43,7 @@ If you'd like to use the accelerator-specific features of Optimum, you can check
 | [ONNX](https://huggingface.co/docs/optimum-onnx/en/index)                           | `pip install --upgrade --upgrade-strategy eager optimum[onnx]`              |
 | [ONNX Runtime](https://huggingface.co/docs/optimum-onnx/onnxruntime/overview)       | `pip install --upgrade --upgrade-strategy eager optimum[onnxruntime]`       |
 | [ONNX Runtime GPU](https://huggingface.co/docs/optimum-onnx/onnxruntime/overview)   | `pip install --upgrade --upgrade-strategy eager optimum[onnxruntime-gpu]`   |
-| [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)          | `pip install --upgrade --upgrade-strategy eager optimum[neural-compressor]` |
 | [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                         | `pip install --upgrade --upgrade-strategy eager optimum[openvino]`          |
-| [IPEX](https://huggingface.co/docs/optimum/intel/index)                             | `pip install --upgrade --upgrade-strategy eager optimum[ipex]`              |
 | [NVIDIA TensorRT-LLM](https://huggingface.co/docs/optimum/main/en/nvidia_overview)  | `docker run -it --gpus all --ipc host huggingface/optimum-nvidia`           |
 | [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index) | `pip install --upgrade --upgrade-strategy eager optimum[amd]`               |
 | [AWS Trainum & Inferentia](https://huggingface.co/docs/optimum-neuron/index)        | `pip install --upgrade --upgrade-strategy eager optimum[neuronx]`           |
@@ -99,9 +97,13 @@ For this make sure you have ONNX Runtime installed, fore more information check 
 
 More details on how to run ONNX models with `ORTModelForXXX` classes [here](https://huggingface.co/docs/optimum-onnx/en/onnxruntime/usage_guides/models).
 
-### Intel (OpenVINO + Neural Compressor + IPEX)
+### Intel (OpenVINO + NNCF)
 
 Before you begin, make sure you have all the necessary [libraries installed](https://huggingface.co/docs/optimum/main/en/intel/installation).
+
+```bash
+pip install --upgrade --upgrade-strategy eager optimum[openvino]
+```
 
 You can find more information on the different integration in our [documentation](https://huggingface.co/docs/optimum/main/en/intel/index) and in the examples of [`optimum-intel`](https://github.com/huggingface/optimum-intel).
 
