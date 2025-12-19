@@ -2,7 +2,7 @@ name: Optimum Pipelines / Python - Test - Subpackage (ONNX)
 
 on:
   push:
-    branches: [main]
+    branches: [main, v*-release]
   pull_request:
     branches: [main]
 
