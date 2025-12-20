@@ -28,13 +28,13 @@ jobs:
 
     steps:
       - name: Checkout optimum
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: optimum
           fetch-depth: 0
 
       - name: checkout optimum-onnx
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: huggingface/optimum-onnx
           ref: ${{ env.OPTIMUM_ONNX_REF }}
@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 

@@ -28,22 +28,22 @@ jobs:
       PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
 
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache-dependency-path: "kit/package-lock.json"
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
         with:
           repository: "huggingface/optimum"
           path: optimum
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
         with:
           repository: "huggingface/optimum-amd"
           path: optimum-amd
@@ -82,7 +82,7 @@ jobs:
           echo ${{ env.COMMIT_SHA }} > ./commit_sha
           echo ${{ env.PR_NUMBER }} > ./pr_number
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: doc-build-artifact
           path: optimum-doc-build/
