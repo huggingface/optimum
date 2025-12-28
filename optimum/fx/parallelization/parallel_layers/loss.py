@@ -24,6 +24,13 @@ from ..core import ParallelExecutionCtx
 
 # Adapted from https://github.com/huggingface/nanotron/blob/main/src/nanotron/parallel/tensor_parallel/functional.py
 class _ShardedCrossEntropy(torch.autograd.Function):
+    """
+    Custom autograd function for computing cross-entropy loss on sharded logits across multiple processes.
+    
+    This function handles the forward and backward passes for cross-entropy computation when the vocabulary
+    is distributed across multiple GPUs/processes.
+    """
+    
     @staticmethod
     def forward(
         ctx,
@@ -31,6 +38,18 @@ class _ShardedCrossEntropy(torch.autograd.Function):
         target: torch.Tensor,  # (batch_size, length)
         group: dist.ProcessGroup,
     ):
+        """
+        Compute the forward pass of sharded cross-entropy loss.
+        
+        Args:
+            ctx: Context object for saving tensors needed in backward pass
+            sharded_logits: Logits tensor sharded across processes with shape (batch_size, length, sharded_hidden_size)
+            target: Target indices tensor with shape (batch_size, length)
+            group: Process group for distributed communication
+            
+        Returns:
+            torch.Tensor: Cross-entropy loss tensor
+        """
         # Maximum value along last dimension across all GPUs.
         logits_max = torch.max(sharded_logits, dim=-1)[0]
         dist.all_reduce(logits_max, op=dist.ReduceOp.MAX, group=group)
@@ -83,6 +102,16 @@ class _ShardedCrossEntropy(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor):
+        """
+        Compute the backward pass of sharded cross-entropy loss.
+        
+        Args:
+            ctx: Context object containing saved tensors from forward pass
+            grad_output: Gradient of the loss with respect to the output
+            
+        Returns:
+            tuple: Gradients with respect to sharded_logits, target, and group (None for last two)
+        """
         # Retrieve tensors from the forward path.
         softmax, target_mask, masked_target_1d = ctx.saved_tensors
 
@@ -103,10 +132,30 @@ class _ShardedCrossEntropy(torch.autograd.Function):
 
 
 def sharded_cross_entropy(sharded_logits: torch.Tensor, target: torch.Tensor, process_group: dist.ProcessGroup):
+    """
+    Apply sharded cross-entropy loss computation using the custom autograd function.
+    
+    Args:
+        sharded_logits: Logits tensor sharded across processes
+        target: Target indices tensor
+        process_group: Process group for distributed communication
+        
+    Returns:
+        torch.Tensor: Cross-entropy loss tensor
+    """
     return _ShardedCrossEntropy.apply(sharded_logits, target, process_group)
 
 
 def sharded_cross_entropy_wrapper_fn(process_group: dist.ProcessGroup):
+    """
+    Create a wrapper function for sharded cross-entropy that mimics PyTorch's CrossEntropyLoss interface.
+    
+    Args:
+        process_group: Process group for distributed communication
+        
+    Returns:
+        function: Wrapper function that accepts standard cross-entropy loss parameters
+    """
     @wraps(sharded_cross_entropy)
     def wrapper(
         sharded_logits: torch.Tensor,
@@ -118,6 +167,25 @@ def sharded_cross_entropy_wrapper_fn(process_group: dist.ProcessGroup):
         reduction: str = "mean",
         label_smoothing: float = 0.0,
     ):
+        """
+        Compute sharded cross-entropy loss with standard PyTorch interface.
+        
+        Args:
+            sharded_logits: Logits tensor sharded across processes
+            target: Target indices tensor
+            weight: Manual rescaling weight given to each class (not supported)
+            size_average: Deprecated parameter for backward compatibility
+            ignore_index: Index to ignore in loss computation (not supported)
+            reduce: Deprecated parameter for backward compatibility
+            reduction: Reduction method ('mean', 'sum', or 'none')
+            label_smoothing: Label smoothing factor (not supported)
+            
+        Returns:
+            torch.Tensor: Cross-entropy loss tensor with specified reduction applied
+            
+        Raises:
+            ValueError: If unsupported parameters are provided
+        """
         if weight is not None or ignore_index != -100 or label_smoothing != 0.0:
             raise ValueError(
                 "Does not support weighted mode, index ignoring and label smoothing in current parallel cross entropy implementation."
@@ -147,14 +215,34 @@ def sharded_cross_entropy_wrapper_fn(process_group: dist.ProcessGroup):
 class VocabParallelCrossEntropyLoss(nn.Module):
     """
     Simple parallel cross entropy implementation which does not support weighted mode and label smoothing yet.
+    
+    This module provides a PyTorch nn.Module interface for computing cross-entropy loss on vocabulary
+    that is distributed across multiple processes.
     """
 
     def __init__(self, ctx: ParallelExecutionCtx, reduction: str = "mean") -> None:
+        """
+        Initialize the vocabulary parallel cross-entropy loss module.
+        
+        Args:
+            ctx: Parallel execution context containing process group information
+            reduction: Reduction method to apply to the loss ('mean', 'sum', or 'none')
+        """
         super(VocabParallelCrossEntropyLoss, self).__init__()
         self.process_group = ctx.tp_group
         self.reduction = reduction
 
     def forward(self, sharded_logits: torch.Tensor, target: torch.Tensor):
+        """
+        Compute the forward pass of the parallel cross-entropy loss.
+        
+        Args:
+            sharded_logits: Logits tensor sharded across processes
+            target: Target indices tensor
+            
+        Returns:
+            torch.Tensor: Cross-entropy loss with the specified reduction applied
+        """
         loss: torch.Tensor = _ShardedCrossEntropy.apply(sharded_logits, target, self.process_group)
         if self.reduction == "mean":
             return loss.mean()
