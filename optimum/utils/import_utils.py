@@ -112,6 +112,7 @@ _onnxruntime_available = _is_package_available(
         "onnxruntime-tvm",
         "onnxruntime-qnn",
         "onnxruntime-migraphx",
+        "onnxruntime-windowsml",
         "ort-migraphx-nightly",
         "ort-rocm-nightly",
     ],
