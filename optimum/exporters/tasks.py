@@ -771,6 +771,21 @@ class TasksManager:
                 transformers_info = model_info.transformersInfo
                 if pipeline_tag is not None:
                     inferred_task_name = cls.map_from_synonym(model_info.pipeline_tag)
+                    # Cross-check with transformers_info.auto_model when available.
+                    # The auto_model is derived from the model's architecture and is more
+                    # reliable than the pipeline_tag which can be outdated (e.g., models
+                    # tagged as image-to-text that should be image-text-to-text).
+                    if transformers_info is not None:
+                        transformers_auto_model = transformers_info.get("auto_model", None)
+                        if transformers_auto_model is not None:
+                            transformers_auto_model = transformers_auto_model.replace("TF", "")
+                            for task_name, model_loaders in cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS.items():
+                                if isinstance(model_loaders, str):
+                                    model_loaders = (model_loaders,)
+                                if transformers_auto_model in model_loaders:
+                                    if task_name != inferred_task_name:
+                                        inferred_task_name = task_name
+                                    break
                 elif transformers_info is not None:
                     transformers_pipeline_tag = transformers_info.get("pipeline_tag", None)
                     transformers_auto_model = transformers_info.get("auto_model", None)
