@@ -148,7 +148,9 @@ class ExporterConfig(ABC):
     ):
         self.task = task
         self._config = config
-        self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
+        # Use self.__class__.NORMALIZED_CONFIG_CLASS instead of self.NORMALIZED_CONFIG_CLASS
+        # to avoid the partial being converted to a bound method
+        self._normalized_config = self.__class__.NORMALIZED_CONFIG_CLASS(self._config)
         self.int_dtype = int_dtype
         self.float_dtype = float_dtype
 
