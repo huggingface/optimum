@@ -47,6 +47,7 @@ jobs:
         with:
           repository: "huggingface/optimum-amd"
           path: optimum-amd
+          ref: fix_doc_build
 
       - name: Setup environment
         run: |
