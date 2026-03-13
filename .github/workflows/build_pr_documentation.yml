@@ -25,7 +25,6 @@ jobs:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
       EVENT_CONTEXT: ${{ toJSON(github.event) }}
-      PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
 
     steps:
       - uses: actions/setup-node@v4
@@ -42,6 +41,7 @@ jobs:
         with:
           repository: "huggingface/optimum"
           path: optimum
+          ref: main
 
       - name: Setup environment
         run: |
