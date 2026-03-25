@@ -47,7 +47,15 @@ def get_layers(module: nn.Module, layers=[Conv1D, nn.Conv2d, nn.Linear], prefix:
         `Dict[str,Union[Conv1D, nn.Conv2d, nn.Linear]]`: Mapping of the name of the layer and the actual layer
     """
     for layer in layers:
-        if isinstance(module, layer):
+        # Use exact type check for nn.Linear to skip subclasses with custom forward (e.g., MoE routers)
+        if layer is nn.Linear:
+            if type(module) is nn.Linear:
+                if prefix is not None:
+                    if name.startswith(prefix):
+                        return {name: module}
+                else:
+                    return {name: module}
+        elif isinstance(module, layer):
             if prefix is not None:
                 if name.startswith(prefix):
                     return {name: module}

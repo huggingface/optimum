@@ -310,7 +310,7 @@ class GPTQQuantizer(object):
             if name1 in names:
                 device = get_device(layer)
                 delattr(module, attr)
-                if isinstance(layer, nn.Linear):
+                if type(layer) is nn.Linear:
                     in_features = layer.in_features
                     out_features = layer.out_features
                 elif isinstance(layer, nn.Conv2d):
