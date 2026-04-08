@@ -47,7 +47,7 @@ if is_accelerate_available():
     from accelerate.hooks import remove_hook_from_module
 
 if is_gptqmodel_available():
-    from gptqmodel import BACKEND, QuantizeConfig, exllama_set_max_input_length
+    from gptqmodel import BACKEND, QuantizeConfig
     from gptqmodel.quantization import FORMAT, GPTQ, METHOD
     from gptqmodel.utils.importer import hf_select_quant_linear_v2
     from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
