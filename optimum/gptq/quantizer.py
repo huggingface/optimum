@@ -669,8 +669,7 @@ class GPTQQuantizer(object):
         model.quantize_config = StoreAttr()
         model.quantize_config.desc_act = self.desc_act
         model = gptq_post_init(model, use_act_order=self.desc_act)
-        if self.desc_act and self.backend == BACKEND.EXLLAMA_V1 and self.max_input_length is not None:
-            model = exllama_set_max_input_length(model, self.max_input_length)
+
         return model
 
     def pack_model(
