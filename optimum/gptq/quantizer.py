@@ -669,7 +669,10 @@ class GPTQQuantizer(object):
         model.quantize_config = StoreAttr()
         model.quantize_config.desc_act = self.desc_act
         model = gptq_post_init(model, use_act_order=self.desc_act)
-        if (hasattr(BACKEND, "EXLLAMA_V1")
+        # Keep this compatibility guard for older gptqmodel versions where EXLLAMA_V1 still exists.
+        # This branch can be removed once we bump the minimum gptqmodel version and drop v1 support.
+        if (
+            hasattr(BACKEND, "EXLLAMA_V1")
             and self.backend == BACKEND.EXLLAMA_V1
             and self.desc_act
             and self.max_input_length is not None
