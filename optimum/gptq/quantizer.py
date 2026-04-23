@@ -56,6 +56,7 @@ if is_gptqmodel_available():
 
 logger = getLogger(__name__)
 
+
 def has_device_more_than_cpu():
     return torch.cuda.is_available() or (hasattr(torch, "xpu") and torch.xpu.is_available())
 
@@ -350,9 +351,7 @@ class GPTQQuantizer(object):
         """
 
         if not is_gptqmodel_available():
-            raise RuntimeError(
-                "gptqmodel is required in order to perform gptq quantization: `pip install gptqmodel`."
-            )
+            raise RuntimeError("gptqmodel is required in order to perform gptq quantization: `pip install gptqmodel`.")
 
         model.eval()
 
@@ -749,9 +748,7 @@ def load_quantized_model(
         `nn.Module`: The quantized model
     """
     if not is_gptqmodel_available():
-        raise RuntimeError(
-            "gptqmodel (`pip install gptqmodel`) is required in order to load quantized weights."
-        )
+        raise RuntimeError("gptqmodel (`pip install gptqmodel`) is required in order to load quantized weights.")
     if not is_accelerate_available():
         raise RuntimeError(
             "You need to install accelerate in order to load and dispatch weights to"
