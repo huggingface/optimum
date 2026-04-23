@@ -144,11 +144,7 @@ class GPTQTest(unittest.TestCase):
         )
         self.assertEqual(model.transformer.h[0].mlp.dense_4h_to_h.__class__, QuantLinear)
 
-    def test_serialization(self):
-        """
-        Test the serialization of the model and the loading of the quantized weights
-        """
-
+    def run_serialization_round_trip(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             self.tokenizer.save_pretrained(tmpdirname)
             self.quantizer.save(self.quantized_model, tmpdirname)
@@ -172,6 +168,13 @@ class GPTQTest(unittest.TestCase):
             _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})
             _ = GPTQModel.load(tmpdirname, device_map={"": self.device_for_inference})
 
+    def test_serialization(self):
+        """
+        Test the serialization of the model and the loading of the quantized weights
+        """
+
+        self.run_serialization_round_trip()
+
 
 class GPTQTestCPUInit(GPTQTest):
     device_map_for_quantization = "cpu"
@@ -187,8 +190,11 @@ class GPTQTestActOrder(GPTQTest):
     expected_quantized_perplexity = 33
 
     def test_serialization(self):
-        # act_order don't work with qlinear_cuda kernel
-        pass
+        """
+        Test the serialization and post-quant load flow for act-order models.
+        """
+
+        self.run_serialization_round_trip()
 
 
 class GPTQTestNoBlockCaching(GPTQTest):
