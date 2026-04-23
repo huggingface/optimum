@@ -278,7 +278,6 @@ class GPTQBackendCompatibilityTest(unittest.TestCase):
             desc_act=True,
             act_group_aware=False,
             backend="exllama_v2",
-            max_input_length=256,
         )
         quantizer.quant_linear = torch.nn.Linear
         model = torch.nn.Linear(1, 1)

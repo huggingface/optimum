@@ -80,7 +80,6 @@ class GPTQQuantizer(object):
         module_name_preceding_first_block: Optional[List[str]] = None,
         batch_size: int = 1,
         pad_token_id: Optional[int] = None,
-        max_input_length: Optional[int] = None,
         cache_block_outputs: Optional[bool] = True,
         modules_in_block_to_quantize: Optional[List[List[str]]] = None,
         format: str = "gptq",
@@ -124,9 +123,6 @@ class GPTQQuantizer(object):
                 The batch size of the dataset
             pad_token_id (`Optional[int]`, defaults to `None`):
                 The pad token id. Needed to prepare the dataset when `batch_size` > 1.
-            max_input_length (`Optional[int]`, defaults to `None`):
-                The maximum input length. This is forwarded to backend post-initialization when scratch-space sizing
-                depends on the expected input length.
             cache_block_outputs (`bool`, defaults to `True`):
                 Whether to cache block outputs to reuse as inputs for the succeeding block. It allows optimization of non-standard models
                 (e.g. ChatGLM) but can require more time.
@@ -159,7 +155,6 @@ class GPTQQuantizer(object):
         self.module_name_preceding_first_block = module_name_preceding_first_block
         self.batch_size = batch_size
         self.pad_token_id = pad_token_id
-        self.max_input_length = max_input_length
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
         self.modules_in_block_to_quantize = modules_in_block_to_quantize
@@ -759,7 +754,6 @@ def load_quantized_model(
     offload_folder: Optional[str] = None,
     offload_buffers: Optional[str] = None,
     offload_state_dict: bool = False,
-    max_input_length: Optional[int] = None,
 ):
     """
     Load quantized weights from the save_folder into the converted model and dispatch the weights according to the device_map.
@@ -792,9 +786,6 @@ def load_quantized_model(
             If `True`, will temporarily offload the CPU state dict on the hard drive to avoid getting out of CPU RAM if
             the weight of the CPU state dict + the biggest shard does not fit. Will default to `True` if the device map
             picked contains `"disk"` values.
-        max_input_length (`Optional[int]`, defaults to `None`):
-            The maximum input length. This is forwarded to backend post-initialization when scratch-space sizing
-            depends on the expected input length.
 
     Returns:
         `nn.Module`: The quantized model
@@ -831,7 +822,6 @@ def load_quantized_model(
 
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.backend = backend
-    quantizer.max_input_length = max_input_length
 
     model = quantizer.convert_model(model, device_map=device_map)
 
