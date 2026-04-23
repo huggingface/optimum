@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2023 HuggingFace Inc. team and GPTQ and AutoGPTQ authors.
+# Copyright 2023 HuggingFace Inc. team and GPTQ authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -131,12 +131,12 @@ class GPTQQuantizer(object):
                 The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially.
                 If not set, we will quantize all linear layers. Example: `inside_layer_modules=[["self_attention.query_key_value"], ["mlp.dense_h_to_4h"]]`
             format (`str`, *optional*, defaults to `gptq`):
-                GPTQ weight format. `gptq`(v1) is supported by both GPTQ-Model and auto-gptq. `gptq_v2` is GPTQ-Model only.
+                GPTQ weight format. `gptq`(v1) is used for broad checkpoint compatibility. `gptq_v2` is GPTQ-Model only.
             meta (`Dict[str, any]`, *optional*):
                 Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
                 For example, `meta.quantizer` can store version tags for Optimum and GPTQ-Model.
             backend (`str`, *optional*):
-                Controls which gptq kernel to be used. Valid values for GPTQ-Model are `auto`, `auto_trainable` and more. For auto-gptq, only valid value is None and `auto_trainable`. Ref GPTQ-Model backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
+                Controls which gptq kernel to be used. Valid values come from GPTQ-Model backends such as `auto` and `auto_trainable`. Ref GPTQ-Model backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
         """
 
         self.bits = bits
@@ -314,37 +314,16 @@ class GPTQQuantizer(object):
                     in_features = layer.weight.shape[0]
                     out_features = layer.weight.shape[1]
                 bias = layer.bias is not None
-                if is_gptqmodel_available():
-                    new_layer = self.quant_linear(
-                        self.bits,
-                        self.group_size,
-                        self.desc_act,
-                        self.sym,
-                        in_features,
-                        out_features,
-                        bias,
-                        weight_dtype=layer.weight.dtype,
-                    )
-                else:
-                    if not (self.desc_act) or self.group_size == -1:
-                        new_layer = self.quant_linear(
-                            self.bits,
-                            self.group_size,
-                            in_features,
-                            out_features,
-                            bias,
-                            use_cuda_fp16=self.use_cuda_fp16,
-                            weight_dtype=layer.weight.dtype,
-                        )
-                    else:
-                        new_layer = self.quant_linear(
-                            self.bits,
-                            self.group_size,
-                            in_features,
-                            out_features,
-                            bias,
-                            weight_dtype=layer.weight.dtype,
-                        )
+                new_layer = self.quant_linear(
+                    self.bits,
+                    self.group_size,
+                    self.desc_act,
+                    self.sym,
+                    in_features,
+                    out_features,
+                    bias,
+                    weight_dtype=layer.weight.dtype,
+                )
                 new_layer.device = device
                 setattr(module, attr, new_layer.to(device))
         for name1, child in module.named_children():
@@ -372,30 +351,13 @@ class GPTQQuantizer(object):
 
         if not is_gptqmodel_available():
             raise RuntimeError(
-                "gptqmodel is required in order to perform gptq quantization: `pip install gptqmodel`. Please notice that auto-gptq will be deprecated in the future."
-            )
-
-        gptq_supports_cpu = is_gptqmodel_available()
-
-        if not gptq_supports_cpu and not torch.cuda.is_available():
-            raise RuntimeError(
-                "No cuda gpu or cpu support using Intel/IPEX found. A gpu or cpu with Intel/IPEX is required for quantization."
-            )
-
-        if not self.sym and not is_gptqmodel_available():
-            raise ValueError(
-                "Asymmetric sym=False quantization is not supported with auto-gptq. Please use gptqmodel: `pip install gptqmodel`"
-            )
-
-        if self.format == "gptq_v2" and not is_gptqmodel_available():
-            raise ValueError(
-                "gptq_v2 format only supported with gptqmodel. Please install gptqmodel: `pip install gptqmodel`"
+                "gptqmodel is required in order to perform gptq quantization: `pip install gptqmodel`."
             )
 
         model.eval()
 
         # GPTQ-Model internal is gptq_v2 for asym support, gptq(v1) can only support sym=True
-        if is_gptqmodel_available() and self.format != "gptq_v2":
+        if self.format != "gptq_v2":
             self.format = "gptq_v2"
 
         # For Transformer model
@@ -477,8 +439,6 @@ class GPTQQuantizer(object):
         blocks = recurse_getattr(model, self.block_name_to_quantize)
 
         cur_layer_device = get_device(blocks[0])
-        if not is_gptqmodel_available() and cur_layer_device.type == "cpu":
-            cur_layer_device = 0
 
         if not has_device_map:
             # put modules from module_name_preceding_first_block on cuda or xpu or cpu
@@ -549,8 +509,6 @@ class GPTQQuantizer(object):
                 block = block.to(0)
             layers = get_layers(block)
             block_device = get_device(block)
-            if not is_gptqmodel_available() and block_device.type == "cpu":
-                block_device = 0
             if isinstance(self.modules_in_block_to_quantize, list) and len(self.modules_in_block_to_quantize) > 0:
                 if self.true_sequential:
                     layers_name_list = self.modules_in_block_to_quantize
@@ -792,7 +750,7 @@ def load_quantized_model(
     """
     if not is_gptqmodel_available():
         raise RuntimeError(
-            "gptqmodel (`pip install gptqmodel`) is required in order to load quantized weights. Please notice that auto-gptq will be deprecated in the future."
+            "gptqmodel (`pip install gptqmodel`) is required in order to load quantized weights."
         )
     if not is_accelerate_available():
         raise RuntimeError(
