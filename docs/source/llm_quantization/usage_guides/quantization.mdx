@@ -74,9 +74,9 @@ empty_model.tie_weights()
 quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
 ```
 
-### ExLlamaV2 kernels for faster inference
+### Kernel selection for faster inference
 
-Optimum supports the `exllama_v2` backend for faster 4-bit GPTQ inference. In order to use these kernels, you need to have the entire model on GPUs.
+When GPTQ models are loaded through GPTQModel, the runtime automatically selects an appropriate inference kernel for the current hardware and quantized model. In the common case, you should not pass `backend` explicitly.
 
 ```py
 from optimum.gptq import GPTQQuantizer, load_quantized_model
@@ -90,11 +90,10 @@ quantized_model = load_quantized_model(
     empty_model,
     save_folder=save_folder,
     device_map="auto",
-    backend="exllama_v2",
 )
 ```
 
-Note that only 4-bit models are supported with ExLlamaV2 kernels for now. Furthermore, it is recommended to disable ExLlamaV2 kernels when you are finetuning your model with PEFT.
+If you are finetuning with PEFT, prefer the default automatic backend selection unless you have a specific reason to override it.
 
 You can find the benchmark of these kernels [here](https://github.com/huggingface/optimum/tree/main/tests/benchmark#gptq-benchmark)
 

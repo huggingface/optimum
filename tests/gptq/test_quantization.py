@@ -32,7 +32,7 @@ from optimum.utils.testing_utils import require_gptqmodel, require_torch_gpu
 
 
 if is_gptqmodel_available():
-    from gptqmodel import BACKEND, GPTQModel
+    from gptqmodel import GPTQModel
     from gptqmodel.quantization import FORMAT, METHOD
     from gptqmodel.utils.importer import hf_select_quant_linear_v2
 
@@ -56,8 +56,6 @@ class GPTQTest(unittest.TestCase):
     sym = True
     desc_act = False
     act_group_aware = True
-    quant_backend = BACKEND.AUTO
-    load_backend = BACKEND.AUTO
     cache_block_outputs = True
     modules_in_block_to_quantize = None
     device_map_for_quantization = "cuda"
@@ -90,7 +88,6 @@ class GPTQTest(unittest.TestCase):
             sym=cls.sym,
             desc_act=cls.desc_act,
             act_group_aware=cls.act_group_aware,
-            backend=cls.quant_backend,
             cache_block_outputs=cls.cache_block_outputs,
             modules_in_block_to_quantize=cls.modules_in_block_to_quantize,
         )
@@ -130,13 +127,22 @@ class GPTQTest(unittest.TestCase):
             format=FORMAT.GPTQ,
             quant_method=METHOD.GPTQ,
             device_map=self.device_map_for_quantization,
-            backend=self.quant_backend,
             pack=True,
         )
         self.assertEqual(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__, QuantLinear)
 
-    def check_quantized_layers_type(self, model, value):
-        self.assertEqual(model.transformer.h[0].mlp.dense_4h_to_h.QUANT_TYPE, value)
+    def check_quantized_layers_class(self, model):
+        QuantLinear = hf_select_quant_linear_v2(
+            bits=self.bits,
+            group_size=self.group_size,
+            desc_act=self.desc_act,
+            sym=self.sym,
+            format=FORMAT.GPTQ,
+            quant_method=METHOD.GPTQ,
+            device_map={"": self.device_for_inference},
+            pack=True,
+        )
+        self.assertEqual(model.transformer.h[0].mlp.dense_4h_to_h.__class__, QuantLinear)
 
     def test_serialization(self):
         """
@@ -156,10 +162,9 @@ class GPTQTest(unittest.TestCase):
                 empty_model,
                 save_folder=tmpdirname,
                 device_map={"": self.device_for_inference},
-                backend=self.load_backend,
             )
 
-            self.check_quantized_layers_type(quantized_model_from_saved, "marlin")
+            self.check_quantized_layers_class(quantized_model_from_saved)
 
             # transformers and gptqmodel compatibility
             # quantized models are more compatible with device map than
@@ -185,71 +190,6 @@ class GPTQTestActOrder(GPTQTest):
         # act_order don't work with qlinear_cuda kernel
         pass
 
-    def test_exllamav2_serialization(self):
-        """
-        Test the serialization of the model and the loading of the quantized weights with exllamav2 kernel
-        """
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            self.tokenizer.save_pretrained(tmpdirname)
-            self.quantizer.save(self.quantized_model, tmpdirname)
-            self.quantized_model.config.save_pretrained(tmpdirname)
-            with init_empty_weights():
-                empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
-                )
-            empty_model.tie_weights()
-            quantized_model_from_saved = load_quantized_model(
-                empty_model,
-                save_folder=tmpdirname,
-                device_map={"": self.device_for_inference},
-                backend=BACKEND.EXLLAMA_V2,
-            )
-            self.check_quantized_layers_type(quantized_model_from_saved, "exllamav2")
-
-            # transformers and gptqmodel compatibility
-            # quantized models are more compatible with device map than
-            # device context managers (they're never used in transformers testing suite)
-            _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})
-            _ = GPTQModel.load(tmpdirname, device_map={"": self.device_for_inference})
-
-
-class GPTQTestExllamav2(GPTQTest):
-    desc_act = False
-    load_backend = BACKEND.EXLLAMA_V2
-
-    def test_serialization(self):
-        # don't need to test
-        pass
-
-    def test_exllamav2_serialization(self):
-        """
-        Test the serialization of the model and the loading of the quantized weights with exllamav2 kernel
-        """
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            self.tokenizer.save_pretrained(tmpdirname)
-            self.quantizer.save(self.quantized_model, tmpdirname)
-            self.quantized_model.config.save_pretrained(tmpdirname)
-            with init_empty_weights():
-                empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
-                )
-            empty_model.tie_weights()
-            quantized_model_from_saved = load_quantized_model(
-                empty_model,
-                backend=self.load_backend,
-                save_folder=tmpdirname,
-                device_map={"": self.device_for_inference},
-            )
-            self.check_quantized_layers_type(quantized_model_from_saved, "exllamav2")
-
-            # transformers and gptqmodel compatibility
-            # quantized models are more compatible with device map than
-            # device context managers (they're never used in transformers testing suite)
-            _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})
-            _ = GPTQModel.load(tmpdirname, device_map={"": self.device_for_inference})
-
 
 class GPTQTestNoBlockCaching(GPTQTest):
     cache_block_outputs = False
@@ -270,14 +210,13 @@ class GPTQTestModuleQuant(GPTQTest):
 
 
 @require_gptqmodel
-class GPTQBackendCompatibilityTest(unittest.TestCase):
-    def test_post_init_model_handles_desc_act_with_current_backends(self):
+class GPTQPostInitTest(unittest.TestCase):
+    def test_post_init_model_handles_desc_act(self):
         quantizer = GPTQQuantizer(
             bits=4,
             dataset=["gptq"],
             desc_act=True,
             act_group_aware=False,
-            backend="exllama_v2",
         )
         quantizer.quant_linear = torch.nn.Linear
         model = torch.nn.Linear(1, 1)
