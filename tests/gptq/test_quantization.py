@@ -166,7 +166,7 @@ class GPTQTest(unittest.TestCase):
 
             self.check_quantized_layers_class(quantized_model_from_saved)
 
-            # transformers and gptqmodel compatibility
+            # Transformers and GPTQ-Model compatibility.
             # quantized models are more compatible with device map than
             # device context managers (they're never used in transformers testing suite)
             _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})

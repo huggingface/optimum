@@ -76,7 +76,7 @@ quantized_model = load_quantized_model(empty_model, save_folder=save_folder, dev
 
 ### Kernel selection for faster inference
 
-When GPTQ models are loaded through GPTQModel, the runtime automatically selects an appropriate inference kernel for the current hardware and quantized model. In the common case, you should not pass `backend` explicitly.
+When GPTQ models are loaded through GPTQ-Model, the runtime automatically selects an appropriate inference kernel for the current hardware and quantized model. In the common case, you should not pass `backend` explicitly.
 
 ```py
 from optimum.gptq import GPTQQuantizer, load_quantized_model

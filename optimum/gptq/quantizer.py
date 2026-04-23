@@ -131,12 +131,12 @@ class GPTQQuantizer(object):
                 The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially.
                 If not set, we will quantize all linear layers. Example: `inside_layer_modules=[["self_attention.query_key_value"], ["mlp.dense_h_to_4h"]]`
             format (`str`, *optional*, defaults to `gptq`):
-                GPTQ weight format. `gptq`(v1) is supported by both gptqmodel and auto-gptq. `gptq_v2` is gptqmodel only.
+                GPTQ weight format. `gptq`(v1) is supported by both GPTQ-Model and auto-gptq. `gptq_v2` is GPTQ-Model only.
             meta (`Dict[str, any]`, *optional*):
                 Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
-                i.e. `meta.quantizer`: ["optimum:_version_", "gptqmodel:_version_"]
+                For example, `meta.quantizer` can store version tags for Optimum and GPTQ-Model.
             backend (`str`, *optional*):
-                Controls which gptq kernel to be used. Valid values for gptqmodel are `auto`, `auto_trainable` and more. For auto-gptq, only valid value is None and `auto_trainable`. Ref gptqmodel backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
+                Controls which gptq kernel to be used. Valid values for GPTQ-Model are `auto`, `auto_trainable` and more. For auto-gptq, only valid value is None and `auto_trainable`. Ref GPTQ-Model backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
         """
 
         self.bits = bits
@@ -394,7 +394,7 @@ class GPTQQuantizer(object):
 
         model.eval()
 
-        # gptqmodel internal is gptq_v2 for asym support, gptq(v1) can only support sym=True
+        # GPTQ-Model internal is gptq_v2 for asym support, gptq(v1) can only support sym=True
         if is_gptqmodel_available() and self.format != "gptq_v2":
             self.format = "gptq_v2"
 
@@ -728,7 +728,7 @@ class GPTQQuantizer(object):
 
         """
 
-        # convert gptqmodel internal gptq_v2 format to v1 for max compatibility
+        # Convert GPTQ-Model internal gptq_v2 format to v1 for max compatibility.
         if is_gptqmodel_available():
             model, converted = hf_convert_gptq_v2_to_v1_format(
                 model, self.sym, self.bits, self.quant_linear, self.format, self.meta
