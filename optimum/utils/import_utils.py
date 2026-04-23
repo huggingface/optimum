@@ -30,7 +30,7 @@ TORCH_MINIMUM_VERSION = version.parse("2.1.0")
 TRANSFORMERS_MINIMUM_VERSION = version.parse("4.36.0")
 DIFFUSERS_MINIMUM_VERSION = version.parse("0.22.0")
 AUTOGPTQ_MINIMUM_VERSION = version.parse("0.4.99")  # Allows 0.5.0.dev0
-GPTQMODEL_MINIMUM_VERSION = version.parse("1.6.0")
+GPTQMODEL_MINIMUM_VERSION = version.parse("6.0.3")
 ORT_QUANTIZE_MINIMUM_VERSION = version.parse("1.4.0")  # TODO: remove as optimm-onnx requires >=1.15.0
 
 

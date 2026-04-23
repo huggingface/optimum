@@ -56,7 +56,6 @@ if is_gptqmodel_available():
 
 logger = getLogger(__name__)
 
-
 def has_device_more_than_cpu():
     return torch.cuda.is_available() or (hasattr(torch, "xpu") and torch.xpu.is_available())
 
@@ -126,8 +125,8 @@ class GPTQQuantizer(object):
             pad_token_id (`Optional[int]`, defaults to `None`):
                 The pad token id. Needed to prepare the dataset when `batch_size` > 1.
             max_input_length (`Optional[int]`, defaults to `None`):
-                The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
-                It is specific to the exllama backend with act-order.
+                The maximum input length. This is forwarded to backend post-initialization when scratch-space sizing
+                depends on the expected input length.
             cache_block_outputs (`bool`, defaults to `True`):
                 Whether to cache block outputs to reuse as inputs for the succeeding block. It allows optimization of non-standard models
                 (e.g. ChatGLM) but can require more time.
@@ -669,18 +668,6 @@ class GPTQQuantizer(object):
         model.quantize_config = StoreAttr()
         model.quantize_config.desc_act = self.desc_act
         model = gptq_post_init(model, use_act_order=self.desc_act)
-        # Keep this compatibility guard for older gptqmodel versions where EXLLAMA_V1 still exists.
-        # This branch can be removed once we bump the minimum gptqmodel version and drop v1 support.
-        if (
-            hasattr(BACKEND, "EXLLAMA_V1")
-            and self.backend == BACKEND.EXLLAMA_V1
-            and self.desc_act
-            and self.max_input_length is not None
-        ):
-            from gptqmodel import exllama_set_max_input_length
-
-            model = exllama_set_max_input_length(model, self.max_input_length)
-
         return model
 
     def pack_model(
@@ -806,8 +793,8 @@ def load_quantized_model(
             the weight of the CPU state dict + the biggest shard does not fit. Will default to `True` if the device map
             picked contains `"disk"` values.
         max_input_length (`Optional[int]`, defaults to `None`):
-            The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
-            It is specific to the exllama backend with act-order.
+            The maximum input length. This is forwarded to backend post-initialization when scratch-space sizing
+            depends on the expected input length.
 
     Returns:
         `nn.Module`: The quantized model

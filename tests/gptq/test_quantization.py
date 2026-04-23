@@ -15,6 +15,7 @@
 
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import torch
 from parameterized import parameterized
@@ -184,9 +185,9 @@ class GPTQTestActOrder(GPTQTest):
         # act_order don't work with qlinear_cuda kernel
         pass
 
-    def test_exllama_serialization(self):
+    def test_exllamav2_serialization(self):
         """
-        Test the serialization of the model and the loading of the quantized weights with exllama kernel
+        Test the serialization of the model and the loading of the quantized weights with exllamav2 kernel
         """
 
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -221,7 +222,7 @@ class GPTQTestExllamav2(GPTQTest):
         # don't need to test
         pass
 
-    def test_exllama_serialization(self):
+    def test_exllamav2_serialization(self):
         """
         Test the serialization of the model and the loading of the quantized weights with exllamav2 kernel
         """
@@ -266,6 +267,30 @@ class GPTQTestModuleQuant(GPTQTest):
     def test_not_converted_layers(self):
         # self_attention.dense should not be converted
         self.assertEqual(self.quantized_model.transformer.h[0].self_attention.dense.__class__.__name__, "Linear")
+
+
+@require_gptqmodel
+class GPTQBackendCompatibilityTest(unittest.TestCase):
+    def test_post_init_model_handles_desc_act_with_current_backends(self):
+        quantizer = GPTQQuantizer(
+            bits=4,
+            dataset=["gptq"],
+            desc_act=True,
+            act_group_aware=False,
+            backend="exllama_v2",
+            max_input_length=256,
+        )
+        quantizer.quant_linear = torch.nn.Linear
+        model = torch.nn.Linear(1, 1)
+
+        with patch("optimum.gptq.quantizer.hf_convert_gptq_v1_to_v2_format", return_value=(model, False)) as convert_mock:
+            with patch("optimum.gptq.quantizer.gptq_post_init", return_value=model) as post_init_mock:
+                result = quantizer.post_init_model(model)
+
+        self.assertIs(result, model)
+        self.assertTrue(model.quantize_config.desc_act)
+        convert_mock.assert_called_once_with(model, quantizer.bits, quantizer.quant_linear, quantizer.format, quantizer.meta)
+        post_init_mock.assert_called_once_with(model, use_act_order=True)
 
 
 class GPTQUtilsTest(unittest.TestCase):
