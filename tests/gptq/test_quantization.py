@@ -15,7 +15,6 @@
 
 import tempfile
 import unittest
-from unittest.mock import patch
 
 import torch
 from parameterized import parameterized
@@ -217,24 +216,46 @@ class GPTQTestModuleQuant(GPTQTest):
 
 @require_gptqmodel
 class GPTQPostInitTest(unittest.TestCase):
-    def test_post_init_model_handles_desc_act(self):
+    def test_post_init_model_with_real_quant_linear(self):
         quantizer = GPTQQuantizer(
             bits=4,
             dataset=["gptq"],
             desc_act=True,
             act_group_aware=False,
         )
-        quantizer.quant_linear = torch.nn.Linear
-        model = torch.nn.Linear(1, 1)
+        quantizer.quant_linear = hf_select_quant_linear_v2(
+            bits=quantizer.bits,
+            group_size=quantizer.group_size,
+            desc_act=quantizer.desc_act,
+            sym=quantizer.sym,
+            format=FORMAT.GPTQ,
+            quant_method=METHOD.GPTQ,
+            device_map={"": "cpu"},
+            pack=True,
+        )
 
-        with patch("optimum.gptq.quantizer.hf_convert_gptq_v1_to_v2_format", return_value=(model, False)) as convert_mock:
-            with patch("optimum.gptq.quantizer.gptq_post_init", return_value=model) as post_init_mock:
-                result = quantizer.post_init_model(model)
+        class Wrapper(torch.nn.Module):
+            # Minimal module tree that exercises the real GPTQ-Model conversion and post-init path.
+            def __init__(self):
+                super().__init__()
+                self.layer = quantizer.quant_linear(
+                    bits=quantizer.bits,
+                    group_size=quantizer.group_size,
+                    sym=quantizer.sym,
+                    desc_act=quantizer.desc_act,
+                    in_features=32,
+                    out_features=32,
+                    bias=False,
+                )
+
+        model = Wrapper()
+        self.assertEqual(model.layer.qzero_format(), 1)
+
+        result = quantizer.post_init_model(model)
 
         self.assertIs(result, model)
         self.assertTrue(model.quantize_config.desc_act)
-        convert_mock.assert_called_once_with(model, quantizer.bits, quantizer.quant_linear, quantizer.format, quantizer.meta)
-        post_init_mock.assert_called_once_with(model, use_act_order=True)
+        self.assertEqual(model.layer.qzero_format(), 2)
 
 
 class GPTQUtilsTest(unittest.TestCase):
