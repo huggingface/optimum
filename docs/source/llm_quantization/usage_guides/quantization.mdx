@@ -1,16 +1,16 @@
 # Quantization
 
-## GPTQ-Model Integration
+## GPT-QModel Integration
 
-🤗 Optimum integrates with [GPTQ-Model](https://github.com/ModelCloud/GPTQModel) to provide a simple API for GPTQ quantization on language models. With GPTQ quantization, you can quantize your favorite language model to 8, 4, 3 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardware.
+🤗 Optimum integrates with [GPT-QModel](https://github.com/ModelCloud/GPTQModel) to provide a simple API for GPTQ quantization on language models. With GPTQ quantization, you can quantize your favorite language model to 8, 4, 3 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardware.
 
 If you want to quantize 🤗 Transformers models with GPTQ, follow this [documentation](https://huggingface.co/docs/transformers/main_classes/quantization).
 
 To learn more about the quantization technique used in GPTQ, please refer to:
 - the [GPTQ](https://arxiv.org/pdf/2210.17323.pdf) paper
-- [GPTQ-Model](https://github.com/ModelCloud/GPTQModel)
+- [GPT-QModel](https://github.com/ModelCloud/GPTQModel)
 
-Optimum requires GPTQ-Model for GPTQ quantization and quantized loading.
+Optimum requires GPT-QModel for GPTQ quantization and quantized loading.
 
 ### Requirements
 
@@ -19,8 +19,8 @@ You need to have the following requirements installed to run the code below:
 - Optimum library:
 `pip install --upgrade optimum`
 
-- GPTQ-Model:
-`pip install "gptqmodel>=6.0.3"`
+- GPT-QModel:
+`pip install "gptqmodel>=7.0.0"`
 
 - Install latest `transformers` library from source:
 `pip install --upgrade git+https://github.com/huggingface/transformers.git`
@@ -76,7 +76,7 @@ quantized_model = load_quantized_model(empty_model, save_folder=save_folder, dev
 
 ### Kernel selection for faster inference
 
-When GPTQ models are loaded through GPTQ-Model, the runtime automatically selects an appropriate inference kernel for the current hardware and quantized model. In the common case, you should not pass `backend` explicitly.
+When GPTQ models are loaded through GPT-QModel, the runtime automatically selects an appropriate inference kernel for the current hardware and quantized model. In the common case, you should not pass `backend` explicitly.
 
 ```py
 from optimum.gptq import GPTQQuantizer, load_quantized_model

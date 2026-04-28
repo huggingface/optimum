@@ -60,7 +60,7 @@ class GPTQTest(unittest.TestCase):
     device_map_for_quantization = "cuda"
     device_for_inference = 0
     dataset = [
-        "gptqmodel is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
+        "GPT-QModel is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
     ]
 
     # called only once for all tests in this class
@@ -161,7 +161,7 @@ class GPTQTest(unittest.TestCase):
 
             self.check_quantized_layers_class(quantized_model_from_saved)
 
-            # Transformers and GPTQ-Model compatibility.
+            # Transformers and GPT-QModel compatibility.
             # quantized models are more compatible with device map than
             # device context managers (they're never used in transformers testing suite)
             _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})
@@ -235,7 +235,7 @@ class GPTQPostInitTest(unittest.TestCase):
         )
 
         class Wrapper(torch.nn.Module):
-            # Minimal module tree that exercises the real GPTQ-Model conversion and post-init path.
+            # Minimal module tree that exercises the real GPT-QModel conversion and post-init path.
             def __init__(self):
                 super().__init__()
                 self.layer = quantizer.quant_linear(

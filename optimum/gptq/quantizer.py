@@ -132,12 +132,12 @@ class GPTQQuantizer(object):
                 The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially.
                 If not set, we will quantize all linear layers. Example: `inside_layer_modules=[["self_attention.query_key_value"], ["mlp.dense_h_to_4h"]]`
             format (`str`, *optional*, defaults to `gptq`):
-                GPTQ weight format. `gptq`(v1) is used for broad checkpoint compatibility. `gptq_v2` is GPTQ-Model only.
+                GPTQ weight format. `gptq`(v1) is used for broad checkpoint compatibility. `gptq_v2` is GPT-QModel only.
             meta (`Dict[str, any]`, *optional*):
                 Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
-                For example, `meta.quantizer` can store version tags for Optimum and GPTQ-Model.
+                For example, `meta.quantizer` can store version tags for Optimum and GPT-QModel.
             backend (`str`, *optional*):
-                Controls which gptq kernel to be used. Valid values come from GPTQ-Model backends such as `auto` and `auto_trainable`. Ref GPTQ-Model backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
+                Controls which gptq kernel to be used. Valid values come from GPT-QModel backends such as `auto` and `auto_trainable`. Ref GPT-QModel backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
         """
 
         self.bits = bits
@@ -351,11 +351,13 @@ class GPTQQuantizer(object):
         """
 
         if not is_gptqmodel_available():
-            raise RuntimeError("gptqmodel is required in order to perform gptq quantization: `pip install gptqmodel`.")
+            raise RuntimeError(
+                "GPT-QModel is required in order to perform gptq quantization: `pip install gptqmodel>=7.0.0`."
+            )
 
         model.eval()
 
-        # GPTQ-Model internal is gptq_v2 for asym support, gptq(v1) can only support sym=True
+        # GPT-QModel internal is gptq_v2 for asym support, gptq(v1) can only support sym=True
         if self.format != "gptq_v2":
             self.format = "gptq_v2"
 
@@ -685,7 +687,7 @@ class GPTQQuantizer(object):
 
         """
 
-        # Convert GPTQ-Model internal gptq_v2 format to v1 for max compatibility.
+        # Convert GPT-QModel internal gptq_v2 format to v1 for max compatibility.
         if is_gptqmodel_available():
             model, converted = hf_convert_gptq_v2_to_v1_format(
                 model, self.sym, self.bits, self.quant_linear, self.format, self.meta
@@ -748,7 +750,9 @@ def load_quantized_model(
         `nn.Module`: The quantized model
     """
     if not is_gptqmodel_available():
-        raise RuntimeError("gptqmodel (`pip install gptqmodel`) is required in order to load quantized weights.")
+        raise RuntimeError(
+            "GPT-QModel (`pip install gptqmodel>=7.0.0`) is required in order to load quantized weights."
+        )
     if not is_accelerate_available():
         raise RuntimeError(
             "You need to install accelerate in order to load and dispatch weights to"
