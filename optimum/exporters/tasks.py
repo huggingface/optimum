@@ -937,9 +937,7 @@ class TasksManager:
                 "cache_dir": cache_dir,
                 "token": token,
             }
-            # We do not use PretrainedConfig.from_pretrained which has unwanted warnings about model type.
-            config_dict, kwargs = PretrainedConfig.get_config_dict(model_name_or_path, **kwargs)
-            model_config = PretrainedConfig.from_dict(config_dict, **kwargs)
+            model_config = PretrainedConfig.from_pretrained(model_name_or_path, **kwargs)
 
             if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
                 inferred_library_name = "timm"
