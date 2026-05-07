@@ -84,7 +84,6 @@ def rename_copy_subpackage_html_paths(subpackage: str, subpackage_path: Path, op
 
 
 # for docs created separately that needs to be combined
-# TODO: add AMD to EXTERNAL_DOCUMENTATION once added in optimum-amd
 EXTERNAL_DOCUMENTATION = {
     "executorch": "ExecuTorch",
     "habana": "Habana",
@@ -172,10 +171,7 @@ def main():
             # Extend table of contents sections with the subpackage name as the parent folder
             rename_subpackage_toc(subpackage, subpackage_toc)
             # Just keep the name of the partner in the TOC title
-            if subpackage == "amd":
-                subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum-")[-1]
-            else:
-                subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum ")[-1]
+            subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum ")[-1]
             if subpackage != "graphcore":
                 # Update optimum table of contents
                 base_toc.insert(SUBPACKAGE_TOC_INSERT_INDEX, subpackage_toc[0])

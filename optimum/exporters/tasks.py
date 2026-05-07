@@ -29,7 +29,7 @@ from requests.exceptions import ConnectionError
 from transformers import AutoConfig, PretrainedConfig
 from transformers.utils import SAFE_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
 
-from ..utils.import_utils import is_diffusers_available, is_torch_available
+from ..utils.import_utils import is_diffusers_available, is_torch_available, is_transformers_version
 from ..utils.logging import get_logger
 
 
@@ -152,8 +152,10 @@ class TasksManager:
                 "AutoModelForUniversalSegmentation",
             ),
             "image-to-image": "AutoModelForImageToImage",
-            # TODO: AutoModelForVision2Seq is deprecated and will be removed in Transformers v5
-            "image-to-text": ("AutoModelForVision2Seq", "AutoModel"),
+            "image-to-text": (
+                "AutoModelForVision2Seq" if is_transformers_version("<", "4.54") else "AutoModelForImageTextToText",
+                "AutoModel",
+            ),
             "image-text-to-text": "AutoModelForImageTextToText",
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",

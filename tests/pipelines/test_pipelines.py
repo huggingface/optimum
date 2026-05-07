@@ -17,12 +17,14 @@ import unittest
 from typing import Any, Dict
 
 import numpy as np
+import pytest
 from huggingface_hub.constants import HF_HUB_CACHE
 from PIL import Image
 from transformers import AutoTokenizer
 from transformers.pipelines import Pipeline
 
 from optimum.pipelines import pipeline as optimum_pipeline
+from optimum.utils import is_transformers_version
 from optimum.utils.testing_utils import remove_directory
 
 
@@ -192,6 +194,10 @@ class ORTPipelineTest(unittest.TestCase):
             self.assertIn("score", result[0])
             self.assertIn("mask", result[0])
 
+    @pytest.mark.skipif(
+        is_transformers_version(">=", "5"),
+        reason="requires transformers < v5 since image-to-text pipelines is deprecated",
+    )
     def test_image_to_text_pipeline(self):
         """Test image to text ORT pipeline"""
         pipe = optimum_pipeline(task="image-to-text", accelerator="ort")

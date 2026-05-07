@@ -172,6 +172,35 @@ counterparts.
 6. Evaluate the quantized model: is the accuracy good enough? If yes, stop here, otherwise start again at step 3 but
 with quantization aware training this time.
 
+## Energy efficiency in practice
+
+The introduction above notes that quantization "consumes less energy (in theory)." Systematic benchmarking across
+NVIDIA Ada Lovelace (RTX 4090D) and Blackwell (RTX 5090) architectures reveals that the relationship between
+quantization and energy consumption is more nuanced in practice:
+
+- **Large models (≥5B parameters)**: NF4 quantization achieves near-FP16 energy consumption with significant memory
+savings — the expected benefit holds.
+- **Small models (<3B parameters)**: NF4 quantization can *increase* energy consumption by 25–56% despite achieving
+75% memory compression. The dequantization overhead exceeds the memory bandwidth savings at this scale.
+- **INT8 mixed-precision**: The default `llm_int8_threshold=6.0` in `bitsandbytes` adds 17–33% energy overhead
+compared to FP16, which is a justified cost for maintaining model accuracy.
+- **Batch size effect**: Increasing batch size from 1 to 8–64 reduces per-token energy by 84–96%, often outweighing
+the impact of precision choice.
+
+<Tip>
+
+These findings suggest that energy-optimal deployment depends on model size, precision format, batch size, and
+hardware generation. Quantization remains beneficial for memory reduction, but its energy impact should be validated
+empirically for each deployment scenario.
+
+</Tip>
+
+For detailed benchmarks and interactive visualizations, see the
+[EcoCompute-AI toolkit](https://github.com/hongping-zh/ecocompute-ai) and
+[interactive dashboard](https://hongping-zh.github.io/ecocompute-dynamic-eval/).
+The full dataset is available on the [Hugging Face Hub](https://huggingface.co/datasets/hongpingzhang/ecocompute-energy-efficiency)
+and archived on [Zenodo](https://zenodo.org/records/18900289).
+
 ## Supported tools to perform quantization in 🤗 Optimum
 
 🤗 Optimum provides APIs to perform quantization using different tools for different targets:
