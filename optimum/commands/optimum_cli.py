@@ -121,8 +121,7 @@ def load_optimum_namespace_cli_commands() -> (
 
     # Find all registration files and load the commands to register
     commands_to_register = []
-    for register_path in set(commands_register_spec.submodule_search_locations):
-        register_path = Path(register_path)
+    for register_path in {Path(p).resolve() for p in commands_register_spec.submodule_search_locations}:
         if not register_path.is_dir():
             # skip non-directory paths
             continue
