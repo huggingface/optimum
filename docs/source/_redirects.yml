@@ -66,9 +66,6 @@ intel/openvino/models: /docs/optimum-intel/openvino/models
 intel/openvino/reference: /docs/optimum-intel/openvino/reference
 intel/openvino/tutorials/notebooks: /docs/optimum-intel/openvino/tutorials/notebooks
 intel/openvino/tutorials/diffusers: /docs/optimum-intel/openvino/tutorials/diffusers
-intel/ipex/inference: /docs/optimum-intel/ipex/inference
-intel/ipex/models: /docs/optimum-intel/ipex/models
-intel/ipex/tutorials/notebooks: /docs/optimum-intel/ipex/tutorials/notebooks
 
 # Optimum Neuron
 docs/optimum-neuron/index: /docs/optimum-neuron/index

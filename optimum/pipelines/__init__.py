@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 import torch
 
 from optimum.utils.import_utils import (
-    is_ipex_available,
     is_onnxruntime_available,
     is_openvino_available,
     is_optimum_intel_available,
@@ -190,8 +189,8 @@ def pipeline(
             Can be used to force using a custom pipeline class. If not provided, the default pipeline class for the
             specified task will be used.
         accelerator (`str`, *optional*):
-            The accelerator to use, either `"ort"` for ONNX Runtime, `"ov"` for OpenVINO, or `"ipex"` for Intel
-            Extension for PyTorch. If no accelerator is specified, will default to the one currently installed/available.
+            The accelerator to use, either `"ort"` for ONNX Runtime or `"ov"` for OpenVINO.
+            If no accelerator is specified, will default to the one currently installed/available.
         kwargs (`dict[str, Any]`, *optional*):
             Additional keyword arguments passed along to the specific pipeline init (see the documentation for the
             corresponding pipeline class for possible values).
@@ -202,9 +201,9 @@ def pipeline(
     >>> from optimum.pipelines import pipeline
     >>> # Sentiment analysis pipeline with default model, using OpenVINO
     >>> analyzer = pipeline("sentiment-analysis", accelerator="ov")
-    >>> # Question answering pipeline, specifying the checkpoint identifier, with IPEX
+    >>> # Question answering pipeline, specifying the checkpoint identifier, with OpenVINO
     >>> oracle = pipeline(
-    ...     "question-answering", model="distilbert/distilbert-base-cased-distilled-squad", tokenizer="google-bert/bert-base-cased", accelerator="ipex"
+    ...     "question-answering", model="distilbert/distilbert-base-cased-distilled-squad", tokenizer="google-bert/bert-base-cased", accelerator="ov"
     ... )
     >>> # Named entity recognition pipeline, passing in a specific model and tokenizer, with ONNX Runtime
     >>> model = ORTModelForTokenClassification.from_pretrained("dbmdz/bert-large-cased-finetuned-conll03-english")
@@ -225,18 +224,11 @@ def pipeline(
                 "`accelerator` not specified. Using ONNX Runtime (`ort`) as the accelerator since `optimum-onnx[onnxruntime]` is installed."
             )
             accelerator = "ort"
-        elif is_optimum_intel_available() and is_ipex_available():
-            logger.info(
-                "`accelerator` not specified. Using IPEX (`ipex`) as the accelerator since `optimum-intel[ipex]` is installed."
-            )
-            accelerator = "ipex"
         else:
             raise ImportError(
                 "You need to install either `optimum-onnx[onnxruntime]` to use ONNX Runtime as an accelerator, "
-                "or `optimum-intel[openvino]` to use OpenVINO as an accelerator, "
-                "or `optimum-intel[ipex]` to use IPEX as an accelerator."
+                "or `optimum-intel[openvino]` to use OpenVINO as an accelerator."
             )
-
     if accelerator == "ort":
         from optimum.onnxruntime import pipeline as ort_pipeline  # type: ignore
 
@@ -260,7 +252,7 @@ def pipeline(
             pipeline_class=pipeline_class,
             **kwargs,
         )
-    elif accelerator in ["ov", "ipex"]:
+    elif accelerator == "ov":
         from optimum.intel import pipeline as intel_pipeline  # type: ignore
 
         return intel_pipeline(
@@ -284,5 +276,9 @@ def pipeline(
             accelerator=accelerator,
             **kwargs,
         )
+    elif accelerator == "ipex":
+        raise ValueError(
+            "The `ipex` accelerator is deprecated and no longer supported. Please use `ov` (OpenVINO) instead."
+        )
     else:
-        raise ValueError(f"Accelerator {accelerator} not recognized. Please use 'ort', 'ov' or 'ipex'.")
+        raise ValueError(f"Accelerator {accelerator} not recognized. Please use 'ort' or 'ov'.")
