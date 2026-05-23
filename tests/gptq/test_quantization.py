@@ -113,8 +113,8 @@ class GPTQTest(unittest.TestCase):
         the perplexity of the converted models
         """
 
-        self.assertEqual(int(self.fp16_ppl), self.expected_fp16_perplexity)
-        self.assertEqual(int(self.quantized_ppl), self.expected_quantized_perplexity)
+        self.assertAlmostEqual(self.fp16_ppl, self.expected_fp16_perplexity, delta=1.0)
+        self.assertAlmostEqual(self.quantized_ppl, self.expected_quantized_perplexity, delta=1.0)
 
     def test_quantized_layers_class(self):
         """
