@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2023 HuggingFace Inc. team and GPTQ and AutoGPTQ authors.
+# Copyright 2023 HuggingFace Inc. team and GPTQ authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,7 +81,6 @@ class GPTQQuantizer(object):
         module_name_preceding_first_block: Optional[List[str]] = None,
         batch_size: int = 1,
         pad_token_id: Optional[int] = None,
-        max_input_length: Optional[int] = None,
         cache_block_outputs: Optional[bool] = True,
         modules_in_block_to_quantize: Optional[List[List[str]]] = None,
         format: str = "gptq",
@@ -125,9 +124,6 @@ class GPTQQuantizer(object):
                 The batch size of the dataset
             pad_token_id (`Optional[int]`, defaults to `None`):
                 The pad token id. Needed to prepare the dataset when `batch_size` > 1.
-            max_input_length (`Optional[int]`, defaults to `None`):
-                The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
-                It is specific to the exllama backend with act-order.
             cache_block_outputs (`bool`, defaults to `True`):
                 Whether to cache block outputs to reuse as inputs for the succeeding block. It allows optimization of non-standard models
                 (e.g. ChatGLM) but can require more time.
@@ -136,12 +132,12 @@ class GPTQQuantizer(object):
                 The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially.
                 If not set, we will quantize all linear layers. Example: `inside_layer_modules=[["self_attention.query_key_value"], ["mlp.dense_h_to_4h"]]`
             format (`str`, *optional*, defaults to `gptq`):
-                GPTQ weight format. `gptq`(v1) is supported by both gptqmodel and auto-gptq. `gptq_v2` is gptqmodel only.
+                GPTQ weight format. `gptq`(v1) is used for broad checkpoint compatibility. `gptq_v2` is GPT-QModel only.
             meta (`Dict[str, any]`, *optional*):
                 Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
-                i.e. `meta.quantizer`: ["optimum:_version_", "gptqmodel:_version_"]
+                For example, `meta.quantizer` can store version tags for Optimum and GPT-QModel.
             backend (`str`, *optional*):
-                Controls which gptq kernel to be used. Valid values for gptqmodel are `auto`, `auto_trainable` and more. For auto-gptq, only valid value is None and `auto_trainable`. Ref gptqmodel backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
+                Controls which gptq kernel to be used. Valid values come from GPT-QModel backends such as `auto` and `auto_trainable`. Ref GPT-QModel backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
         """
 
         self.bits = bits
@@ -160,7 +156,6 @@ class GPTQQuantizer(object):
         self.module_name_preceding_first_block = module_name_preceding_first_block
         self.batch_size = batch_size
         self.pad_token_id = pad_token_id
-        self.max_input_length = max_input_length
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
         self.modules_in_block_to_quantize = modules_in_block_to_quantize
@@ -320,37 +315,16 @@ class GPTQQuantizer(object):
                     in_features = layer.weight.shape[0]
                     out_features = layer.weight.shape[1]
                 bias = layer.bias is not None
-                if is_gptqmodel_available():
-                    new_layer = self.quant_linear(
-                        self.bits,
-                        self.group_size,
-                        self.desc_act,
-                        self.sym,
-                        in_features,
-                        out_features,
-                        bias,
-                        weight_dtype=layer.weight.dtype,
-                    )
-                else:
-                    if not (self.desc_act) or self.group_size == -1:
-                        new_layer = self.quant_linear(
-                            self.bits,
-                            self.group_size,
-                            in_features,
-                            out_features,
-                            bias,
-                            use_cuda_fp16=self.use_cuda_fp16,
-                            weight_dtype=layer.weight.dtype,
-                        )
-                    else:
-                        new_layer = self.quant_linear(
-                            self.bits,
-                            self.group_size,
-                            in_features,
-                            out_features,
-                            bias,
-                            weight_dtype=layer.weight.dtype,
-                        )
+                new_layer = self.quant_linear(
+                    self.bits,
+                    self.group_size,
+                    self.desc_act,
+                    self.sym,
+                    in_features,
+                    out_features,
+                    bias,
+                    weight_dtype=layer.weight.dtype,
+                )
                 new_layer.device = device
                 setattr(module, attr, new_layer.to(device))
         for name1, child in module.named_children():
@@ -378,30 +352,13 @@ class GPTQQuantizer(object):
 
         if not is_gptqmodel_available():
             raise RuntimeError(
-                "gptqmodel is required in order to perform gptq quantization: `pip install gptqmodel`. Please notice that auto-gptq will be deprecated in the future."
-            )
-
-        gptq_supports_cpu = is_gptqmodel_available()
-
-        if not gptq_supports_cpu and not torch.cuda.is_available():
-            raise RuntimeError(
-                "No cuda gpu or cpu support using Intel/IPEX found. A gpu or cpu with Intel/IPEX is required for quantization."
-            )
-
-        if not self.sym and not is_gptqmodel_available():
-            raise ValueError(
-                "Asymmetric sym=False quantization is not supported with auto-gptq. Please use gptqmodel: `pip install gptqmodel`"
-            )
-
-        if self.format == "gptq_v2" and not is_gptqmodel_available():
-            raise ValueError(
-                "gptq_v2 format only supported with gptqmodel. Please install gptqmodel: `pip install gptqmodel`"
+                "GPT-QModel is required in order to perform gptq quantization: `pip install gptqmodel>=7.0.0`."
             )
 
         model.eval()
 
-        # gptqmodel internal is gptq_v2 for asym support, gptq(v1) can only support sym=True
-        if is_gptqmodel_available() and self.format != "gptq_v2":
+        # GPT-QModel internal is gptq_v2 for asym support, gptq(v1) can only support sym=True
+        if self.format != "gptq_v2":
             self.format = "gptq_v2"
 
         # For Transformer model
@@ -483,8 +440,6 @@ class GPTQQuantizer(object):
         blocks = recurse_getattr(model, self.block_name_to_quantize)
 
         cur_layer_device = get_device(blocks[0])
-        if not is_gptqmodel_available() and cur_layer_device.type == "cpu":
-            cur_layer_device = 0
 
         if not has_device_map:
             # put modules from module_name_preceding_first_block on cuda or xpu or cpu
@@ -555,8 +510,6 @@ class GPTQQuantizer(object):
                 block = block.to(0)
             layers = get_layers(block)
             block_device = get_device(block)
-            if not is_gptqmodel_available() and block_device.type == "cpu":
-                block_device = 0
             if isinstance(self.modules_in_block_to_quantize, list) and len(self.modules_in_block_to_quantize) > 0:
                 if self.true_sequential:
                     layers_name_list = self.modules_in_block_to_quantize
@@ -669,18 +622,6 @@ class GPTQQuantizer(object):
         model.quantize_config = StoreAttr()
         model.quantize_config.desc_act = self.desc_act
         model = gptq_post_init(model, use_act_order=self.desc_act)
-        # Keep this compatibility guard for older gptqmodel versions where EXLLAMA_V1 still exists.
-        # This branch can be removed once we bump the minimum gptqmodel version and drop v1 support.
-        if (
-            hasattr(BACKEND, "EXLLAMA_V1")
-            and self.backend == BACKEND.EXLLAMA_V1
-            and self.desc_act
-            and self.max_input_length is not None
-        ):
-            from gptqmodel import exllama_set_max_input_length
-
-            model = exllama_set_max_input_length(model, self.max_input_length)
-
         return model
 
     def pack_model(
@@ -746,7 +687,7 @@ class GPTQQuantizer(object):
 
         """
 
-        # convert gptqmodel internal gptq_v2 format to v1 for max compatibility
+        # Convert GPT-QModel internal gptq_v2 format to v1 for max compatibility.
         if is_gptqmodel_available():
             model, converted = hf_convert_gptq_v2_to_v1_format(
                 model, self.sym, self.bits, self.quant_linear, self.format, self.meta
@@ -772,7 +713,6 @@ def load_quantized_model(
     offload_folder: Optional[str] = None,
     offload_buffers: Optional[str] = None,
     offload_state_dict: bool = False,
-    max_input_length: Optional[int] = None,
 ):
     """
     Load quantized weights from the save_folder into the converted model and dispatch the weights according to the device_map.
@@ -805,16 +745,13 @@ def load_quantized_model(
             If `True`, will temporarily offload the CPU state dict on the hard drive to avoid getting out of CPU RAM if
             the weight of the CPU state dict + the biggest shard does not fit. Will default to `True` if the device map
             picked contains `"disk"` values.
-        max_input_length (`Optional[int]`, defaults to `None`):
-            The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
-            It is specific to the exllama backend with act-order.
 
     Returns:
         `nn.Module`: The quantized model
     """
     if not is_gptqmodel_available():
         raise RuntimeError(
-            "gptqmodel (`pip install gptqmodel`) is required in order to load quantized weights. Please notice that auto-gptq will be deprecated in the future."
+            "GPT-QModel (`pip install gptqmodel>=7.0.0`) is required in order to load quantized weights."
         )
     if not is_accelerate_available():
         raise RuntimeError(
@@ -844,7 +781,6 @@ def load_quantized_model(
 
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.backend = backend
-    quantizer.max_input_length = max_input_length
 
     model = quantizer.convert_model(model, device_map=device_map)
 

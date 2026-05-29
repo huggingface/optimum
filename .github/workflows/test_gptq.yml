@@ -47,7 +47,7 @@ jobs:
           uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
           uv pip install .[tests]
           uv pip install pypcre "setuptools>=78.1.1,<82"
-          uv pip install "gptqmodel>=5.6.12" --no-build-isolation
+          uv pip install "gptqmodel>=7.0.0"
 
       - name: Run tests
         run: |

@@ -1,26 +1,26 @@
 # Quantization
 
-## AutoGPTQ Integration
+## GPT-QModel Integration
 
-🤗 Optimum collaborated with [AutoGPTQ library](https://github.com/PanQiWei/AutoGPTQ) to provide a simple API that apply GPTQ quantization on language models. With GPTQ quantization, you can quantize your favorite language model to 8, 4, 3 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardwares.
+🤗 Optimum integrates with [GPT-QModel](https://github.com/ModelCloud/GPTQModel) to provide a simple API for GPTQ quantization on language models. With GPTQ quantization, you can quantize your favorite language model to 8, 4, 3 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardware.
 
 If you want to quantize 🤗 Transformers models with GPTQ, follow this [documentation](https://huggingface.co/docs/transformers/main_classes/quantization).
 
 To learn more about the quantization technique used in GPTQ, please refer to:
 - the [GPTQ](https://arxiv.org/pdf/2210.17323.pdf) paper
-- the [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ) library used as the backend
+- [GPT-QModel](https://github.com/ModelCloud/GPTQModel)
 
-Note that the AutoGPTQ library provides more advanced usage (triton backend, fused attention, fused MLP) that are not integrated with Optimum. For now, we leverage only the CUDA kernel for GPTQ.
+Optimum requires GPT-QModel for GPTQ quantization and quantized loading.
 
 ### Requirements
 
 You need to have the following requirements installed to run the code below:
 
-- AutoGPTQ library:
-`pip install auto-gptq`
-
 - Optimum library:
 `pip install --upgrade optimum`
+
+- GPT-QModel:
+`pip install "gptqmodel>=7.0.0"`
 
 - Install latest `transformers` library from source:
 `pip install --upgrade git+https://github.com/huggingface/transformers.git`
@@ -74,22 +74,9 @@ empty_model.tie_weights()
 quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
 ```
 
-### Exllama kernels for faster inference
+### Kernel selection for faster inference
 
-With the release of exllamav2 kernels, you can get faster inference speed compared to exllama kernels for 4-bit model. It is activated by default: `disable_exllamav2=False` in [`~optimum.gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
-
-```py
-from optimum.gptq import GPTQQuantizer, load_quantized_model
-import torch
-
-from accelerate import init_empty_weights
-with init_empty_weights():
-    empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
-empty_model.tie_weights()
-quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
-```
-
-If you wish to use exllama kernels, you will have to change the version by setting `exllama_config`:
+When GPTQ models are loaded through GPT-QModel, the runtime automatically selects an appropriate inference kernel for the current hardware and quantized model. In the common case, you should not pass `backend` explicitly.
 
 ```py
 from optimum.gptq import GPTQQuantizer, load_quantized_model
@@ -99,10 +86,14 @@ from accelerate import init_empty_weights
 with init_empty_weights():
     empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
 empty_model.tie_weights()
-quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto", exllama_config = {"version":1})
+quantized_model = load_quantized_model(
+    empty_model,
+    save_folder=save_folder,
+    device_map="auto",
+)
 ```
 
-Note that only 4-bit models are supported with exllama/exllamav2 kernels for now. Furthermore, it is recommended to disable exllama/exllamav2 kernels when you are finetuning your model with peft.
+If you are finetuning with PEFT, prefer the default automatic backend selection unless you have a specific reason to override it.
 
 You can find the benchmark of these kernels [here](https://github.com/huggingface/optimum/tree/main/tests/benchmark#gptq-benchmark)
 
