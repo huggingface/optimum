@@ -1174,7 +1174,12 @@ class TasksManager:
             )
 
         if library_name == "timm":
-            model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
+            import os
+
+            if os.path.isdir(model_name_or_path):
+                model = model_class(model_name_or_path, pretrained=True, exportable=True)
+            else:
+                model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
             model = model.to(torch_dtype).to(device)
         elif library_name == "sentence_transformers":
             token = model_kwargs.pop("token", None)
