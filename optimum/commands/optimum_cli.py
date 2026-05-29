@@ -121,8 +121,16 @@ def load_optimum_namespace_cli_commands() -> (
 
     # Find all registration files and load the commands to register
     commands_to_register = []
-    for register_path in set(commands_register_spec.submodule_search_locations):
-        register_path = Path(register_path)
+    # Resolve each path before deduplicating so that symlinked locations collapse to a
+    # single entry. On RHEL/CentOS-derived distros lib64 is a symlink to lib, so both
+    # paths appear in submodule_search_locations; plain set() compares strings and
+    # would treat them as distinct, importing the same register module twice and
+    # raising "argparse.ArgumentError: conflicting subparser" at CLI startup.
+    register_paths = {
+        Path(register_path).resolve()
+        for register_path in commands_register_spec.submodule_search_locations
+    }
+    for register_path in register_paths:
         if not register_path.is_dir():
             # skip non-directory paths
             continue
