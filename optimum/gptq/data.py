@@ -125,12 +125,14 @@ def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "trai
         data = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
     elif split == "validation":
         data = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
-    # length of 288059 should be enough
-    text = "".join([" \n" if s == "" else s for s in data["text"][:1000]])
 
-    enc = tokenizer(text, return_tensors="pt")
     dataset = []
     for _ in range(nsamples):
+        while True:
+            i = random.randint(0, len(data) - 1)
+            enc = tokenizer(data[i]["text"], return_tensors="pt")
+            if enc.input_ids.shape[1] >= seqlen:
+                break
         i = random.randint(0, enc.input_ids.shape[1] - seqlen - 1)
         j = i + seqlen
         inp = enc.input_ids[:, i:j]
