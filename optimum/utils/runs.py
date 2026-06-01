@@ -227,7 +227,7 @@ class _RunDefaults:
         metadata={"description": "Maximum number of samples to use from the evaluation dataset for evaluation."},
     )
     time_benchmark_args: Optional[BenchmarkTimeArgs] = field(
-        default=BenchmarkTimeArgs(), metadata={"description": "Parameters related to time benchmark."}
+        default_factory=BenchmarkTimeArgs, metadata={"description": "Parameters related to time benchmark."}
     )
 
 
