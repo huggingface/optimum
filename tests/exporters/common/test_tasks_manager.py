@@ -186,28 +186,24 @@ class TasksManagerTestCase(TestCase):
         self.assertEqual(TasksManager.infer_library_from_model("timm/mobilenetv3_large_100.ra_in1k"), "timm")
 
     def test_standardize_sentence_transformers_readonly_config(self):
-        # Regression: sentence-transformers >= 5 exposes `config` as a read-only
-        # property, so a direct assignment used to raise AttributeError before
-        # `export_model_type` could be set on the underlying transformer config.
-        class FakeTransformer:
+        # sentence-transformers >= 5 makes `config` read-only, so the assignment must not raise.
+        class Transformer:
             def __init__(self, config):
                 self.auto_model = type("AutoModel", (), {"config": config})()
 
-        class FakeSentenceTransformer:
+        class SentenceTransformer:
             def __init__(self, inner):
-                self._modules_list = [inner]
+                self._modules = [inner]
 
             def __getitem__(self, idx):
-                return self._modules_list[idx]
+                return self._modules[idx]
 
             @property
             def config(self):
-                return self._modules_list[0].auto_model.config
+                return self._modules[0].auto_model.config
 
         inner_config = BertConfig()
-        transformer = FakeTransformer(inner_config)
-        transformer.__class__.__name__ = "Transformer"
-        st_model = FakeSentenceTransformer(transformer)
+        st_model = SentenceTransformer(Transformer(inner_config))
 
         TasksManager.standardize_model_attributes(st_model, library_name="sentence_transformers")
 
