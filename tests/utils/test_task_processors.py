@@ -20,7 +20,13 @@ from typing import Any, Dict, Tuple, Union
 from unittest import TestCase
 
 import pytest
-from transformers import AutoConfig, AutoFeatureExtractor, AutoTokenizer, PretrainedConfig, PreTrainedTokenizerBase
+from transformers import (
+    AutoConfig,
+    AutoProcessor,
+    AutoTokenizer,
+    PretrainedConfig,
+    PreTrainedTokenizerBase,
+)
 from transformers.image_processing_utils import BaseImageProcessor
 from transformers.utils import http_user_agent
 
@@ -37,7 +43,7 @@ TEXT_MODEL_NAME = "bert-base-uncased"
 CONFIG = AutoConfig.from_pretrained(TEXT_MODEL_NAME)
 TOKENIZER = AutoTokenizer.from_pretrained(TEXT_MODEL_NAME)
 IMAGE_MODEL_NAME = "google/vit-base-patch16-224"
-IMAGE_PROCESSOR = AutoFeatureExtractor.from_pretrained(IMAGE_MODEL_NAME)
+IMAGE_PROCESSOR = AutoProcessor.from_pretrained(IMAGE_MODEL_NAME)
 
 TASK_TO_NON_DEFAULT_DATASET = {
     "text-classification": {
