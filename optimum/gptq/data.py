@@ -122,9 +122,9 @@ def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "trai
         raise ImportError(DATASETS_IMPORT_ERROR.format("get_wikitext2"))
 
     if split == "train":
-        data = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
+        data = load_dataset("Salesforce/wikitext", "wikitext-2-raw-v1", split="train")
     elif split == "validation":
-        data = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
+        data = load_dataset("Salesforce/wikitext", "wikitext-2-raw-v1", split="test")
     # length of 288059 should be enough
     text = "".join([" \n" if s == "" else s for s in data["text"][:1000]])
 
