@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util
 import inspect
 import os
 import shutil
@@ -20,6 +21,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import optimum.commands.base
 
@@ -84,6 +86,51 @@ class TestCLI(unittest.TestCase):
         self.assertTrue(succeeded, "The command should succeed here since it is registered.")
 
         REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink()
+
+    def test_symlinked_register_paths_are_deduplicated(self):
+        # Regression test: when optimum.commands.register's submodule_search_locations
+        # contains a directory together with a symlink that resolves to the same
+        # directory (e.g. lib64 -> lib on RHEL/CentOS-derived distros), the register
+        # module must be imported only once. Deduplicating on the raw path strings
+        # imports it twice and raises "argparse.ArgumentError: conflicting subparser"
+        # at CLI startup.
+        from optimum.commands import optimum_cli
+
+        with tempfile.TemporaryDirectory() as tmp:
+            real_dir = Path(tmp) / "register"
+            real_dir.mkdir()
+            (real_dir / "dummy_register.py").write_text("REGISTER_COMMANDS = []\n")
+
+            link_dir = Path(tmp) / "register_symlink"
+            try:
+                link_dir.symlink_to(real_dir, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks are not supported on this platform")
+
+            fake_spec = mock.MagicMock()
+            fake_spec.submodule_search_locations = [str(real_dir), str(link_dir)]
+
+            imported = []
+
+            def fake_import(name, *args, **kwargs):
+                imported.append(name)
+                module = mock.MagicMock()
+                module.REGISTER_COMMANDS = []
+                return module
+
+            with mock.patch.object(
+                optimum_cli.importlib.util, "find_spec", return_value=fake_spec
+            ), mock.patch.object(
+                optimum_cli.importlib, "import_module", side_effect=fake_import
+            ):
+                optimum_cli.load_optimum_namespace_cli_commands()
+
+            dummy_imports = [name for name in imported if name.endswith("dummy_register")]
+            self.assertEqual(
+                len(dummy_imports),
+                1,
+                f"register module should be imported exactly once, got {imported}",
+            )
 
     def tearDown(self):
         super().tearDown()
