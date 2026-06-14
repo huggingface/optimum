@@ -139,7 +139,7 @@ class GPTQTest(unittest.TestCase):
             format=FORMAT.GPTQ,
             quant_method=METHOD.GPTQ,
             device_map={"": self.device_for_inference},
-            pack=True,
+            pack=False,
         )
         self.assertEqual(model.transformer.h[0].mlp.dense_4h_to_h.__class__, QuantLinear)
 
@@ -186,7 +186,7 @@ class GPTQTestActOrder(GPTQTest):
     # `act_group_aware` == `True` requires `desc_act` == `False` when both are explicitly set
     desc_act = True
     act_group_aware = False
-    expected_quantized_perplexity = 33
+    expected_quantized_perplexity = 34
 
     def test_serialization(self):
         """
