@@ -176,16 +176,6 @@ class TasksManagerTestCase(TestCase):
         model = TasksManager.get_model_from_task("question-answering", "uclanlp/visualbert-vqa")
         self.assertTrue(isinstance(model, VisualBertForQuestionAnswering))
 
-    def test_library_detection(self):
-        self.assertEqual(
-            TasksManager.infer_library_from_model("intfloat/multilingual-e5-large"), "sentence_transformers"
-        )
-        self.assertEqual(
-            TasksManager.infer_library_from_model("stabilityai/stable-diffusion-xl-base-1.0"), "diffusers"
-        )
-        self.assertEqual(TasksManager.infer_library_from_model("gpt2"), "transformers")
-        self.assertEqual(TasksManager.infer_library_from_model("timm/mobilenetv3_large_100.ra_in1k"), "timm")
-
     def test_get_model_from_task_timm_local_dir_skips_hf_hub_prefix(self):
         # Regression test for local timm checkpoint loading: a local directory must be
         # passed to the timm model constructor as-is, while a Hub id keeps the
@@ -218,3 +208,13 @@ class TasksManagerTestCase(TestCase):
             model_class.assert_called_once_with(
                 "hf_hub:timm/mobilenetv3_large_100.ra_in1k", pretrained=True, exportable=True
             )
+
+    def test_library_detection(self):
+        self.assertEqual(
+            TasksManager.infer_library_from_model("intfloat/multilingual-e5-large"), "sentence_transformers"
+        )
+        self.assertEqual(
+            TasksManager.infer_library_from_model("stabilityai/stable-diffusion-xl-base-1.0"), "diffusers"
+        )
+        self.assertEqual(TasksManager.infer_library_from_model("gpt2"), "transformers")
+        self.assertEqual(TasksManager.infer_library_from_model("timm/mobilenetv3_large_100.ra_in1k"), "timm")
