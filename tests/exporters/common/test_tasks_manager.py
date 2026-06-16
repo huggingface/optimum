@@ -16,6 +16,7 @@ import importlib
 import inspect
 from typing import Optional, Set
 from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 import pytest
 from transformers import BertConfig, Pix2StructForConditionalGeneration, VisualBertForQuestionAnswering
@@ -184,3 +185,61 @@ class TasksManagerTestCase(TestCase):
         )
         self.assertEqual(TasksManager.infer_library_from_model("gpt2"), "transformers")
         self.assertEqual(TasksManager.infer_library_from_model("timm/mobilenetv3_large_100.ra_in1k"), "timm")
+
+    def test_get_model_from_task_timm_local_dir_skips_hf_hub_prefix(self):
+        # Regression test for local timm checkpoint loading: a local directory must be
+        # passed to the timm model constructor as-is, while a Hub id keeps the
+        # "hf_hub:" prefix. Both paths are exercised without network access by mocking
+        # the resolved model class and os.path.isdir.
+        created = MagicMock()
+        created.to.return_value = created
+        model_class = MagicMock(return_value=created)
+
+        with patch.object(TasksManager, "get_model_class_for_task", return_value=model_class):
+            with patch("os.path.isdir", return_value=True):
+                TasksManager.get_model_from_task(
+                    "image-classification",
+                    "/local/path/to/timm_model",
+                    framework="pt",
+                    library_name="timm",
+                )
+            model_class.assert_called_once_with(
+                "/local/path/to/timm_model", pretrained=True, exportable=True
+            )
+
+            model_class.reset_mock()
+            with patch("os.path.isdir", return_value=False):
+                TasksManager.get_model_from_task(
+                    "image-classification",
+                    "timm/mobilenetv3_large_100.ra_in1k",
+                    framework="pt",
+                    library_name="timm",
+                )
+            model_class.assert_called_once_with(
+                "hf_hub:timm/mobilenetv3_large_100.ra_in1k", pretrained=True, exportable=True
+            )
+
+    def test_standardize_sentence_transformers_readonly_config(self):
+        # sentence-transformers >= 5 makes `config` read-only, so the assignment must not raise.
+        class Transformer:
+            def __init__(self, config):
+                self.auto_model = type("AutoModel", (), {"config": config})()
+
+        class SentenceTransformer:
+            def __init__(self, inner):
+                self._modules = [inner]
+
+            def __getitem__(self, idx):
+                return self._modules[idx]
+
+            @property
+            def config(self):
+                return self._modules[0].auto_model.config
+
+        inner_config = BertConfig()
+        st_model = SentenceTransformer(Transformer(inner_config))
+
+        TasksManager.standardize_model_attributes(st_model, library_name="sentence_transformers")
+
+        self.assertEqual(inner_config.export_model_type, "transformer")
+        self.assertIs(st_model.config, inner_config)
