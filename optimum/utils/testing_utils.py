@@ -136,18 +136,22 @@ def require_ort_training(test_case):
 
 
 def require_diffusers(test_case):
+    """Decorator marking a test that requires the `diffusers` package to be installed."""
     return unittest.skipUnless(is_diffusers_available(), "test requires diffusers")(test_case)
 
 
 def require_timm(test_case):
+    """Decorator marking a test that requires the `timm` package to be installed."""
     return unittest.skipUnless(is_timm_available(), "test requires timm")(test_case)
 
 
 def require_sentence_transformers(test_case):
+    """Decorator marking a test that requires the `sentence-transformers` package to be installed."""
     return unittest.skipUnless(is_sentence_transformers_available(), "test requires sentence-transformers")(test_case)
 
 
 def require_datasets(test_case):
+    """Decorator marking a test that requires the `datasets` package to be installed."""
     return unittest.skipUnless(is_datasets_available(), "test requires datasets")(test_case)
 
 
