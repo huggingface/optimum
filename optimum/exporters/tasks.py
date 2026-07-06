@@ -939,11 +939,10 @@ class TasksManager:
             }
             # We do not use PretrainedConfig.from_pretrained which has unwanted warnings about model type.
             config_dict, kwargs = PretrainedConfig.get_config_dict(model_name_or_path, **kwargs)
-            model_config = PretrainedConfig.from_dict(config_dict, **kwargs)
 
-            if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
+            if "pretrained_cfg" in config_dict or "architecture" in config_dict:
                 inferred_library_name = "timm"
-            elif hasattr(model_config, "_diffusers_version"):
+            elif "_diffusers_version" in config_dict:
                 inferred_library_name = "diffusers"
             else:
                 inferred_library_name = "transformers"
