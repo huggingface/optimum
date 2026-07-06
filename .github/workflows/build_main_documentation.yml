@@ -54,7 +54,8 @@ jobs:
       - name: Make Optimum documentation
         run: |
           cd optimum
-          uv pip install . accelerate --prerelease=allow
+          uv pip install . --no-deps
+          doc-builder light-install optimum
           make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }}
           cd ..
 
