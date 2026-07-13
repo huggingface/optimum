@@ -28,13 +28,13 @@ jobs:
 
     steps:
       - name: Checkout optimum
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: optimum
           fetch-depth: 0
 
       - name: checkout optimum-onnx
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: huggingface/optimum-onnx
           ref: ${{ env.OPTIMUM_ONNX_REF }}
