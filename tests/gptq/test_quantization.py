@@ -16,7 +16,7 @@
 import tempfile
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import torch
 from parameterized import parameterized
@@ -262,36 +262,69 @@ class GPTQPostInitTest(unittest.TestCase):
 
 @require_gptqmodel
 class GPTQNativeLoadBridgeTest(unittest.TestCase):
-    @patch("optimum.gptq.quantizer.hf_gptqmodel_prepare_model_for_load")
-    def test_convert_and_post_init_delegate_to_gptqmodel_bridge(self, prepare_model):
+    @patch("optimum.gptq.quantizer._gptqmodel_load_prepare_model")
+    def test_load_context_is_scoped_per_model(self, prepare_model):
         quantizer = GPTQQuantizer(bits=4)
-        model = torch.nn.Module()
-        context = SimpleNamespace(
-            quantize_config=quantizer.quantizeConfig,
-            quant_linear=object(),
-        )
-        prepare_model.return_value = context
+        original_quantize_config = quantizer.quantizeConfig
+        first_model = torch.nn.Module()
+        second_model = torch.nn.Module()
+        first_context = SimpleNamespace(name="first")
+        second_context = SimpleNamespace(name="second")
+        prepare_model.side_effect = [first_context, second_context]
 
-        result = quantizer.convert_model(
-            model,
+        first_result = quantizer.convert_model(
+            first_model,
+            checkpoint_files=["model.safetensors"],
+            device_map={"": "cpu"},
+            dtype=torch.float16,
+        )
+        second_result = quantizer.convert_model(
+            second_model,
             checkpoint_files=["model.safetensors"],
             device_map={"": "cpu"},
             dtype=torch.float16,
         )
 
-        self.assertIs(result, model)
-        self.assertIs(quantizer._gptqmodel_load_context, context)
-        prepare_model.assert_called_once_with(
-            model,
-            checkpoint_files=["model.safetensors"],
-            device_map={"": "cpu"},
-            backend=quantizer.backend,
-            dtype=torch.float16,
-        )
+        self.assertIs(first_result, first_model)
+        self.assertIs(second_result, second_model)
+        self.assertIs(first_model._gptqmodel_load_context, first_context)
+        self.assertIs(second_model._gptqmodel_load_context, second_context)
+        self.assertFalse(hasattr(quantizer, "_gptqmodel_load_context"))
+        self.assertIs(quantizer.quantizeConfig, original_quantize_config)
+        self.assertFalse(hasattr(quantizer, "quant_linear"))
+        prepare_model.assert_has_calls([
+            call(
+                first_model,
+                checkpoint_files=["model.safetensors"],
+                device_map={"": "cpu"},
+                backend=quantizer.backend,
+                dtype=torch.float16,
+            ),
+            call(
+                second_model,
+                checkpoint_files=["model.safetensors"],
+                device_map={"": "cpu"},
+                backend=quantizer.backend,
+                dtype=torch.float16,
+            ),
+        ])
 
-        with patch("optimum.gptq.quantizer.hf_gptqmodel_post_init_for_load", return_value=model) as post_init:
-            self.assertIs(quantizer.post_init_model(model), model)
-            post_init.assert_called_once_with(model, context=context)
+        with patch(
+            "optimum.gptq.quantizer._gptqmodel_load_post_init",
+            side_effect=lambda model, context: model,
+        ) as post_init:
+            self.assertIs(quantizer.post_init_model(first_model), first_model)
+            self.assertIs(quantizer.post_init_model(second_model), second_model)
+
+        self.assertEqual(
+            post_init.call_args_list,
+            [
+                call(first_model, context=first_context),
+                call(second_model, context=second_context),
+            ],
+        )
+        self.assertFalse(hasattr(first_model, "_gptqmodel_load_context"))
+        self.assertFalse(hasattr(second_model, "_gptqmodel_load_context"))
 
 
 class GPTQUtilsTest(unittest.TestCase):

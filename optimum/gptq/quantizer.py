@@ -47,8 +47,8 @@ if is_accelerate_available():
     from accelerate.hooks import remove_hook_from_module
 
 # The bridge is optional for GPTQModel releases that predate this API.
-hf_gptqmodel_post_init_for_load = None
-hf_gptqmodel_prepare_model_for_load = None
+_gptqmodel_load_post_init = None
+_gptqmodel_load_prepare_model = None
 
 if is_gptqmodel_available():
     from gptqmodel import BACKEND, QuantizeConfig
@@ -62,13 +62,11 @@ if is_gptqmodel_available():
     from gptqmodel.version import __version__ as gptqmodel_version
 
     try:
-        from gptqmodel.utils.model import (
-            hf_gptqmodel_post_init_for_load,
-            hf_gptqmodel_prepare_model_for_load,
-        )
+        from gptqmodel.utils.model import hf_gptqmodel_post_init_for_load as _gptqmodel_load_post_init
+        from gptqmodel.utils.model import hf_gptqmodel_prepare_model_for_load as _gptqmodel_load_prepare_model
     except ImportError:
-        hf_gptqmodel_post_init_for_load = None
-        hf_gptqmodel_prepare_model_for_load = None
+        _gptqmodel_load_post_init = None
+        _gptqmodel_load_prepare_model = None
 
 logger = getLogger(__name__)
 
@@ -175,7 +173,6 @@ class GPTQQuantizer(object):
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
         self.modules_in_block_to_quantize = modules_in_block_to_quantize
-        self._gptqmodel_load_context = None
 
         self.quantizeConfig = QuantizeConfig(
             bits=self.bits,
@@ -272,8 +269,8 @@ class GPTQQuantizer(object):
 
         """
         # Preserve native GPTQModel module manifests and per-module settings.
-        if hf_gptqmodel_prepare_model_for_load is not None:
-            context = hf_gptqmodel_prepare_model_for_load(
+        if _gptqmodel_load_prepare_model is not None:
+            context = _gptqmodel_load_prepare_model(
                 model,
                 checkpoint_files=kwargs.get("checkpoint_files"),
                 device_map=kwargs.get("device_map"),
@@ -281,9 +278,7 @@ class GPTQQuantizer(object):
                 dtype=kwargs.get("dtype"),
             )
             if context is not None:
-                self._gptqmodel_load_context = context
-                self.quantizeConfig = context.quantize_config
-                self.quant_linear = context.quant_linear
+                model._gptqmodel_load_context = context
                 return model
 
         if self.block_name_to_quantize is None:
@@ -646,11 +641,12 @@ class GPTQQuantizer(object):
         """
 
         # Kernel post-init must run after checkpoint tensors reach their devices.
-        if self._gptqmodel_load_context is not None:
-            return hf_gptqmodel_post_init_for_load(
-                model,
-                context=self._gptqmodel_load_context,
-            )
+        context = getattr(model, "_gptqmodel_load_context", None)
+        if context is not None:
+            try:
+                return _gptqmodel_load_post_init(model, context=context)
+            finally:
+                del model._gptqmodel_load_context
 
         class StoreAttr(object):
             pass
