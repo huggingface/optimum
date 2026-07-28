@@ -188,7 +188,7 @@ class GPTQTestActOrder(GPTQTest):
     # `act_group_aware` == `True` requires `desc_act` == `False` when both are explicitly set
     desc_act = True
     act_group_aware = False
-    expected_quantized_perplexity = 34
+    expected_quantized_perplexity = 33
 
     def test_serialization(self):
         """
