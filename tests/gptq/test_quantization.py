@@ -15,6 +15,8 @@
 
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import torch
 from parameterized import parameterized
@@ -256,6 +258,40 @@ class GPTQPostInitTest(unittest.TestCase):
         self.assertIs(result, model)
         self.assertTrue(model.quantize_config.desc_act)
         self.assertEqual(model.layer.qzero_format(), 2)
+
+
+@require_gptqmodel
+class GPTQNativeLoadBridgeTest(unittest.TestCase):
+    @patch("optimum.gptq.quantizer.hf_gptqmodel_prepare_model_for_load")
+    def test_convert_and_post_init_delegate_to_gptqmodel_bridge(self, prepare_model):
+        quantizer = GPTQQuantizer(bits=4)
+        model = torch.nn.Module()
+        context = SimpleNamespace(
+            quantize_config=quantizer.quantizeConfig,
+            quant_linear=object(),
+        )
+        prepare_model.return_value = context
+
+        result = quantizer.convert_model(
+            model,
+            checkpoint_files=["model.safetensors"],
+            device_map={"": "cpu"},
+            dtype=torch.float16,
+        )
+
+        self.assertIs(result, model)
+        self.assertIs(quantizer._gptqmodel_load_context, context)
+        prepare_model.assert_called_once_with(
+            model,
+            checkpoint_files=["model.safetensors"],
+            device_map={"": "cpu"},
+            backend=quantizer.backend,
+            dtype=torch.float16,
+        )
+
+        with patch("optimum.gptq.quantizer.hf_gptqmodel_post_init_for_load", return_value=model) as post_init:
+            self.assertIs(quantizer.post_init_model(model), model)
+            post_init.assert_called_once_with(model, context=context)
 
 
 class GPTQUtilsTest(unittest.TestCase):

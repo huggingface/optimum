@@ -46,13 +46,29 @@ if is_accelerate_available():
     )
     from accelerate.hooks import remove_hook_from_module
 
+# The bridge is optional for GPTQModel releases that predate this API.
+hf_gptqmodel_post_init_for_load = None
+hf_gptqmodel_prepare_model_for_load = None
+
 if is_gptqmodel_available():
     from gptqmodel import BACKEND, QuantizeConfig
     from gptqmodel.quantization import FORMAT, GPTQ, METHOD
     from gptqmodel.utils.importer import hf_select_quant_linear_v2
-    from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
+    from gptqmodel.utils.model import (
+        hf_convert_gptq_v1_to_v2_format,
+        hf_convert_gptq_v2_to_v1_format,
+    )
     from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init
     from gptqmodel.version import __version__ as gptqmodel_version
+
+    try:
+        from gptqmodel.utils.model import (
+            hf_gptqmodel_post_init_for_load,
+            hf_gptqmodel_prepare_model_for_load,
+        )
+    except ImportError:
+        hf_gptqmodel_post_init_for_load = None
+        hf_gptqmodel_prepare_model_for_load = None
 
 logger = getLogger(__name__)
 
@@ -159,6 +175,7 @@ class GPTQQuantizer(object):
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
         self.modules_in_block_to_quantize = modules_in_block_to_quantize
+        self._gptqmodel_load_context = None
 
         self.quantizeConfig = QuantizeConfig(
             bits=self.bits,
@@ -254,6 +271,21 @@ class GPTQQuantizer(object):
                 Model to be converted
 
         """
+        # Preserve native GPTQModel module manifests and per-module settings.
+        if hf_gptqmodel_prepare_model_for_load is not None:
+            context = hf_gptqmodel_prepare_model_for_load(
+                model,
+                checkpoint_files=kwargs.get("checkpoint_files"),
+                device_map=kwargs.get("device_map"),
+                backend=self.backend,
+                dtype=kwargs.get("dtype"),
+            )
+            if context is not None:
+                self._gptqmodel_load_context = context
+                self.quantizeConfig = context.quantize_config
+                self.quant_linear = context.quant_linear
+                return model
+
         if self.block_name_to_quantize is None:
             self.block_name_to_quantize = get_block_name_with_pattern(model)
         block_name = self.block_name_to_quantize
@@ -612,6 +644,13 @@ class GPTQQuantizer(object):
             model (`nn.Module`):
                 The input model
         """
+
+        # Kernel post-init must run after checkpoint tensors reach their devices.
+        if self._gptqmodel_load_context is not None:
+            return hf_gptqmodel_post_init_for_load(
+                model,
+                context=self._gptqmodel_load_context,
+            )
 
         class StoreAttr(object):
             pass
