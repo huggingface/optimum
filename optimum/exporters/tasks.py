@@ -21,9 +21,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import torch
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, constants
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
-from huggingface_hub.errors import OfflineModeIsEnabled
+from huggingface_hub.errors import IncompleteSnapshotError, OfflineModeIsEnabled
+from huggingface_hub.file_download import REGEX_COMMIT_HASH, repo_folder_name
 from packaging import version
 from requests.exceptions import ConnectionError
 from transformers import AutoConfig, PretrainedConfig
@@ -530,6 +531,24 @@ class TasksManager:
             return getattr(loaded_library, model_class_name)
 
     @staticmethod
+    def _find_cached_snapshot_path(repo_id: str, cache_dir: str, revision: Optional[str] = None):
+        revision = revision or constants.DEFAULT_REVISION
+        storage_folder = os.path.join(cache_dir, repo_folder_name(repo_id=repo_id, repo_type="model"))
+        commit_hash = revision if REGEX_COMMIT_HASH.match(revision) else None
+
+        if commit_hash is None:
+            ref_path = os.path.join(storage_folder, "refs", revision)
+            if os.path.isfile(ref_path):
+                with open(ref_path) as f:
+                    commit_hash = f.read()
+
+        if commit_hash is None:
+            return None
+
+        snapshot_path = os.path.join(storage_folder, "snapshots", commit_hash)
+        return snapshot_path if os.path.isdir(snapshot_path) else None
+
+    @staticmethod
     def get_model_files(
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
@@ -560,20 +579,27 @@ class TasksManager:
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
             except (ConnectionError, OfflineModeIsEnabled) as e:
-                snapshot_path = hf_api.snapshot_download(
-                    repo_id=model_name_or_path,
-                    cache_dir=cache_dir,
-                    revision=revision,
-                    token=token,
-                )
-                full_model_path = Path(snapshot_path, subfolder)
-                if full_model_path.is_dir():
+                try:
+                    snapshot_path = hf_api.snapshot_download(
+                        repo_id=model_name_or_path,
+                        cache_dir=cache_dir,
+                        revision=revision,
+                        token=token,
+                    )
+                except IncompleteSnapshotError:
+                    # since huggingface_hub >= v1.22 snapshot_download now raises IncompleteSnapshotError
+                    # was previously returning a partial folder when local snapshot missing some files
+                    snapshot_path = TasksManager._find_cached_snapshot_path(model_name_or_path, cache_dir, revision)
+
+                full_model_path = Path(snapshot_path, subfolder) if snapshot_path is not None else None
+                if full_model_path is not None and full_model_path.is_dir():
                     all_files = [
                         os.path.relpath(os.path.join(dirpath, file), full_model_path)
                         for dirpath, _, filenames in os.walk(full_model_path)
                         for file in filenames
                     ]
                 else:
+                    all_files = []
                     request_exception = e
 
         return all_files, request_exception
