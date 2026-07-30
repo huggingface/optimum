@@ -23,8 +23,19 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tupl
 import torch
 from huggingface_hub import HfApi, constants
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
-from huggingface_hub.errors import IncompleteSnapshotError, OfflineModeIsEnabled
+from huggingface_hub.errors import OfflineModeIsEnabled
 from huggingface_hub.file_download import REGEX_COMMIT_HASH, repo_folder_name
+
+
+try:
+    # only raised by `snapshot_download` since huggingface_hub v1.22.
+    from huggingface_hub.errors import IncompleteSnapshotError
+except ImportError:
+
+    class IncompleteSnapshotError(Exception):
+        pass
+
+
 from packaging import version
 from requests.exceptions import ConnectionError
 from transformers import AutoConfig, PretrainedConfig
