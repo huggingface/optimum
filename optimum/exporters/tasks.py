@@ -25,6 +25,13 @@ from huggingface_hub import HfApi, constants
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.errors import OfflineModeIsEnabled
 from huggingface_hub.file_download import REGEX_COMMIT_HASH, repo_folder_name
+from packaging import version
+from requests.exceptions import ConnectionError
+from transformers import AutoConfig, PretrainedConfig
+from transformers.utils import SAFE_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
+
+from ..utils.import_utils import is_diffusers_available, is_torch_available, is_transformers_version
+from ..utils.logging import get_logger
 
 
 try:
@@ -34,15 +41,6 @@ except ImportError:
 
     class IncompleteSnapshotError(Exception):
         pass
-
-
-from packaging import version
-from requests.exceptions import ConnectionError
-from transformers import AutoConfig, PretrainedConfig
-from transformers.utils import SAFE_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
-
-from ..utils.import_utils import is_diffusers_available, is_torch_available, is_transformers_version
-from ..utils.logging import get_logger
 
 
 if TYPE_CHECKING:
