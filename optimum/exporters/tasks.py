@@ -35,7 +35,7 @@ from ..utils.logging import get_logger
 
 
 try:
-    # only raised by `snapshot_download` since huggingface_hub v1.22.
+    # IncompleteSnapshotError introduced in huggingface_hub v1.22 and only raised by `snapshot_download` since then
     from huggingface_hub.errors import IncompleteSnapshotError
 except ImportError:
 
