@@ -333,7 +333,7 @@ class GPTQNativeLoadBridgeTest(unittest.TestCase):
 @slow
 @require_gptqmodel
 class GPTQNativeLoadBridgeIntegrationTest(unittest.TestCase):
-    model_id = "ModelCloud/Phi-tiny-MoE-instruct-GPTQ-dynamic"
+    model_id = "ModelCloud/Phi-tiny-MoE-instruct-GPTQ-W4-MixedGroup-G32-G128"
     num_hidden_layers = 32
     num_local_experts = 16
     global_group_size = 128
