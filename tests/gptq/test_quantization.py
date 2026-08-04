@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
+import re
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -20,7 +22,7 @@ from unittest.mock import call, patch
 
 import torch
 from parameterized import parameterized
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, GPTQConfig
 from transformers.testing_utils import slow
 
 from optimum.gptq import GPTQQuantizer, load_quantized_model
@@ -34,6 +36,7 @@ from optimum.utils.testing_utils import require_gptqmodel, require_torch_gpu
 
 if is_gptqmodel_available():
     from gptqmodel import GPTQModel
+    from gptqmodel.nn_modules.qlinear import BaseQuantLinear
     from gptqmodel.quantization import FORMAT, METHOD
     from gptqmodel.utils.importer import hf_select_quant_linear_v2
 
@@ -325,6 +328,120 @@ class GPTQNativeLoadBridgeTest(unittest.TestCase):
         )
         self.assertFalse(hasattr(first_model, "_gptqmodel_load_context"))
         self.assertFalse(hasattr(second_model, "_gptqmodel_load_context"))
+
+
+@slow
+@require_gptqmodel
+class GPTQNativeLoadBridgeIntegrationTest(unittest.TestCase):
+    model_id = "ModelCloud/Phi-tiny-MoE-instruct-GPTQ-dynamic"
+    num_hidden_layers = 32
+    num_local_experts = 16
+    global_group_size = 128
+
+    @classmethod
+    def expected_quantized_modules(cls):
+        # Q/K/V and expert gate/up use G32; output and expert down projections keep the global G128.
+        expected = {}
+        for layer_index in range(cls.num_hidden_layers):
+            layer = f"model.layers.{layer_index}"
+            for projection in ("q_proj", "k_proj", "v_proj"):
+                expected[f"{layer}.self_attn.{projection}"] = (4, 32)
+            expected[f"{layer}.self_attn.o_proj"] = (4, cls.global_group_size)
+            for expert_index in range(cls.num_local_experts):
+                expert = f"{layer}.mlp.experts.{expert_index}"
+                expected[f"{expert}.gate_proj"] = (4, 32)
+                expected[f"{expert}.up_proj"] = (4, 32)
+                expected[f"{expert}.down_proj"] = (4, cls.global_group_size)
+        return expected
+
+    @classmethod
+    def load_model(cls, model_id):
+        # Use the generic CPU kernel so this test isolates loading rather than optimized-kernel shape limits.
+        return AutoModelForCausalLM.from_pretrained(
+            model_id,
+            device_map={"": "cpu"},
+            dtype=torch.float16,
+            quantization_config=GPTQConfig(bits=4, backend="torch"),
+        )
+
+    @staticmethod
+    def checkpoint_tensor_names(model_id):
+        from huggingface_hub import hf_hub_download
+        from safetensors import safe_open
+
+        # Resolve the public Hub fixture through the standard cache; no machine-local fixture path is required.
+        checkpoint_file = hf_hub_download(repo_id=model_id, filename="model.safetensors")
+        with safe_open(checkpoint_file, framework="pt", device="cpu") as checkpoint:
+            return set(checkpoint.keys())
+
+    def test_all_dynamic_moe_projections_load_correctly_only_with_delegate(self):
+        from optimum.gptq import quantizer as optimum_quantizer
+
+        if optimum_quantizer._gptqmodel_load_prepare_model is None:
+            self.skipTest("requires the GPTQModel native load delegate")
+
+        expected_quantized_modules = self.expected_quantized_modules()
+        expected_dynamic = {
+            f"+:^{re.escape(name)}$": {"bits": bits, "group_size": group_size}
+            for name, (bits, group_size) in expected_quantized_modules.items()
+            if group_size != self.global_group_size
+        }
+        self.assertEqual(len(expected_quantized_modules), 1664)
+        self.assertEqual(len(expected_dynamic), 1120)
+        expected_dense_linear_modules = {
+            *(f"model.layers.{layer_index}.mlp.router" for layer_index in range(self.num_hidden_layers)),
+            "lm_head",
+        }
+
+        # Check tensors on disk so incomplete weights cannot pass by exposing only correct config metadata.
+        checkpoint_tensor_names = self.checkpoint_tensor_names(self.model_id)
+        for component in ("qweight", "qzeros", "scales", "g_idx"):
+            suffix = f".{component}"
+            actual_names = {
+                name.removesuffix(suffix) for name in checkpoint_tensor_names if name.endswith(suffix)
+            }
+            self.assertEqual(actual_names, set(expected_quantized_modules))
+
+        # The delegate must rebuild every per-expert module and preserve its mixed group size.
+        model = self.load_model(self.model_id)
+        modules = dict(model.named_modules())
+        actual_quantized_modules = {
+            name: (module.bits, module.group_size)
+            for name, module in modules.items()
+            if isinstance(module, BaseQuantLinear)
+        }
+        self.assertEqual(actual_quantized_modules, expected_quantized_modules)
+
+        actual_dense_linear_modules = {
+            name for name, module in modules.items() if isinstance(module, torch.nn.Linear)
+        }
+        self.assertEqual(actual_dense_linear_modules, expected_dense_linear_modules)
+        self.assertEqual(model.config.quantization_config.group_size, self.global_group_size)
+        self.assertEqual(model.config.quantization_config.dynamic, expected_dynamic)
+        self.assertEqual(
+            [
+                name
+                for name, tensor in (*model.named_parameters(), *model.named_buffers())
+                if tensor.is_meta
+            ],
+            [],
+        )
+
+        with torch.inference_mode():
+            output = model(input_ids=torch.tensor([[1, 42, 314, 2718, 7, 11]], dtype=torch.long))
+        self.assertEqual(output.logits.shape, (1, 6, 32064))
+        self.assertTrue(torch.isfinite(output.logits).all())
+
+        del model
+        gc.collect()
+        # The legacy path returns a model but silently loses G32 overrides and per-expert modules.
+        with patch("optimum.gptq.quantizer._gptqmodel_load_prepare_model", None):
+            legacy_model = self.load_model(self.model_id)
+
+        legacy_modules = dict(legacy_model.named_modules())
+        legacy_q_proj = legacy_modules["model.layers.0.self_attn.q_proj"]
+        self.assertEqual((legacy_q_proj.bits, legacy_q_proj.group_size), (4, self.global_group_size))
+        self.assertNotIn("model.layers.0.mlp.experts.0.down_proj", legacy_modules)
 
 
 class GPTQUtilsTest(unittest.TestCase):
