@@ -20,17 +20,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9]
+        python-version: ["3.10"]
         runs-on: [ubuntu-22.04, macos-14, windows-2022]
 
     runs-on: ${{ matrix.runs-on }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 

@@ -102,7 +102,9 @@ def _get_submodels_for_export_diffusion(
     if text_encoder is not None:
         if is_sdxl or is_sd3:
             text_encoder.config.output_hidden_states = True
-            text_encoder.text_model.config.output_hidden_states = True
+            # `CLIPTextTransformer` removed since transformers v5.6
+            if hasattr(text_encoder, "text_model"):
+                text_encoder.text_model.config.output_hidden_states = True
 
         text_encoder.config.export_model_type = _get_diffusers_submodel_type(text_encoder)
         models_for_export["text_encoder"] = text_encoder

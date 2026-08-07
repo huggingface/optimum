@@ -60,9 +60,9 @@ def require_accelerate(test_case):
 
 def require_gptqmodel(test_case):
     """
-    Decorator marking a test that requires auto-gptq. These tests are skipped when auto-gptq isn't installed.
+    Decorator marking a test that requires GPT-QModel. These tests are skipped when `gptqmodel` isn't installed.
     """
-    return unittest.skipUnless(is_gptqmodel_available(), "test requires gptqmodel")(test_case)
+    return unittest.skipUnless(is_gptqmodel_available(), "test requires GPT-QModel")(test_case)
 
 
 def require_torch_gpu(test_case):

@@ -9,7 +9,7 @@ def evaluate_perplexity(model, tokenizer):
         return torch.exp(torch.stack(nlls).sum() / (n_samples * seqlen))
 
     # load and prepare dataset
-    data = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
+    data = load_dataset("Salesforce/wikitext", "wikitext-2-raw-v1", split="test")
     data = tokenizer("\n\n".join(data["text"]), return_tensors="pt")
     data = data.input_ids.to(model.device)
 

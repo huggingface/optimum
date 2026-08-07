@@ -28,7 +28,6 @@ from .constant import (
     ONNX_WEIGHTS_NAME,
 )
 from .import_utils import (
-    AUTOGPTQ_MINIMUM_VERSION,
     DIFFUSERS_MINIMUM_VERSION,
     GPTQMODEL_MINIMUM_VERSION,
     ORT_QUANTIZE_MINIMUM_VERSION,

@@ -939,11 +939,10 @@ class TasksManager:
             }
             # We do not use PretrainedConfig.from_pretrained which has unwanted warnings about model type.
             config_dict, kwargs = PretrainedConfig.get_config_dict(model_name_or_path, **kwargs)
-            model_config = PretrainedConfig.from_dict(config_dict, **kwargs)
 
-            if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
+            if "pretrained_cfg" in config_dict or "architecture" in config_dict:
                 inferred_library_name = "timm"
-            elif hasattr(model_config, "_diffusers_version"):
+            elif "_diffusers_version" in config_dict:
                 inferred_library_name = "diffusers"
             else:
                 inferred_library_name = "transformers"
@@ -1042,11 +1041,19 @@ class TasksManager:
 
         elif library_name == "sentence_transformers":
             if "Transformer" in model[0].__class__.__name__:
-                model.config = model[0].auto_model.config
-                model.config.export_model_type = "transformer"
+                inner_config = model[0].auto_model.config
+                try:
+                    model.config = inner_config
+                except AttributeError:
+                    pass
+                inner_config.export_model_type = "transformer"
             elif "CLIP" in model[0].__class__.__name__:
-                model.config = model[0].model.config
-                model.config.export_model_type = "clip"
+                inner_config = model[0].model.config
+                try:
+                    model.config = inner_config
+                except AttributeError:
+                    pass
+                inner_config.export_model_type = "clip"
             else:
                 raise ValueError(
                     f"The export of a sentence_transformers model with the first module being {model[0].__class__.__name__} is currently not supported in Optimum. Please open an issue or submit a PR to add the support."
