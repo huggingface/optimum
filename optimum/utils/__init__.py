@@ -38,7 +38,6 @@ from .import_utils import (
     is_diffusers_available,
     is_diffusers_version,
     is_gptqmodel_available,
-    is_ipex_available,
     is_onnx_available,
     is_onnxruntime_available,
     is_onnxslim_available,

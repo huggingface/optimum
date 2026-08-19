@@ -276,9 +276,5 @@ def pipeline(
             accelerator=accelerator,
             **kwargs,
         )
-    elif accelerator == "ipex":
-        raise ValueError(
-            "The `ipex` accelerator is deprecated and no longer supported. Please use `ov` (OpenVINO) instead."
-        )
     else:
         raise ValueError(f"Accelerator {accelerator} not recognized. Please use 'ort' or 'ov'.")
