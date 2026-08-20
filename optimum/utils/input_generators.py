@@ -412,6 +412,13 @@ class DummyTextInputGenerator(DummyInputGenerator):
         self.padding_side = padding_side
         self.normalized_config = normalized_config
 
+        if normalized_config.has_attribute("type_vocab_size"):
+            self.type_vocab_size = normalized_config.type_vocab_size
+        else:
+            self.type_vocab_size = getattr(getattr(normalized_config, "config", None), "type_vocab_size", 2)
+        if self.type_vocab_size is None or self.type_vocab_size <= 0:
+            self.type_vocab_size = 2
+
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         min_value = 0
 
@@ -419,6 +426,8 @@ class DummyTextInputGenerator(DummyInputGenerator):
             max_value = self.sequence_length
         elif input_name == "input_ids":
             max_value = self.vocab_size
+        elif input_name == "token_type_ids":
+            max_value = self.type_vocab_size
         else:
             max_value = 2
 
