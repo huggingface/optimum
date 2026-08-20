@@ -230,3 +230,36 @@ class GenerateDummy(TestCase):
         self.validate_shape_for_all_frameworks(
             input_generator, "input_features", (batch_size, feature_size, nb_max_frames)
         )
+
+    def test_dummy_text_input_type_vocab_size(self):
+        from transformers import BertConfig
+
+        for type_vocab_size in [1, 2, 5]:
+            config = BertConfig(vocab_size=100, type_vocab_size=type_vocab_size)
+            normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
+            normalized_config = normalized_config_class(config)
+
+            self.assertEqual(normalized_config.type_vocab_size, type_vocab_size)
+
+            input_generator = DummyTextInputGenerator(
+                task="text-classification",
+                normalized_config=normalized_config,
+                batch_size=2,
+                sequence_length=16,
+            )
+
+            # Validate PyTorch generation
+            pt_token_type_ids = input_generator.generate("token_type_ids", framework="pt")
+            self.assertEqual(pt_token_type_ids.shape, (2, 16))
+            self.assertTrue((pt_token_type_ids >= 0).all().item())
+            self.assertTrue((pt_token_type_ids < type_vocab_size).all().item())
+            if type_vocab_size == 1:
+                self.assertTrue((pt_token_type_ids == 0).all().item())
+
+            # Validate NumPy generation
+            np_token_type_ids = input_generator.generate("token_type_ids", framework="np")
+            self.assertEqual(np_token_type_ids.shape, (2, 16))
+            self.assertTrue((np_token_type_ids >= 0).all())
+            self.assertTrue((np_token_type_ids < type_vocab_size).all())
+            if type_vocab_size == 1:
+                self.assertTrue((np_token_type_ids == 0).all())

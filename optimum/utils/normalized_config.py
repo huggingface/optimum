@@ -90,6 +90,7 @@ class NormalizedTextConfig(NormalizedConfig):
     NUM_LAYERS = "num_hidden_layers"
     NUM_ATTENTION_HEADS = "num_attention_heads"
     EOS_TOKEN_ID = "eos_token_id"
+    TYPE_VOCAB_SIZE = "type_vocab_size"
 
 
 class NormalizedTextConfigWithGQA(NormalizedTextConfig):
