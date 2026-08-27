@@ -128,13 +128,17 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
 
     def __getattr__(self, attr_name):
         if self.TEXT_CONFIG is not None and attr_name.upper() in dir(NormalizedTextConfig):
-            attr_name = f"{self.TEXT_CONFIG}.{attr_name}"
+            attr_name = f"{self.TEXT_CONFIG}.{getattr(NormalizedTextConfig, attr_name.upper())}"
         elif self.VISION_CONFIG is not None and attr_name.upper() in dir(NormalizedVisionConfig):
-            attr_name = f"{self.VISION_CONFIG}.{attr_name}"
+            attr_name = f"{self.VISION_CONFIG}.{getattr(NormalizedVisionConfig, attr_name.upper())}"
         return super().__getattr__(attr_name)
 
 
 Pix2StructNormalizedTextConfig = NormalizedTextAndVisionConfig.with_args(
+    text_config="text_config", vision_config="vision_config"
+)
+
+CLIPNormalizedTextAndVisionConfig = NormalizedTextAndVisionConfig.with_args(
     text_config="text_config", vision_config="vision_config"
 )
 
@@ -258,6 +262,7 @@ class NormalizedConfigManager:
         "bloom": BloomNormalizedTextConfig,
         "falcon": NormalizedTextConfig,
         "camembert": NormalizedTextConfig,
+        "clip": CLIPNormalizedTextAndVisionConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "cvt": NormalizedVisionConfig,
         "deberta": NormalizedTextConfig,
