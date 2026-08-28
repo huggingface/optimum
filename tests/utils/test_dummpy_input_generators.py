@@ -30,7 +30,10 @@ if TYPE_CHECKING:
     from optimum.utils.input_generators import DummyInputGenerator
 
 
-TEXT_ENCODER_MODELS = {"distilbert": "hf-internal-testing/tiny-random-DistilBertModel"}
+TEXT_ENCODER_MODELS = {
+    "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
+    "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
+}
 
 VISION_MODELS = {"resnet": "hf-internal-testing/tiny-random-resnet"}
 
