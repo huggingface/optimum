@@ -88,7 +88,6 @@ _gptqmodel_available = _is_package_available("gptqmodel")
 _accelerate_available = _is_package_available("accelerate")
 _optimum_onnx_available = _is_package_available("optimum.onnx")
 _optimum_intel_available = _is_package_available("optimum.intel")
-_ipex_available = _is_package_available("intel_extension_for_pytorch")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
 _diffusers_available, _diffusers_version = _is_package_available("diffusers", return_version=True)
 _transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
@@ -232,10 +231,6 @@ def is_gptqmodel_available():
 
 def is_onnxslim_available():
     return _onnxslim_available
-
-
-def is_ipex_available():
-    return _ipex_available
 
 
 def is_openvino_available():
