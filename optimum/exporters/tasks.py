@@ -24,8 +24,8 @@ import torch
 from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.errors import OfflineModeIsEnabled
+from huggingface_hub.utils import httpx
 from packaging import version
-from requests.exceptions import ConnectionError
 from transformers import AutoConfig, PretrainedConfig
 from transformers.utils import SAFE_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent
 
@@ -559,7 +559,7 @@ class TasksManager:
                 )
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
-            except (ConnectionError, OfflineModeIsEnabled) as e:
+            except (httpx.ConnectError, httpx.TimeoutException, OfflineModeIsEnabled) as e:
                 snapshot_path = hf_api.snapshot_download(
                     repo_id=model_name_or_path,
                     cache_dir=cache_dir,
@@ -736,7 +736,7 @@ class TasksManager:
                 model_info = HfApi(user_agent=http_user_agent(), token=token).model_info(
                     model_name_or_path, revision=revision, token=token
                 )
-            except (ConnectionError, OfflineModeIsEnabled):
+            except (httpx.ConnectError, httpx.TimeoutException, OfflineModeIsEnabled):
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
                 )

@@ -17,13 +17,12 @@ REQUIRED_PKGS = [
     "torch>=1.11",
     "packaging",
     "numpy",
-    "huggingface_hub>=0.8.0",
+    "huggingface_hub>=1.31.0",
 ]
 
 TESTS_REQUIRE = [
     "pytest",
     "accelerate",
-    "requests",
     "parameterized",
     "pytest-xdist",
     "Pillow",
