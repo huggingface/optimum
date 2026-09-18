@@ -16,8 +16,12 @@ env:
   OPTIMUM_ONNX_REF: main
   TRANSFORMERS_IS_CI: true
 
+permissions: {}
+
 jobs:
   build:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -28,13 +32,13 @@ jobs:
 
     steps:
       - name: Checkout optimum
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: optimum
           fetch-depth: 0
 
       - name: checkout optimum-onnx
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: huggingface/optimum-onnx
           ref: ${{ env.OPTIMUM_ONNX_REF }}
@@ -42,7 +46,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
 
