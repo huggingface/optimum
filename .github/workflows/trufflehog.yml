@@ -3,8 +3,12 @@ on:
 
 name: Secret Leaks
 
+permissions: {}
+
 jobs:
   trufflehog:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -12,6 +16,6 @@ jobs:
       with:
         fetch-depth: 0
     - name: Secret Scanning
-      uses: trufflesecurity/trufflehog@bcfcf73aaf4759d4dadc2783177c245a02792318  # main
+      uses: trufflesecurity/trufflehog@bcfcf73aaf4759d4dadc2783177c245a02792318 # v3.97.0
 
 
