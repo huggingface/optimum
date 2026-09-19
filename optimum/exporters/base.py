@@ -51,14 +51,14 @@ GENERATE_DUMMY_DOCSTRING = r"""
             image_height (`int`, defaults to {height}):
                 The height to use in the dummy inputs for vision tasks.
             num_channels (`int`, defaults to {num_channels}):
-                The number of channels to use in the dummpy inputs for vision tasks.
+                The number of channels to use in the dummy inputs for vision tasks.
             feature_size (`int`, defaults to {feature_size}):
-                The number of features to use in the dummpy inputs for audio tasks in case it is not raw audio.
+                The number of features to use in the dummy inputs for audio tasks in case it is not raw audio.
                 This is for example the number of STFT bins or MEL bins.
             nb_max_frames (`int`, defaults to {nb_max_frames}):
-                The number of frames to use in the dummpy inputs for audio tasks in case the input is not raw audio.
+                The number of frames to use in the dummy inputs for audio tasks in case the input is not raw audio.
             audio_sequence_length (`int`, defaults to {audio_sequence_length}):
-                The number of frames to use in the dummpy inputs for audio tasks in case the input is raw audio.
+                The number of frames to use in the dummy inputs for audio tasks in case the input is raw audio.
 
         Returns:
             `Dict[str, [tf.Tensor, torch.Tensor]]`: A dictionary mapping the input names to dummy tensors in the proper framework format.
