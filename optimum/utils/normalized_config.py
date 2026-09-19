@@ -241,7 +241,6 @@ class NormalizedConfigManager:
         'mobilevit',
         'owlv2',
         'owlvit',
-        'perceiver',
         'roformer',
         'segformer',
         'siglip',
