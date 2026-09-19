@@ -201,6 +201,10 @@ DistilBertNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="n_heads",
     hidden_size="dim",
 )
+PerceiverNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="num_self_attention_heads",
+    hidden_size="d_latents",
+)
 GPTNeoNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
 )
@@ -293,6 +297,7 @@ class NormalizedConfigManager:
         "olmo2": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
+        "perceiver": PerceiverNormalizedTextConfig,
         "pix2struct": Pix2StructNormalizedTextConfig,
         "phi": NormalizedTextConfig,
         "phi3": NormalizedTextConfigWithGQA,
