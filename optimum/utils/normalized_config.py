@@ -201,6 +201,11 @@ DistilBertNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="n_heads",
     hidden_size="dim",
 )
+XLMNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="n_heads",
+    hidden_size="emb_dim",
+    num_layers="n_layers",
+)
 GPTNeoNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
 )
@@ -308,6 +313,7 @@ class NormalizedConfigManager:
         "vision-encoder-decoder": NormalizedEncoderDecoderConfig,
         "vit": NormalizedVisionConfig,
         "whisper": WhisperLikeNormalizedTextConfig,
+        "xlm": XLMNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "qwen2": NormalizedTextConfig,
