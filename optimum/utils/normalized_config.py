@@ -128,9 +128,15 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
 
     def __getattr__(self, attr_name):
         if self.TEXT_CONFIG is not None and attr_name.upper() in dir(NormalizedTextConfig):
-            attr_name = f"{self.TEXT_CONFIG}.{attr_name}"
+            # Resolve through the normalized name (e.g. NUM_LAYERS -> "num_hidden_layers")
+            # before prefixing, not the raw accessor name - otherwise an accessor whose
+            # normalized name differs from its underlying config attribute (num_layers vs.
+            # num_hidden_layers) looks up the wrong name on the nested sub-config.
+            mapped_name = getattr(self, attr_name.upper(), attr_name)
+            attr_name = f"{self.TEXT_CONFIG}.{mapped_name}"
         elif self.VISION_CONFIG is not None and attr_name.upper() in dir(NormalizedVisionConfig):
-            attr_name = f"{self.VISION_CONFIG}.{attr_name}"
+            mapped_name = getattr(self, attr_name.upper(), attr_name)
+            attr_name = f"{self.VISION_CONFIG}.{mapped_name}"
         return super().__getattr__(attr_name)
 
 
@@ -235,7 +241,6 @@ class NormalizedConfigManager:
         'levit',
         'mobilebert',
         'mobilevit',
-        'owlv2',
         'owlvit',
         'perceiver',
         'roformer',
@@ -292,6 +297,7 @@ class NormalizedConfigManager:
         "olmo": NormalizedTextConfig,
         "olmo2": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
+        "owlv2": Pix2StructNormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
         "pix2struct": Pix2StructNormalizedTextConfig,
         "phi": NormalizedTextConfig,
