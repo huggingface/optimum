@@ -218,7 +218,6 @@ class NormalizedConfigManager:
     # TODO: missing normalized configs (currently not useful)
     """
         ...
-        'beit',
         'clip',
         'convbert',
         'convnext',
@@ -250,6 +249,7 @@ class NormalizedConfigManager:
     _conf = {
         "albert": NormalizedTextConfig,
         "bart": BartLikeNormalizedTextConfig,
+        "beit": NormalizedVisionConfig,
         "bert": NormalizedTextConfig,
         "big_bird": NormalizedTextConfig,
         "bigbird_pegasus": BartLikeNormalizedTextConfig,
