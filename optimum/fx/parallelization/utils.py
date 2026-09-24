@@ -445,7 +445,7 @@ def convert_bin_to_safetensors(
             output_dir = cache_dir if cache_dir else weight_file_path.parent
             output_file_path = os.path.join(output_dir, safetensors_filename)
             if not os.path.isfile(output_file_path):
-                checkpoint = torch.load(weight_file, map_location=torch.device("cpu"))
+                checkpoint = torch.load(weight_file, map_location=torch.device("cpu"), weights_only=True)
                 data_pointers = set()
                 for k, v in checkpoint.items():
                     if v.data_ptr() in data_pointers:
