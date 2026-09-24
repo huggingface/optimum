@@ -27,6 +27,31 @@ logger = logging.getLogger(__name__)
 def maybe_load_preprocessors(
     src_name_or_path: Union[str, Path], subfolder: str = "", trust_remote_code: bool = False
 ) -> List:
+    """Load all available preprocessors (tokenizer, processor, feature extractor, image processor) from a model path or Hub repo.
+
+    Tries to load each preprocessor type in turn and silently skips any that are
+    not present.  This is useful when you want to save preprocessors alongside
+    an exported model without knowing in advance which types are available.
+
+    Args:
+        src_name_or_path (`Union[str, Path]`): Local path or Hugging Face Hub
+            model identifier to load the preprocessors from.
+        subfolder (`str`, *optional*, defaults to `""`): Subfolder within the
+            model directory or Hub repo where the preprocessor files are stored.
+        trust_remote_code (`bool`, *optional*, defaults to `False`): Whether to
+            allow running arbitrary remote code when loading preprocessors.
+
+    Returns:
+        `List`: A list containing the successfully loaded preprocessor objects.
+        May be empty if none of the expected preprocessors are found.
+
+    Example:
+        ```py
+        >>> preprocessors = maybe_load_preprocessors("bert-base-uncased")
+        >>> [type(p).__name__ for p in preprocessors]
+        ['BertTokenizerFast']
+        ```
+    """
     preprocessors = []
     try:
         preprocessors.append(
