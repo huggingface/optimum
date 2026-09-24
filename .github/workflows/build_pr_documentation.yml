@@ -18,8 +18,12 @@ env:
   UV_SYSTEM_PYTHON: 1
   UV_TORCH_BACKEND: auto
 
+permissions: {}
+
 jobs:
   build_documentation:
+    permissions:
+      contents: read
     runs-on: ubuntu-22.04
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
