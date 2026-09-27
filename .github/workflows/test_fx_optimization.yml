@@ -13,8 +13,12 @@ concurrency:
 env:
   TRANSFORMERS_IS_CI: true
 
+permissions: {}
+
 jobs:
   build:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:

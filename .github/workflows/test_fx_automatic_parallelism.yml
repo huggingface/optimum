@@ -21,8 +21,12 @@ concurrency:
 env:
   TRANSFORMERS_IS_CI: true
 
+permissions: {}
+
 jobs:
   run_gpu_tests:
+    permissions:
+      contents: read
     runs-on:
       group: aws-g5-12xlarge-plus
 

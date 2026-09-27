@@ -15,8 +15,12 @@ env:
   UV_TORCH_BACKEND: cpu
   TRANSFORMERS_IS_CI: true
 
+permissions: {}
+
 jobs:
   build:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:

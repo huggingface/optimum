@@ -23,8 +23,12 @@ env:
   HF_HOME: /mnt/cache/
   TRANSFORMERS_IS_CI: true
 
+permissions: {}
+
 jobs:
   test_gptq:
+    permissions:
+      contents: read
     runs-on:
       group: aws-g6-4xlarge-plus
 
