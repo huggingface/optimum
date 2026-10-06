@@ -111,7 +111,7 @@ class BaseConfig(PretrainedConfig):
             if search is not None:
                 v = search.groups()[0]
                 configuration_files_map[v] = file_name
-        available_versions = sorted(configuration_files_map.keys())
+        available_versions = sorted(configuration_files_map.keys(), key=version.parse)
 
         # Defaults to FULL_CONFIGURATION_FILE and then try to look at some newer versions.
         configuration_file = cls.CONFIG_NAME
