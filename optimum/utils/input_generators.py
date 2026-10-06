@@ -1071,7 +1071,7 @@ class DummyVisionEmbeddingsGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.output_channels, self.image_embedding_size, self.image_embedding_size]
-        return self.random_float_tensor(shape, framework=framework)
+        return self.random_float_tensor(shape, framework=framework, dtype=float_dtype)
 
 
 class DummyPix2StructInputGenerator(DummyInputGenerator):
