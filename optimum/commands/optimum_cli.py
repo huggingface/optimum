@@ -121,14 +121,29 @@ def load_optimum_namespace_cli_commands() -> (
 
     # Find all registration files and load the commands to register
     commands_to_register = []
-    for register_path in set(commands_register_spec.submodule_search_locations):
+    # Deduplicate by the resolved physical path: on some systems (e.g. RHEL) `lib64` is a
+    # symlink to `lib`, so `submodule_search_locations` can return two entries pointing to the
+    # same physical directory. A plain set() over the raw strings does not deduplicate those,
+    # which leads to commands being registered twice and spurious __init__.py warnings (#2417).
+    seen_register_paths = set()
+    for register_path in commands_register_spec.submodule_search_locations:
         register_path = Path(register_path)
         if not register_path.is_dir():
             # skip non-directory paths
             continue
+        resolved_register_path = register_path.resolve()
+        if resolved_register_path in seen_register_paths:
+            # already processed this physical directory (e.g. via a lib64 -> lib symlink)
+            continue
+        seen_register_paths.add(resolved_register_path)
 
         # Look for python files
-        for register_file in register_path.iterdir():
+        try:
+            register_files = list(register_path.iterdir())
+        except OSError as e:
+            logger.warning(f"Could not iterate over register directory {register_path}: {e}")
+            continue
+        for register_file in register_files:
             if register_file.name == "__init__.py":
                 logger.warning(
                     "The namespace optimum.commands.register should never contain an __init__.py file (PEP 420). "
