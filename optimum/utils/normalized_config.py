@@ -233,7 +233,6 @@ class NormalizedConfigManager:
         'layoutlm',
         'layoutlmv3',
         'levit',
-        'mobilebert',
         'mobilevit',
         'owlv2',
         'owlvit',
@@ -315,6 +314,7 @@ class NormalizedConfigManager:
         "qwen3_moe": NormalizedTextConfig,
         "smollm3": NormalizedTextConfig,
         "granite": NormalizedTextConfigWithGQA,
+        "mobilebert": NormalizedTextConfig,
     }
 
     @classmethod
