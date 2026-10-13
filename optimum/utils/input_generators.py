@@ -557,6 +557,7 @@ class DummyDecisionTransformerInputGenerator(DummyTextInputGenerator):
             shape = [self.batch_size, self.sequence_length, 1]
         elif input_name == "attention_mask":
             shape = [self.batch_size, self.sequence_length]
+            return self.random_int_tensor(shape=shape, max_value=2, framework=framework, dtype=int_dtype)
         elif input_name == "timesteps":
             shape = [self.batch_size, self.sequence_length]
             return self.random_int_tensor(shape=shape, max_value=self.max_ep_len, framework=framework, dtype=int_dtype)
