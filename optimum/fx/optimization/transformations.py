@@ -296,7 +296,7 @@ class MergeLinears(ReversibleTransformation):
 
         linear_module_names = [MergeLinears._get_linear_module_name(node) for node in linear_nodes]
         merged_linear_name = "-".join(linear_module_names + ["merged"])
-        fully_qualified_parent_name = linear_nodes[0].target.rsplit(".", maxsplit=1)[0]
+        fully_qualified_parent_name = linear_nodes[0].target.rpartition(".")[0]
         parent_module = graph_module.get_submodule(fully_qualified_parent_name)
         parent_module.add_module(merged_linear_name, merged_linear)
         # for name in linear_module_names:
@@ -306,7 +306,9 @@ class MergeLinears(ReversibleTransformation):
 
         graph = graph_module.graph
         with graph.inserting_before(linear_nodes[0]):
-            fully_qualified_merged_linear_name = ".".join([fully_qualified_parent_name, merged_linear_name])
+            fully_qualified_merged_linear_name = ".".join(
+                filter(None, [fully_qualified_parent_name, merged_linear_name])
+            )
             merged_linear_node = graph.call_module(fully_qualified_merged_linear_name, args=(input_node,))
             self.mark_as_transformed(merged_linear_node)
             merged_linear_node.linear_node_targets = [n.target for n in linear_nodes]
