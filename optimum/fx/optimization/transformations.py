@@ -270,8 +270,8 @@ class MergeLinears(ReversibleTransformation):
         in_features = linears[0].in_features
         out_features = [linear.out_features for linear in linears]
         total_out_features = sum(out_features)
-        use_bias = any(hasattr(linear, "bias") for linear in linears)
-        if use_bias and not all(hasattr(linear, "bias") for linear in linears):
+        use_bias = any(linear.bias is not None for linear in linears)
+        if use_bias and not all(linear.bias is not None for linear in linears):
             warnings.warn(
                 "Not all the linear layers that are merged contain a bias, but some do. By merging, this is equivalent "
                 "to adding a bias to the layers missing one."
@@ -336,7 +336,7 @@ class MergeLinears(ReversibleTransformation):
             torch.nn.Linear(
                 in_features,
                 out_feat,
-                bias=hasattr(merged_linear, "bias"),
+                bias=merged_linear.bias is not None,
                 device=merged_linear.weight.device,
                 dtype=merged_linear.weight.dtype,
             )
@@ -350,7 +350,7 @@ class MergeLinears(ReversibleTransformation):
             with torch.no_grad():
                 slice_to_get = node.args[1][1]
                 linear.weight = torch.nn.Parameter(merged_linear.weight[slice_to_get.start : slice_to_get.stop])
-                if hasattr(merged_linear, "bias"):
+                if merged_linear.bias is not None:
                     linear.bias = torch.nn.Parameter(merged_linear.bias[slice_to_get.start : slice_to_get.stop])
             parent_module, name = MergeLinears._linear_node_to_module_and_attribute_name(graph_module, target)
             parent_module.add_module(name, linear)
