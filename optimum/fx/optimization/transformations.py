@@ -437,7 +437,7 @@ class FuseBiasInLinear(ReversibleTransformation):
             self.mark_as_restored(node)
             module = graph_module.get_submodule(node.target)
             new_weight = torch.nn.Parameter(module.weight[:, :-1])
-            new_bias = torch.nn.Parameter(module.weight[:, -1].squeeze())
+            new_bias = torch.nn.Parameter(module.weight[:, -1])
             module.weight = new_weight
             module.bias = new_bias
         return graph_module
