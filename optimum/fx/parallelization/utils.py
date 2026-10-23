@@ -464,7 +464,7 @@ def try_collect_weight_map(model_name_or_path: str, cache_dir: Optional[str], fo
     from transformers.utils import SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
 
     weight_map = {}
-    use_safetensors, weight_patterns = False, ["*safetensors", "*.bin"]
+    use_safetensors, weight_patterns = False, ["*.safetensors", "*.bin"]
     for pattern in weight_patterns:
         if len(glob.glob(os.path.join(folder_path, pattern))) > 0:
             use_safetensors = pattern == "*.safetensors"
