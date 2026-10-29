@@ -167,7 +167,7 @@ class DummyInputGenerator(ABC):
     @check_framework_is_available
     def random_mask_tensor(shape: List[int], padding_side: str = "right", framework: str = "pt", dtype: str = "int64"):
         """
-        Generates a mask tensor either right or left padded.
+        Generates a mask tensor either right or left padded. Single-token masks are unpadded.
 
         Args:
             shape (`List[int]`):
@@ -183,7 +183,7 @@ class DummyInputGenerator(ABC):
             A random mask tensor either left padded or right padded in the requested framework.
         """
         shape = tuple(shape)
-        mask_length = random.randint(1, shape[-1] - 1)
+        mask_length = 0 if shape[-1] == 1 else random.randint(1, shape[-1] - 1)
         if framework == "pt":
             import torch
 
