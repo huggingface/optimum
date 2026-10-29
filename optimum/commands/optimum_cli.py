@@ -14,11 +14,13 @@
 # limitations under the License.
 
 import importlib
+from argparse import SUPPRESS, Action
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Type, Union
 
-from ..subpackages import load_subpackages
+from ..subpackages import importlib_metadata, load_subpackages
 from ..utils.logging import get_logger
+from ..version import __version__
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
 from .export.base import ExportCommand
@@ -185,9 +187,38 @@ def register_optimum_cli_subcommand(
     parent_command.register_subcommand(command_info)
 
 
+def _version_string() -> str:
+    """Returns the optimum version, followed by the version of each installed optimum-* subpackage."""
+    lines = [f"optimum {__version__}"]
+    subpackages = {}
+    for dist in importlib_metadata.distributions():
+        dist_name = dist.metadata["Name"]
+        if dist_name is not None and dist_name.lower().startswith("optimum-"):
+            subpackages[dist_name.lower()] = dist.version
+    lines.extend(f"{name} {version}" for name, version in sorted(subpackages.items()))
+    return "\n".join(lines)
+
+
+class _VersionAction(Action):
+    # Unlike argparse's built-in "version" action, this keeps one line per package and only
+    # looks up the installed subpackages when the flag is actually passed.
+    def __init__(self, option_strings, dest=SUPPRESS, default=SUPPRESS, help=None):
+        super().__init__(option_strings=option_strings, dest=dest, default=default, nargs=0, help=help)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        print(_version_string())
+        parser.exit()
+
+
 def main():
     root = RootOptimumCLICommand("Optimum CLI tool", usage="optimum-cli")
     parser = root.parser
+    parser.add_argument(
+        "-v",
+        "--version",
+        action=_VersionAction,
+        help="Show the version of optimum and of the installed optimum subpackages, then exit.",
+    )
 
     for subcommand_cls in OPTIMUM_CLI_ROOT_SUBCOMMANDS:
         register_optimum_cli_subcommand(subcommand_cls, parent_command=root)

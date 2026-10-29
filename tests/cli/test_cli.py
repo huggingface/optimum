@@ -33,6 +33,13 @@ class TestCLI(unittest.TestCase):
     def test_env_commands(self):
         subprocess.run("optimum-cli env", shell=True, check=True)
 
+    def test_version_flag(self):
+        from optimum.version import __version__
+
+        for flag in ("--version", "-v"):
+            proc = subprocess.run(["optimum-cli", flag], capture_output=True, text=True, check=True)
+            self.assertEqual(proc.stdout.splitlines()[0], f"optimum {__version__}")
+
     def test_export_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             onnx_export_commands = [
