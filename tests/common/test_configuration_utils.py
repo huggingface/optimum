@@ -12,8 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from huggingface_hub import login
 from transformers.testing_utils import TOKEN, TemporaryHubRepo, is_staging_test
@@ -39,6 +42,22 @@ class ConfigTester(unittest.TestCase):
             config_second = FakeConfig.from_pretrained(tmpdirname)
 
         self.assertEqual(config_second.to_dict(), config_first.to_dict())
+
+    def test_from_pretrained_selects_latest_compatible_configuration(self):
+        configuration_files = ["fake_config1.9.0.json", "fake_config1.10.0.json", "fake_config99.0.0.json"]
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            directory = Path(tmpdirname)
+            (directory / FakeConfig.CONFIG_NAME).write_text(
+                json.dumps({"configuration_files": configuration_files, "attribute": 0}), encoding="utf-8"
+            )
+            for attribute, filename in enumerate(configuration_files, start=9):
+                (directory / filename).write_text(json.dumps({"attribute": attribute}), encoding="utf-8")
+
+            for optimum_version, expected_attribute in [("1.9.0", 9), ("1.10.0", 10)]:
+                with self.subTest(optimum_version=optimum_version):
+                    with patch("optimum.configuration_utils.__version__", optimum_version):
+                        config = FakeConfig.from_pretrained(tmpdirname, local_files_only=True)
+                    self.assertEqual(config.attribute, expected_attribute)
 
 
 @is_staging_test
