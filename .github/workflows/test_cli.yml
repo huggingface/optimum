@@ -16,8 +16,12 @@ env:
   OPTIMUM_ONNX_REF: main
   TRANSFORMERS_IS_CI: true
 
+permissions: {}
+
 jobs:
   build:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
