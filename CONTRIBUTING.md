@@ -7,6 +7,32 @@ You can contribute in many different ways: giving ideas, answering questions, re
 
 Many thanks in advance to every contributor.
 
+## Where does my contribution belong?
+
+Optimum is split into a core package (this repository) and several accelerator-specific
+subpackages that live in their own repositories. Most bugs and features tied to a particular
+hardware backend or export format should be addressed in the corresponding subpackage:
+
+| Feature / backend                                          | Repository                                                          |
+| :--------------------------------------------------------- | :------------------------------------------------------------------ |
+| ONNX export and ONNX Runtime inference                     | [huggingface/optimum-onnx](https://github.com/huggingface/optimum-onnx)       |
+| Intel OpenVINO, NNCF, IPEX, neural-compressor              | [huggingface/optimum-intel](https://github.com/huggingface/optimum-intel)     |
+| AMD Instinct GPUs and Ryzen AI NPU                         | [huggingface/optimum-amd](https://github.com/huggingface/optimum-amd)         |
+| Intel Gaudi Accelerators (HPU)                             | [huggingface/optimum-habana](https://github.com/huggingface/optimum-habana)   |
+| AWS Trainium and Inferentia (Neuron)                       | [huggingface/optimum-neuron](https://github.com/huggingface/optimum-neuron)   |
+| NVIDIA TensorRT-LLM                                        | [huggingface/optimum-nvidia](https://github.com/huggingface/optimum-nvidia)   |
+| PyTorch quantization (Quanto)                              | [huggingface/optimum-quanto](https://github.com/huggingface/optimum-quanto)   |
+| FuriosaAI                                                  | [huggingface/optimum-furiosa](https://github.com/huggingface/optimum-furiosa) |
+| ExecuTorch (on-device inference)                           | [huggingface/optimum-executorch](https://github.com/huggingface/optimum-executorch) |
+
+This repository (`optimum`) holds the shared core: the `optimum-cli` entry point, the common
+task/model mapping in `optimum/exporters/tasks.py`, shared utilities, and the pipelines/GPTQ/fx
+modules. If a bug is reproducible without any accelerator extras installed (for example in
+`TasksManager` library/task inference or in the CLI command resolution), it belongs here.
+
+If in doubt, open the issue in this repository and a maintainer will redirect it to the right
+subpackage if needed.
+
 ## How to work on an open Issue?
 You have the list of open Issues at: https://github.com/huggingface/optimum/issues
 
