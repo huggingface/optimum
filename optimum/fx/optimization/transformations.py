@@ -474,11 +474,18 @@ class ChangeTrueDivToMulByInverse(ReversibleTransformation):
         return graph_module
 
 
+def _get_module_call_counts(graph_module):
+    return collections.Counter(
+        id(graph_module.get_submodule(node.target)) for node in graph_module.graph.nodes if node.op == "call_module"
+    )
+
+
 @add_end_docstrings(_ATTRIBUTES_DOCSTRING)
 class FuseBatchNorm2dInConv2d(Transformation):
     """
     Transformation that fuses `nn.BatchNorm2d` following `nn.Conv2d` into a single `nn.Conv2d`.
     The fusion will be done only if the convolution has the batch normalization as sole following node.
+    Repeated calls to either module are left unfused.
 
     For example, fusion will not be done in the case
     ```
@@ -512,8 +519,12 @@ class FuseBatchNorm2dInConv2d(Transformation):
     preserves_computation = True
 
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        module_call_counts = _get_module_call_counts(graph_module)
         for node in graph_module.graph.nodes:
             if node.op == "call_module" and node.args[0].op == "call_module":
+                # Replacing or deleting a module affects all of its call sites, including aliases.
+                if any(module_call_counts[id(graph_module.get_submodule(n.target))] > 1 for n in (node, node.args[0])):
+                    continue
                 if (
                     type(graph_module.get_submodule(node.target)) is torch.nn.BatchNorm2d
                     and type(graph_module.get_submodule(node.args[0].target)) is torch.nn.Conv2d
@@ -563,6 +574,7 @@ class FuseBatchNorm1dInLinear(Transformation):
     Transformation that fuses `nn.BatchNorm1d` following or preceding `nn.Linear` into a single `nn.Linear`.
     The fusion will be done only if the linear layer has the batch normalization as sole following node, or the batch normalization
     has the linear layer as sole following node.
+    Repeated calls to either module are left unfused.
 
     For example, fusion will not be done in the case
     ```
@@ -596,8 +608,12 @@ class FuseBatchNorm1dInLinear(Transformation):
     preserves_computation = True
 
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
+        module_call_counts = _get_module_call_counts(graph_module)
         for node in graph_module.graph.nodes:
             if node.op == "call_module" and node.args[0].op == "call_module":
+                # Replacing or deleting a module affects all of its call sites, including aliases.
+                if any(module_call_counts[id(graph_module.get_submodule(n.target))] > 1 for n in (node, node.args[0])):
+                    continue
                 if (
                     type(graph_module.get_submodule(node.target)) is torch.nn.BatchNorm1d
                     and type(graph_module.get_submodule(node.args[0].target)) is torch.nn.Linear
