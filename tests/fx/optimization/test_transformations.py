@@ -257,6 +257,27 @@ class TransformationTester(unittest.TestCase):
             if node.op == "call_module" and isinstance(traced.get_submodule(node.target), torch.nn.Linear):
                 self.assertFalse(t1.transformed(node))
 
+    @parameterized.expand(
+        [
+            ("float32", torch.float32, False),
+            ("float16", torch.float16, False),
+            ("bfloat16", torch.bfloat16, False),
+            ("float16_after_transform", torch.float16, True),
+            ("bfloat16_after_transform", torch.bfloat16, True),
+        ]
+    )
+    def test_fuse_bias_in_linear_dtype(self, name, dtype, cast_after_transform):
+        torch.manual_seed(0)
+        model = torch.nn.Sequential(torch.nn.Linear(4, 3)).eval()
+        inputs = torch.randn(2, 4, dtype=dtype)
+        expected = model.to(dtype)(inputs)
+        if cast_after_transform:
+            model.float()
+        transformed = FuseBiasInLinear()(torch.fx.symbolic_trace(model)).to(dtype)
+        output = transformed(inputs)
+        self.assertEqual(output.dtype, dtype)
+        self.assertTrue(torch.allclose(output, expected))
+
 
 def test_merge_linears():
     _, traced = get_bert_model()
