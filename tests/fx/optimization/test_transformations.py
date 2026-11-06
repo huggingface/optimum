@@ -292,6 +292,18 @@ def test_fuse_bias_in_linear():
     )
     assert num_bias_in_linears == 0, "there should not be any bias left in any linear module now"
 
+def test_fuse_bias_in_linear_half_precision():
+    """Regression test for #2532: fusing bias into a Linear must preserve the input
+    dtype (float16/bfloat16) instead of silently downcasting the fused constant to
+    float32."""
+    for dtype in (torch.float16, torch.bfloat16):
+        model = torch.nn.Sequential(torch.nn.Linear(4, 3)).eval().to(dtype)
+        x = torch.randn(2, 4, dtype=dtype)
+        expected = model(x)
+        transformed = FuseBiasInLinear()(torch.fx.symbolic_trace(model))
+        actual = transformed(x)
+        torch.testing.assert_close(actual, expected, atol=0, rtol=0)
+
 
 def test_change_truediv_to_mul_by_inverse():
     _, traced = get_bert_model()
