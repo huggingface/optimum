@@ -699,7 +699,11 @@ class TasksManager:
             tasks_to_model_mapping = cls._DIFFUSERS_TASKS_TO_MODEL_MAPPINGS
 
         if tasks_to_model_mapping is not None:
+            seq2seq_lm_classes = tasks_to_model_mapping.get("text2text-generation", {}).values()
             for task_name, model_mapping in tasks_to_model_mapping.items():
+                # A seq2seq LM class also listed for fill-mask (e.g. Bart, mBART) is a text2text-generation model.
+                if task_name == "fill-mask" and target_class_name in seq2seq_lm_classes:
+                    continue
                 for model_type, model_class_name in model_mapping.items():
                     if target_class_name == model_class_name:
                         return task_name
