@@ -230,3 +230,35 @@ class GenerateDummy(TestCase):
         self.validate_shape_for_all_frameworks(
             input_generator, "input_features", (batch_size, feature_size, nb_max_frames)
         )
+
+    def test_single_token_attention_mask(self):
+        """Regression test for #2525: single-token attention mask must not raise ValueError."""
+        config = AutoConfig.from_pretrained(TEXT_ENCODER_MODELS["distilbert"])
+        normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
+        normalized_config = normalized_config_class(config)
+
+        input_generator = DummyTextInputGenerator(
+            task="text-classification",
+            normalized_config=normalized_config,
+            batch_size=2,
+            sequence_length=1,
+        )
+
+        # PyTorch framework
+        mask_pt = input_generator.generate("attention_mask", framework="pt")
+        self.assertEqual(mask_pt.shape, torch.Size([2, 1]))
+        self.assertTrue(torch.all(mask_pt == 1))
+
+        # NumPy framework
+        mask_np = input_generator.generate("attention_mask", framework="np")
+        self.assertEqual(mask_np.shape, (2, 1))
+        self.assertTrue((mask_np == 1).all())
+
+        # Also test encoder_attention_mask
+        mask_enc_pt = input_generator.generate("encoder_attention_mask", framework="pt")
+        self.assertEqual(mask_enc_pt.shape, torch.Size([2, 1]))
+        self.assertTrue(torch.all(mask_enc_pt == 1))
+
+        mask_enc_np = input_generator.generate("encoder_attention_mask", framework="np")
+        self.assertEqual(mask_enc_np.shape, (2, 1))
+        self.assertTrue((mask_enc_np == 1).all())

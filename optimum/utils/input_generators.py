@@ -183,6 +183,18 @@ class DummyInputGenerator(ABC):
             A random mask tensor either left padded or right padded in the requested framework.
         """
         shape = tuple(shape)
+        # With a single token (shape[-1] == 1), no padding is possible:
+        # we must keep the token unmasked, so the mask is all ones.
+        if shape[-1] <= 1:
+            if framework == "pt":
+                import torch
+
+                return torch.ones(*shape, dtype=DTYPE_MAPPER.pt(dtype))
+            else:
+                import numpy as np
+
+                return np.ones(shape, dtype=DTYPE_MAPPER.np(dtype))
+
         mask_length = random.randint(1, shape[-1] - 1)
         if framework == "pt":
             import torch
