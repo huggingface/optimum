@@ -43,7 +43,7 @@ class NormalizedConfig:
 
     @classmethod
     def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[["PretrainedConfig"], "NormalizedConfig"]:
-        return functools.partial(cls, allow_new=allow_new, **kwargs)
+        return staticmethod(functools.partial(cls, allow_new=allow_new, **kwargs))
 
     def __getattr__(self, attr_name):
         if attr_name == "config":

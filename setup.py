@@ -17,13 +17,12 @@ REQUIRED_PKGS = [
     "torch>=1.11",
     "packaging",
     "numpy",
-    "huggingface_hub>=0.8.0",
+    "huggingface_hub>=1.31.0",
 ]
 
 TESTS_REQUIRE = [
     "pytest",
     "accelerate",
-    "requests",
     "parameterized",
     "pytest-xdist",
     "Pillow",
@@ -48,7 +47,6 @@ EXTRAS_REQUIRE = {
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana>=1.17.0",
     "intel": "optimum-intel>=1.23.0",
-    "ipex": "optimum-intel[ipex]>=1.23.0",
     "nncf": "optimum-intel[nncf]>=1.23.0",
     "neural-compressor": "optimum-intel[neural-compressor]>=1.23.0",
     "onnx": "optimum-onnx",
