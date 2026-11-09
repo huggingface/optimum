@@ -51,7 +51,8 @@ jobs:
           uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
           uv pip install .[tests]
           uv pip install pypcre "setuptools>=78.1.1,<82"
-          uv pip install "gptqmodel>=7.0.0"
+          # GPTQModel 7.7+ requires PyTorch 2.14.1+, which is incompatible with the cu128 stack above.
+          uv pip install "gptqmodel>=7.0.0,<7.7.0"
 
       - name: Run tests
         run: |
