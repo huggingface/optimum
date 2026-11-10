@@ -1847,7 +1847,9 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
             for idx in range(self.batch_size):
                 if self.eos_token_id in int_tensor[idx]:
                     continue
-                random_idx = random.randint(1, self.sequence_length - 1)
+                # With a single token there is nothing to pad/mask beyond index 0,
+                # so place the EOS token at the only valid position.
+                random_idx = random.randint(1, self.sequence_length - 1) if self.sequence_length > 1 else 0
                 int_tensor[idx][random_idx] = self.eos_token_id
 
         return int_tensor
