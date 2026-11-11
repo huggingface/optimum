@@ -709,6 +709,41 @@ class TasksManager:
         )
 
     @classmethod
+    def _infer_task_from_architecture_class_name(
+        cls,
+        architecture_class_name: str,
+        library_name: str = "transformers",
+    ) -> Optional[str]:
+        """
+        Infers the task name from a model architecture class name (e.g. as listed in config.json `architectures`).
+        """
+        matching_tasks = []
+        tasks_to_model_mapping = None
+
+        if library_name == "transformers":
+            tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS
+        elif library_name == "diffusers":
+            tasks_to_model_mapping = cls._DIFFUSERS_TASKS_TO_MODEL_MAPPINGS
+
+        if tasks_to_model_mapping is not None:
+            for task_name, model_mapping in tasks_to_model_mapping.items():
+                for model_type, model_class_name in model_mapping.items():
+                    if architecture_class_name == model_class_name:
+                        matching_tasks.append(task_name)
+
+        matching_tasks = list(dict.fromkeys(matching_tasks))
+
+        if len(matching_tasks) == 0:
+            return None
+        if len(matching_tasks) > 1:
+            raise KeyError(
+                f"Could not unambiguously infer the task from architecture {architecture_class_name}. "
+                f"Multiple tasks matched: {', '.join(matching_tasks)}. "
+                f"Please specify the task manually ({', '.join(cls.get_all_tasks())})."
+            )
+        return matching_tasks[0]
+
+    @classmethod
     def _infer_task_from_model_name_or_path(
         cls,
         model_name_or_path: str,
@@ -723,10 +758,49 @@ class TasksManager:
         is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
 
         if is_local:
-            # TODO: maybe implement that.
-            raise RuntimeError(
-                f"Cannot infer the task from a local directory yet, please specify the task manually ({', '.join(TasksManager.get_all_tasks())})."
-            )
+            if library_name is None:
+                library_name = cls.infer_library_from_model(
+                    model_name_or_path,
+                    subfolder=subfolder,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    token=token,
+                )
+
+            config_kwargs = {
+                "subfolder": subfolder,
+                "revision": revision,
+                "cache_dir": cache_dir,
+                "token": token,
+            }
+
+            if library_name == "timm":
+                inferred_task_name = "image-classification"
+            elif library_name == "sentence_transformers":
+                inferred_task_name = "feature-extraction"
+            elif library_name == "diffusers" and is_diffusers_available():
+                from diffusers import DiffusionPipeline
+
+                config = DiffusionPipeline.load_config(model_name_or_path, **config_kwargs)
+                diffusers_class_name = config.get("_class_name")
+                if diffusers_class_name is not None:
+                    inferred_task_name = cls._infer_task_from_architecture_class_name(
+                        diffusers_class_name, library_name="diffusers"
+                    )
+            elif library_name == "transformers":
+                config_dict, _ = PretrainedConfig.get_config_dict(model_name_or_path, **config_kwargs)
+                pipeline_tag = config_dict.get("pipeline_tag")
+                if pipeline_tag is not None:
+                    inferred_task_name = cls.map_from_synonym(pipeline_tag)
+                if inferred_task_name is None:
+                    architectures = config_dict.get("architectures")
+                    if architectures is not None:
+                        for architecture_class_name in architectures:
+                            inferred_task_name = cls._infer_task_from_architecture_class_name(
+                                architecture_class_name, library_name="transformers"
+                            )
+                            if inferred_task_name is not None:
+                                break
         else:
             if subfolder != "":
                 raise RuntimeError(

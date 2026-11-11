@@ -14,6 +14,9 @@
 # limitations under the License.
 import importlib
 import inspect
+import json
+import tempfile
+from pathlib import Path
 from typing import Optional, Set
 from unittest import TestCase
 
@@ -174,6 +177,57 @@ class TasksManagerTestCase(TestCase):
 
         model = TasksManager.get_model_from_task("question-answering", "uclanlp/visualbert-vqa")
         self.assertTrue(isinstance(model, VisualBertForQuestionAnswering))
+
+    def test_infer_task_from_local_transformers_directory(self):
+        config = {
+            "architectures": ["Qwen2ForCausalLM"],
+            "model_type": "qwen2",
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            Path(tmpdir, "config.json").write_text(json.dumps(config))
+            task = TasksManager.infer_task_from_model(tmpdir)
+            self.assertEqual(task, "text-generation")
+
+    def test_infer_task_from_local_transformers_directory_via_architectures(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                "architectures": ["BertForSequenceClassification"],
+                "model_type": "bert",
+            }
+            Path(tmpdir, "config.json").write_text(json.dumps(config))
+            task = TasksManager.infer_task_from_model(tmpdir)
+            self.assertEqual(task, "text-classification")
+
+    def test_infer_task_from_local_directory_ambiguous_architecture(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                "architectures": ["GraniteSpeechForConditionalGeneration"],
+                "model_type": "granite_speech",
+            }
+            Path(tmpdir, "config.json").write_text(json.dumps(config))
+            with self.assertRaisesRegex(KeyError, "Could not unambiguously infer the task"):
+                TasksManager.infer_task_from_model(tmpdir)
+
+    def test_infer_task_from_local_directory_unknown_architecture(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                "architectures": ["MyCustomModelForSomething"],
+                "model_type": "custom",
+            }
+            Path(tmpdir, "config.json").write_text(json.dumps(config))
+            with self.assertRaisesRegex(KeyError, "Could not find the proper task name"):
+                TasksManager.infer_task_from_model(tmpdir)
+
+    def test_infer_task_from_local_directory_with_pipeline_tag(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                "architectures": ["BertForMaskedLM"],
+                "model_type": "bert",
+                "pipeline_tag": "fill-mask",
+            }
+            Path(tmpdir, "config.json").write_text(json.dumps(config))
+            task = TasksManager.infer_task_from_model(tmpdir)
+            self.assertEqual(task, "fill-mask")
 
     def test_library_detection(self):
         self.assertEqual(
