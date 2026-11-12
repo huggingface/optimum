@@ -44,7 +44,11 @@ class BaseConfig(PretrainedConfig):
 
     @classmethod
     def _re_configuration_file(cls):
-        return re.compile(rf"{cls.FULL_CONFIGURATION_FILE.split('.')[0]}(.*)\.json")
+        # Match versioned files like "config.1.2.3.json", not the unversioned "config.json".
+        # The previous pattern `config(.*)\.json` treated "config.json" as version "" and
+        # "config.1.2.3.json" as ".1.2.3", both of which crash packaging.version.parse.
+        stem = cls.FULL_CONFIGURATION_FILE.split(".")[0]
+        return re.compile(rf"{re.escape(stem)}\.(.*)\.json")
 
     # Adapted from transformers.configuration_utils.PretrainedConfig.save_pretrained
     def save_pretrained(self, save_directory: Union[str, os.PathLike], push_to_hub: bool = False, **kwargs):
@@ -107,10 +111,13 @@ class BaseConfig(PretrainedConfig):
         configuration_files_map = {}
         _re_configuration_file = cls._re_configuration_file()
         for file_name in configuration_files:
-            search = _re_configuration_file.search(file_name)
+            # Use the basename so a repo-relative path still matches, and fullmatch so
+            # names like "myconfig.1.0.0.json" are not treated as versioned config files.
+            search = _re_configuration_file.fullmatch(os.path.basename(file_name))
             if search is not None:
                 v = search.groups()[0]
-                configuration_files_map[v] = file_name
+                if v:
+                    configuration_files_map[v] = file_name
         available_versions = sorted(configuration_files_map.keys())
 
         # Defaults to FULL_CONFIGURATION_FILE and then try to look at some newer versions.
