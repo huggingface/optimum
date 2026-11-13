@@ -544,7 +544,7 @@ class FuseBatchNorm2dInConv2d(Transformation):
         # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
         conv_b = conv2d.bias if conv2d.bias is not None else torch.zeros_like(bn2d.running_mean)
         bn_w = bn2d.weight if bn2d.weight is not None else torch.ones_like(bn2d.running_mean)
-        bn_b = bn2d.bias if bn2d.bias is not None else torch.ones_like(bn2d.running_mean)
+        bn_b = bn2d.bias if bn2d.bias is not None else torch.zeros_like(bn2d.running_mean)
 
         bn_var_rsqrt = torch.rsqrt(bn2d.running_var + bn2d.eps)
 
@@ -552,7 +552,7 @@ class FuseBatchNorm2dInConv2d(Transformation):
             conv2d.weight * (bn_w * bn_var_rsqrt).reshape([-1] + [1] * (len(conv2d.weight.shape) - 1))
         )
 
-        conv2d.bias = torch.nn.Parameter(conv_b - bn2d.running_mean * bn_var_rsqrt * bn_w + bn_b)
+        conv2d.bias = torch.nn.Parameter((conv_b - bn2d.running_mean) * bn_var_rsqrt * bn_w + bn_b)
 
         return conv2d
 
