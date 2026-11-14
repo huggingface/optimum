@@ -14,6 +14,9 @@
 # limitations under the License.
 import importlib
 import inspect
+import json
+import os
+import tempfile
 from typing import Optional, Set
 from unittest import TestCase
 
@@ -209,3 +212,49 @@ class TasksManagerTestCase(TestCase):
 
         self.assertEqual(inner_config.export_model_type, "transformer")
         self.assertIs(st_model.config, inner_config)
+
+    def test_infer_task_from_local_directory(self):
+        """A local transformers directory infers its task from config.json architectures."""
+        with tempfile.TemporaryDirectory() as folder:
+            with open(os.path.join(folder, "config.json"), "w") as f:
+                json.dump({"architectures": ["Qwen2ForCausalLM"]}, f)
+            self.assertEqual(TasksManager.infer_task_from_model(folder), "text-generation")
+
+    def test_infer_task_from_local_directory_subfolder(self):
+        """A local transformers directory with config.json in a subfolder infers its task."""
+        with tempfile.TemporaryDirectory() as folder:
+            subfolder = os.path.join(folder, "subfolder")
+            os.makedirs(subfolder)
+            with open(os.path.join(subfolder, "config.json"), "w") as f:
+                json.dump({"architectures": ["BertForMaskedLM"]}, f)
+            self.assertEqual(TasksManager.infer_task_from_model(folder, subfolder="subfolder"), "fill-mask")
+
+    def test_infer_task_from_local_directory_bert_model_defaults_to_feature_extraction(self):
+        """A bare encoder architecture (e.g. BertModel) matches several generic AutoModel tasks,
+        so it falls back to feature-extraction instead of raising a spurious conflict."""
+        with tempfile.TemporaryDirectory() as folder:
+            with open(os.path.join(folder, "config.json"), "w") as f:
+                json.dump({"architectures": ["BertModel"]}, f)
+            self.assertEqual(TasksManager.infer_task_from_model(folder), "feature-extraction")
+
+    def test_infer_task_from_local_directory_unknown_architecture(self):
+        """An unknown architecture raises RuntimeError."""
+        with tempfile.TemporaryDirectory() as folder:
+            with open(os.path.join(folder, "config.json"), "w") as f:
+                json.dump({"architectures": ["NonexistentArchitecture"]}, f)
+            with self.assertRaises(RuntimeError):
+                TasksManager.infer_task_from_model(folder)
+
+    def test_infer_task_from_local_directory_no_config(self):
+        """A local directory without config.json raises RuntimeError."""
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(RuntimeError):
+                TasksManager.infer_task_from_model(folder)
+
+    def test_infer_task_from_local_directory_multiple_task_specific_architectures(self):
+        """Conflicting task-specific architectures raise RuntimeError."""
+        with tempfile.TemporaryDirectory() as folder:
+            with open(os.path.join(folder, "config.json"), "w") as f:
+                json.dump({"architectures": ["BertForMaskedLM", "Qwen2ForCausalLM"]}, f)
+            with self.assertRaises(RuntimeError):
+                TasksManager.infer_task_from_model(folder)
