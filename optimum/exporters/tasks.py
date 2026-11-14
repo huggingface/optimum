@@ -15,6 +15,7 @@
 """Model export tasks manager."""
 
 import importlib
+import json
 import os
 from functools import partial
 from pathlib import Path
@@ -723,10 +724,42 @@ class TasksManager:
         is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
 
         if is_local:
-            # TODO: maybe implement that.
-            raise RuntimeError(
-                f"Cannot infer the task from a local directory yet, please specify the task manually ({', '.join(TasksManager.get_all_tasks())})."
-            )
+            # Resolve the library for local directories the same way as for the Hub,
+            # then reuse the per-library inference logic.
+            if library_name is None:
+                try:
+                    library_name = cls.infer_library_from_model(
+                        model_name_or_path,
+                        subfolder=subfolder,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        token=token,
+                    )
+                except ValueError:
+                    raise RuntimeError(
+                        f"Cannot infer the task from a local directory yet, please specify the task manually ({', '.join(TasksManager.get_all_tasks())})."
+                    )
+
+            if library_name == "timm":
+                # timm checkpoints expose their architecture in config.json ("architecture") but
+                # are image models, so they map to a single task.
+                inferred_task_name = "image-classification"
+            elif library_name == "sentence_transformers":
+                inferred_task_name = "feature-extraction"
+            elif library_name == "diffusers":
+                inferred_task_name = cls._infer_diffusers_task_from_local_directory(
+                    model_name_or_path=model_name_or_path,
+                    subfolder=subfolder,
+                )
+            elif library_name == "transformers":
+                inferred_task_name = cls._infer_transformers_task_from_local_directory(
+                    model_name_or_path=model_name_or_path,
+                    subfolder=subfolder,
+                )
+            else:
+                raise RuntimeError(
+                    f"Cannot infer the task from a local directory yet, please specify the task manually ({', '.join(TasksManager.get_all_tasks())})."
+                )
         else:
             if subfolder != "":
                 raise RuntimeError(
@@ -795,6 +828,134 @@ class TasksManager:
             raise KeyError(f"Could not find the proper task name for the model {model_name_or_path}.")
 
         return inferred_task_name
+
+    @classmethod
+    def _infer_transformers_task_from_local_directory(
+        cls,
+        model_name_or_path: str,
+        subfolder: str = "",
+    ) -> str:
+        """
+        Infer the task from a local transformers directory by reading ``config.json``.
+
+        The ``architectures`` field lists the model class names saved in the checkpoint. Each
+        class name is mapped to a task using the task -> auto-loader mappings. Several tasks
+        reuse the generic ``AutoModel`` loader (``feature-extraction``, ``image-to-text``,
+        ``mask-generation``, ``reinforcement-learning``), so a base architecture such as
+        ``BertModel`` matches all of them. Those are generic fallbacks, not genuine
+        task-specific matches, and must not be treated as a conflict. Only when two
+        task-specific loaders (e.g. ``AutoModelForMaskedLM`` and ``AutoModelForCausalLM``)
+        claim the architecture(s) do we raise so the caller can disambiguate manually.
+        """
+        config_path = os.path.join(model_name_or_path, subfolder, "config.json")
+        if not os.path.isfile(config_path):
+            raise RuntimeError(
+                f"Cannot infer the task from a local directory yet, please specify the task manually ({', '.join(TasksManager.get_all_tasks())})."
+            )
+
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        architectures = config.get("architectures", [])
+        task_name = cls._map_transformers_architectures_to_task(architectures)
+        if task_name is None:
+            raise RuntimeError(
+                f"Cannot infer the task from a local directory yet, please specify the task manually ({', '.join(TasksManager.get_all_tasks())})."
+            )
+        return task_name
+
+    @classmethod
+    def _map_transformers_architectures_to_task(cls, architectures: List[str]) -> Optional[str]:
+        """
+        Map a list of architecture class names to a single transformers task.
+
+        Returns:
+            `Optional[str]`: The inferred task name, or `None` when the architecture is
+            unknown (no match) or genuinely ambiguous between task-specific matches.
+        """
+        import transformers.models.auto.modeling_auto as auto_modeling_module
+
+        specific_candidates: Set[str] = set()
+        automodel_match = False
+
+        for architecture in architectures:
+            for task_name, model_loaders in cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS.items():
+                if isinstance(model_loaders, str):
+                    model_loaders = (model_loaders,)
+                for loader_name in model_loaders:
+                    loader_class = getattr(auto_modeling_module, loader_name, None)
+                    if loader_class is None:
+                        continue
+                    model_mapping = getattr(loader_class, "_model_mapping", None)
+                    if model_mapping is None:
+                        continue
+                    mapping = getattr(model_mapping, "_model_mapping", None)
+                    if mapping is None or architecture not in mapping.values():
+                        continue
+                    # ``AutoModel`` is a generic fallback that can load any model, so a match
+                    # through it is not a task-specific claim. Everything else is specific.
+                    if loader_name == "AutoModel":
+                        automodel_match = True
+                    else:
+                        specific_candidates.add(task_name)
+
+        if len(specific_candidates) == 1:
+            return next(iter(specific_candidates))
+        if len(specific_candidates) > 1:
+            # Genuine conflict between task-specific architectures; reject and let the user
+            # disambiguate manually.
+            return None
+        if automodel_match:
+            # Only generic ``AutoModel`` fallbacks matched (e.g. a bare ``BertModel``).
+            # ``feature-extraction`` is the sensible default and matches the behavior of
+            # inferring from a model instance.
+            return "feature-extraction"
+        return None
+
+    @classmethod
+    def _infer_diffusers_task_from_local_directory(
+        cls,
+        model_name_or_path: str,
+        subfolder: str = "",
+    ) -> str:
+        """
+        Infer the task from a local diffusers pipeline directory.
+
+        Diffusers pipelines write ``model_index.json`` with a top-level ``_class_name``.
+        Fall back to ``config.json["diffusers"]["_class_name"]`` when present.
+        """
+        class_name = None
+
+        model_index_path = os.path.join(model_name_or_path, subfolder, "model_index.json")
+        if os.path.isfile(model_index_path):
+            with open(model_index_path, "r") as f:
+                model_index = json.load(f)
+            class_name = model_index.get("_class_name")
+
+        if class_name is None:
+            config_path = os.path.join(model_name_or_path, subfolder, "config.json")
+            if os.path.isfile(config_path):
+                with open(config_path, "r") as f:
+                    config = json.load(f)
+                class_name = (config.get("diffusers") or {}).get("_class_name")
+
+        if class_name is None:
+            raise RuntimeError(
+                f"Cannot infer the task from a local directory yet, please specify the task manually ({', '.join(TasksManager.get_all_tasks())})."
+            )
+
+        matches = [
+            task_name
+            for task_name, model_mapping in cls._DIFFUSERS_TASKS_TO_MODEL_MAPPINGS.items()
+            for model_type, model_class_name in model_mapping.items()
+            if class_name == model_class_name
+        ]
+        if len(matches) == 1:
+            return matches[0]
+
+        raise RuntimeError(
+            f"Cannot infer the task from a local directory yet, please specify the task manually ({', '.join(TasksManager.get_all_tasks())})."
+        )
 
     @classmethod
     def infer_task_from_model(
