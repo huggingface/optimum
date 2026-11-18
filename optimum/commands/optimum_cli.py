@@ -60,6 +60,7 @@ def optimum_cli_subcommand(parent_command: Optional[Type[BaseOptimumCLICommand]]
         if not issubclass(subcommand, BaseOptimumCLICommand):
             raise ValueError(f"The subcommand {subcommand} must be a subclass of BaseOptimumCLICommand")
         _OPTIMUM_CLI_SUBCOMMANDS.append((subcommand, parent_command))
+        return subcommand
 
     return wrapper
 
