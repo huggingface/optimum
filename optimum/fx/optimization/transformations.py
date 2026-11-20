@@ -612,7 +612,8 @@ class FuseBatchNorm1dInLinear(Transformation):
 
                     # will fuse only if the linear output features is equal to the batchnorm num features, this is the case with 2D tensors
                     # the case where the linear input is (N, C, L_in), output is (N, C, L_out) and C = L_out is NOT handled as can not be fused
-                    if candidate_linear.weight.shape[0] == candidate_batchnorm1d.weight.shape[0]:
+                    # num_features stays valid when affine=False (weight and bias are both None)
+                    if candidate_linear.weight.shape[0] == candidate_batchnorm1d.num_features:
                         fused_linear = self.fuse(
                             linear=candidate_linear, bn1d=candidate_batchnorm1d, bn1d_before=False
                         )
@@ -643,7 +644,8 @@ class FuseBatchNorm1dInLinear(Transformation):
 
                     # will fuse only if the linear input features is equal to the batchnorm num features, this is the case with 2D tensors
                     # the case where the linear input is (N, C, L_in) and C = L_in is NOT handled as can not be fused
-                    if candidate_batchnorm1d.weight.shape[0] == candidate_linear.weight.shape[1]:
+                    # num_features stays valid when affine=False (weight and bias are both None)
+                    if candidate_batchnorm1d.num_features == candidate_linear.weight.shape[1]:
                         fused_linear = self.fuse(linear=candidate_linear, bn1d=candidate_batchnorm1d, bn1d_before=True)
 
                         # replace the old nn.Linear by the fused one
@@ -666,7 +668,8 @@ class FuseBatchNorm1dInLinear(Transformation):
         # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
         linear_b = linear.bias if linear.bias is not None else torch.zeros_like(bn1d.running_mean)
         bn_w = bn1d.weight if bn1d.weight is not None else torch.ones_like(bn1d.running_mean)
-        bn_b = bn1d.bias if bn1d.bias is not None else torch.ones_like(bn1d.running_mean)
+        # affine=False has no additive beta. ones_like shifts every channel by 1.
+        bn_b = bn1d.bias if bn1d.bias is not None else torch.zeros_like(bn1d.running_mean)
 
         bn_var_rsqrt = torch.rsqrt(bn1d.running_var + bn1d.eps)
 
