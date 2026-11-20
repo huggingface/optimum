@@ -79,8 +79,8 @@ def get_block_name_with_pattern(model: nn.Module):
     """
     modules_names = [n for n, _ in model.named_modules()]
     for pattern_candidate in BLOCK_PATTERNS:
-        pattern_candidate = pattern_candidate
-        if any(name.startswith(pattern_candidate) for name in modules_names):
+        # Match the module path, not a string prefix. "h" must not select "head".
+        if any(name == pattern_candidate or name.startswith(pattern_candidate + ".") for name in modules_names):
             return pattern_candidate
     raise ValueError("Block pattern could not be match. Pass `block_name_to_quantize` argument in `quantize_model`")
 
