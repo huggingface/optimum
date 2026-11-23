@@ -19,7 +19,7 @@ from unittest import TestCase
 
 import torch
 from parameterized import parameterized
-from transformers import AutoConfig
+from transformers import AutoConfig, DistilBertConfig
 
 from optimum.utils import DTYPE_MAPPER, DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
 from optimum.utils.normalized_config import NormalizedConfigManager
@@ -229,4 +229,38 @@ class GenerateDummy(TestCase):
         self.validate_shape_for_all_frameworks(input_generator, "input_values", (batch_size, audio_sequence_length))
         self.validate_shape_for_all_frameworks(
             input_generator, "input_features", (batch_size, feature_size, nb_max_frames)
+        )
+
+
+class GenerateSingleTokenMask(TestCase):
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "framework": ["pt", "np"],
+                "padding_side": ["left", "right"],
+                "task": ["text-classification", "multiple-choice"],
+                "input_name": ["attention_mask", "encoder_attention_mask"],
+                "int_dtype": ["int64", "int32"],
+            }
+        )
+    )
+    def test_single_token_attention_mask(
+        self, test_name: str, framework: str, padding_side: str, task: str, input_name: str, int_dtype: str
+    ):
+        config = DistilBertConfig()
+        normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
+        generator = DummyTextInputGenerator(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=2,
+            num_choices=3,
+            sequence_length=1,
+            padding_side=padding_side,
+        )
+        mask = generator.generate(input_name, framework=framework, int_dtype=int_dtype)
+        expected_shape = (2, 3, 1) if task == "multiple-choice" else (2, 1)
+        self.assertEqual(tuple(mask.shape), expected_shape)
+        self.assertEqual(mask.dtype, getattr(DTYPE_MAPPER, framework)(int_dtype))
+        self.assertEqual(
+            mask.tolist(), [[[1], [1], [1]], [[1], [1], [1]]] if task == "multiple-choice" else [[1], [1]]
         )
