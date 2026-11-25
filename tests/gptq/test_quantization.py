@@ -22,7 +22,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from transformers.testing_utils import slow
 
 from optimum.gptq import GPTQQuantizer, load_quantized_model
-from optimum.gptq.data import get_dataset
+from optimum.gptq.data import get_dataset, prepare_dataset
 from optimum.gptq.eval import evaluate_perplexity
 from optimum.gptq.utils import get_block_name_with_pattern, get_preceding_modules, get_seqlen
 from optimum.utils import recurse_getattr
@@ -297,6 +297,18 @@ class BloomGPTQUtilsTest(GPTQUtilsTest):
     expected_block_name = "transformer.h"
     expected_block_name_class = "BloomBlock"
     expected_preceding_modules = ["transformer.word_embeddings", "transformer.word_embeddings_layernorm"]
+
+
+class GPTQDataPreparationTest(unittest.TestCase):
+    def test_prepare_dataset_with_flat_examples(self):
+        examples = [
+            {"input_ids": [1, 100, 15], "attention_mask": [1, 1, 1]},
+            {"input_ids": [20, 30], "attention_mask": [1, 1]},
+        ]
+        dataset = prepare_dataset(examples, batch_size=2, pad_token_id=0)
+        self.assertEqual(len(dataset), 1)
+        torch.testing.assert_close(dataset[0]["input_ids"], torch.tensor([[1, 100, 15], [0, 20, 30]]))
+        torch.testing.assert_close(dataset[0]["attention_mask"], torch.tensor([[1, 1, 1], [0, 1, 1]]))
 
 
 class GPTQDataTest(unittest.TestCase):
