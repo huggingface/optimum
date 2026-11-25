@@ -626,8 +626,8 @@ def check_dummy_inputs_are_allowed(model: Union["PreTrainedModel", "ModelMixin"]
     Args:
         model ([`PreTrainedModel`] or [`ModelMixin`]):
             The model instance.
-        model_inputs (`Iterable[str]`):
-            The model input names.
+        dummy_input_names (`Iterable[str]`):
+            The names of the dummy inputs generated from the ONNX config.
     """
 
     forward = model.forward if is_torch_available() and isinstance(model, torch.nn.Module) else model.call

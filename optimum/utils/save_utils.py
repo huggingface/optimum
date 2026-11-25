@@ -69,11 +69,11 @@ def maybe_save_preprocessors(
     trust_remote_code: bool = False,
 ):
     """
-    Saves the tokenizer, the processor and the feature extractor when found in `src_dir` in `dest_dir`.
+    Saves the tokenizer, the processor and the feature extractor when found in `src_name_or_path` in `dest_dir`.
 
     Args:
-        src_dir (`Union[str, Path]`):
-            The source directory from which to copy the files.
+        src_name_or_path (`Union[str, Path]`):
+            The local directory or Hugging Face Hub repo id from which to load the preprocessors.
         dest_dir (`Union[str, Path]`):
             The destination directory to copy the files to.
         src_subfolder (`str`, defaults to `""`):
