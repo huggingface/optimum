@@ -405,6 +405,7 @@ class FuseBiasInLinear(ReversibleTransformation):
             return torch.cat([linear_input, torch_ones(shape, device=linear_input.device)], dim=-1)
 
         tracer = torch.fx.proxy.GraphAppendingTracer(graph_module.graph)
+        modules_to_fuse = set()
         for node in graph_module.graph.nodes:
             if node.op == "call_module":
                 module = graph_module.get_submodule(node.target)
@@ -421,12 +422,17 @@ class FuseBiasInLinear(ReversibleTransformation):
                         node.end_node = output_proxy.node
                         node.args = (output_proxy.node,)
                         self.mark_as_transformed(node)
-                    new_weight = torch.nn.Parameter(torch.cat([module.weight, module.bias[:, None]], dim=1))
-                    module.weight = new_weight
-                    module.bias = None
+                    modules_to_fuse.add(module)
+        # A module may have several call sites. Rewrite all of them before
+        # removing its bias, and append the bias column only once per module.
+        for module in modules_to_fuse:
+            new_weight = torch.nn.Parameter(torch.cat([module.weight, module.bias[:, None]], dim=1))
+            module.weight = new_weight
+            module.bias = None
         return graph_module
 
     def reverse(self, graph_module: "GraphModule") -> "GraphModule":
+        modules_to_restore = set()
         for node in self.get_transformed_nodes(graph_module):
             node.args = (node.start_node,)
             n = node.end_node
@@ -436,6 +442,8 @@ class FuseBiasInLinear(ReversibleTransformation):
                 n = n.prev
             self.mark_as_restored(node)
             module = graph_module.get_submodule(node.target)
+            modules_to_restore.add(module)
+        for module in modules_to_restore:
             new_weight = torch.nn.Parameter(module.weight[:, :-1])
             new_bias = torch.nn.Parameter(module.weight[:, -1].squeeze())
             module.weight = new_weight
