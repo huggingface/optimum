@@ -19,9 +19,15 @@ from unittest import TestCase
 
 import torch
 from parameterized import parameterized
-from transformers import AutoConfig
+from transformers import AutoConfig, BartConfig
 
-from optimum.utils import DTYPE_MAPPER, DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
+from optimum.utils import (
+    DTYPE_MAPPER,
+    BartDummyTextInputGenerator,
+    DummyAudioInputGenerator,
+    DummyTextInputGenerator,
+    DummyVisionInputGenerator,
+)
 from optimum.utils.normalized_config import NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters
 
@@ -230,3 +236,59 @@ class GenerateDummy(TestCase):
         self.validate_shape_for_all_frameworks(
             input_generator, "input_features", (batch_size, feature_size, nb_max_frames)
         )
+
+    def test_single_token_attention_mask(self):
+        """Regression test for #2525: single-token attention mask must not raise ValueError."""
+        config = AutoConfig.from_pretrained(TEXT_ENCODER_MODELS["distilbert"])
+        normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
+        normalized_config = normalized_config_class(config)
+
+        input_generator = DummyTextInputGenerator(
+            task="text-classification",
+            normalized_config=normalized_config,
+            batch_size=2,
+            sequence_length=1,
+        )
+
+        # PyTorch framework
+        mask_pt = input_generator.generate("attention_mask", framework="pt")
+        self.assertEqual(mask_pt.shape, torch.Size([2, 1]))
+        self.assertTrue(torch.all(mask_pt == 1))
+
+        # NumPy framework
+        mask_np = input_generator.generate("attention_mask", framework="np")
+        self.assertEqual(mask_np.shape, (2, 1))
+        self.assertTrue((mask_np == 1).all())
+
+        # Also test encoder_attention_mask
+        mask_enc_pt = input_generator.generate("encoder_attention_mask", framework="pt")
+        self.assertEqual(mask_enc_pt.shape, torch.Size([2, 1]))
+        self.assertTrue(torch.all(mask_enc_pt == 1))
+
+        mask_enc_np = input_generator.generate("encoder_attention_mask", framework="np")
+        self.assertEqual(mask_enc_np.shape, (2, 1))
+        self.assertTrue((mask_enc_np == 1).all())
+
+        # Also pin the BartDummyTextInputGenerator EOS-forcing path with a single token:
+        # with sequence_length=1 there is no valid random index beyond 0, so the EOS token
+        # must be placed at index 0 instead of raising ValueError from randint(1, 0).
+        bart_config = BartConfig(vocab_size=50, eos_token_id=2)
+        bart_normalized_config_class = NormalizedConfigManager.get_normalized_config_class(
+            bart_config.model_type
+        )
+        bart_normalized_config = bart_normalized_config_class(bart_config)
+
+        bart_input_generator = BartDummyTextInputGenerator(
+            task="text-classification",
+            normalized_config=bart_normalized_config,
+            batch_size=2,
+            sequence_length=1,
+        )
+
+        input_ids_pt = bart_input_generator.generate("input_ids", framework="pt")
+        self.assertEqual(input_ids_pt.shape, torch.Size([2, 1]))
+        self.assertTrue(torch.all(input_ids_pt == bart_config.eos_token_id))
+
+        input_ids_np = bart_input_generator.generate("input_ids", framework="np")
+        self.assertEqual(input_ids_np.shape, (2, 1))
+        self.assertTrue((input_ids_np == bart_config.eos_token_id).all())

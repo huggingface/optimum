@@ -183,6 +183,18 @@ class DummyInputGenerator(ABC):
             A random mask tensor either left padded or right padded in the requested framework.
         """
         shape = tuple(shape)
+        # With a single token (shape[-1] == 1), no padding is possible:
+        # we must keep the token unmasked, so the mask is all ones.
+        if shape[-1] <= 1:
+            if framework == "pt":
+                import torch
+
+                return torch.ones(*shape, dtype=DTYPE_MAPPER.pt(dtype))
+            else:
+                import numpy as np
+
+                return np.ones(shape, dtype=DTYPE_MAPPER.np(dtype))
+
         mask_length = random.randint(1, shape[-1] - 1)
         if framework == "pt":
             import torch
@@ -1835,7 +1847,9 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
             for idx in range(self.batch_size):
                 if self.eos_token_id in int_tensor[idx]:
                     continue
-                random_idx = random.randint(1, self.sequence_length - 1)
+                # With a single token there is nothing to pad/mask beyond index 0,
+                # so place the EOS token at the only valid position.
+                random_idx = random.randint(1, self.sequence_length - 1) if self.sequence_length > 1 else 0
                 int_tensor[idx][random_idx] = self.eos_token_id
 
         return int_tensor
