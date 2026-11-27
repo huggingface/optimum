@@ -13,15 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import inspect
+import io
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from parameterized import parameterized
 
 import optimum.commands.base
+from optimum.commands.base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
+from optimum.commands.export.base import ExportCommand
+from optimum.commands.optimum_cli import main, optimum_cli_subcommand
 
 
 CLI_WITH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
@@ -30,6 +39,37 @@ REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH = OPTIMUM_COMMANDS_DIR / "register" / "c
 
 
 class TestCLI(unittest.TestCase):
+    @parameterized.expand([("root", None, []), ("export", ExportCommand, ["export"])])
+    def test_decorator_preserves_command_class(self, _name, parent_command, prefix):
+        with patch("optimum.commands.optimum_cli._OPTIMUM_CLI_SUBCOMMANDS", []):
+
+            @optimum_cli_subcommand(parent_command)
+            class CustomCommand(BaseOptimumCLICommand):
+                COMMAND = CommandInfo(name="decorator-command", help="Decorator test")
+
+                def run(self):
+                    print("decorated command ran")
+
+            self.assertIsInstance(CustomCommand, type)
+
+            # The decorated class remains usable by static command registration.
+            root = RootOptimumCLICommand("Decorator test")
+            root.register_subcommand(CommandInfo("reused-command", "Reuse test", CustomCommand))
+            args = root.parser.parse_args(["reused-command"])
+            command = args.func(args)
+            self.assertIsInstance(command, CustomCommand)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                command.run()
+            self.assertEqual(output.getvalue().strip(), "decorated command ran")
+
+            # The decorator still registers the command in the actual CLI.
+            output = io.StringIO()
+            with patch.object(sys, "argv", ["optimum-cli", *prefix, "decorator-command"]):
+                with contextlib.redirect_stdout(output):
+                    main()
+            self.assertEqual(output.getvalue().strip(), "decorated command ran")
+
     def test_env_commands(self):
         subprocess.run("optimum-cli env", shell=True, check=True)
 
