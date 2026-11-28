@@ -1181,7 +1181,14 @@ class TasksManager:
             )
 
         if library_name == "timm":
-            model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
+            # timm selects its loading source via a prefix: `hf_hub:` (aliased to `hf-hub:`)
+            # downloads from the Hugging Face Hub, while `local-dir:` loads from a local folder.
+            # A bare local path is rejected by timm, so we pick the prefix based on whether the
+            # argument is a local directory. See #2423.
+            if os.path.isdir(model_name_or_path):
+                model = model_class(f"local-dir:{model_name_or_path}", pretrained=True, exportable=True)
+            else:
+                model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
             model = model.to(torch_dtype).to(device)
         elif library_name == "sentence_transformers":
             token = model_kwargs.pop("token", None)

@@ -13,13 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import inspect
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import optimum.commands.base
 
@@ -88,3 +92,68 @@ class TestCLI(unittest.TestCase):
     def tearDown(self):
         super().tearDown()
         REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink(missing_ok=True)
+
+    def test_load_namespace_cli_commands_dedup_symlink(self):
+        # Regression test for #2417: on systems where `lib64` is a symlink to `lib`,
+        # `submodule_search_locations` can return two entries pointing to the same physical
+        # directory. Commands from that directory must be registered only once.
+        from optimum.commands.optimum_cli import load_optimum_namespace_cli_commands
+
+        register_module_name = "cli_2417_dedup_check"
+        register_file_content = (
+            "from optimum.commands.base import BaseOptimumCLICommand, CommandInfo\n"
+            "\n"
+            "\n"
+            "class Cli2417DedupCheckCommand(BaseOptimumCLICommand):\n"
+            "    COMMAND = CommandInfo(name='cli-2417-dedup-check', help='dedup test')\n"
+            "\n"
+            "    def run(self):\n"
+            "        pass\n"
+            "\n"
+            "\n"
+            "REGISTER_COMMANDS = [Cli2417DedupCheckCommand]\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            real_register_dir = Path(tmp) / "register"
+            real_register_dir.mkdir()
+            (real_register_dir / f"{register_module_name}.py").write_text(register_file_content)
+            symlink_register_dir = Path(tmp) / "register_symlink"
+            symlink_register_dir.symlink_to(real_register_dir, target_is_directory=True)
+
+            fake_spec = importlib.machinery.ModuleSpec("optimum.commands.register", loader=None, is_package=True)
+            fake_spec.submodule_search_locations = [str(real_register_dir), str(symlink_register_dir)]
+            # Provide a namespace parent whose __path__ points at our isolated directory so that
+            # `importlib.import_module("optimum.commands.register.cli_2417_dedup_check")` resolves there.
+            fake_parent = types.ModuleType("optimum.commands.register")
+            fake_parent.__path__ = [str(real_register_dir)]
+            fake_parent.__spec__ = fake_spec
+
+            original_find_spec = importlib.util.find_spec
+            original_parent = sys.modules.get("optimum.commands.register", None)
+            original_submodule = sys.modules.get(f"optimum.commands.register.{register_module_name}", None)
+
+            def patched_find_spec(name, *args, **kwargs):
+                if name == "optimum.commands.register":
+                    return fake_spec
+                return original_find_spec(name, *args, **kwargs)
+
+            try:
+                sys.modules["optimum.commands.register"] = fake_parent
+                with mock.patch("importlib.util.find_spec", side_effect=patched_find_spec):
+                    commands = load_optimum_namespace_cli_commands()
+            finally:
+                if original_parent is None:
+                    sys.modules.pop("optimum.commands.register", None)
+                else:
+                    sys.modules["optimum.commands.register"] = original_parent
+                sys.modules.pop(f"optimum.commands.register.{register_module_name}", None)
+                if original_submodule is not None:
+                    sys.modules[f"optimum.commands.register.{register_module_name}"] = original_submodule
+
+            command_names = [command.COMMAND.name for command, _ in commands]
+            self.assertEqual(
+                command_names.count("cli-2417-dedup-check"),
+                1,
+                f"Expected the command to be registered exactly once, but got: {command_names}",
+            )
