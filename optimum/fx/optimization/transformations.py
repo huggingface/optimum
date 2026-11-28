@@ -664,7 +664,7 @@ class FuseBatchNorm1dInLinear(Transformation):
 
     def fuse(self, linear: torch.nn.Linear, bn1d: torch.nn.BatchNorm1d, bn1d_before: bool):
         # handle the case where there is no bias in the conv or the batchnorm has no learnable parameters
-        linear_b = linear.bias if linear.bias is not None else torch.zeros_like(bn1d.running_mean)
+        linear_b = linear.bias if linear.bias is not None else linear.weight.new_zeros(linear.out_features)
         bn_w = bn1d.weight if bn1d.weight is not None else torch.ones_like(bn1d.running_mean)
         bn_b = bn1d.bias if bn1d.bias is not None else torch.ones_like(bn1d.running_mean)
 
