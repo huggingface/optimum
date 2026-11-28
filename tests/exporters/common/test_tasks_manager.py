@@ -18,7 +18,16 @@ from typing import Optional, Set
 from unittest import TestCase
 
 import pytest
-from transformers import BertConfig, Pix2StructForConditionalGeneration, VisualBertForQuestionAnswering
+from transformers import (
+    BartConfig,
+    BartForConditionalGeneration,
+    BertConfig,
+    BertForMaskedLM,
+    MBartForConditionalGeneration,
+    MvpForConditionalGeneration,
+    Pix2StructForConditionalGeneration,
+    VisualBertForQuestionAnswering,
+)
 from transformers.testing_utils import slow
 
 from optimum.exporters.onnx.model_configs import BertOnnxConfig
@@ -174,6 +183,34 @@ class TasksManagerTestCase(TestCase):
 
         model = TasksManager.get_model_from_task("question-answering", "uclanlp/visualbert-vqa")
         self.assertTrue(isinstance(model, VisualBertForQuestionAnswering))
+
+    def test_infer_task_from_seq2seq_model_class(self):
+        # Bart, mBART and MVP register their seq2seq class for fill-mask as well as text2text-generation.
+        cases = [
+            (BartForConditionalGeneration, "text2text-generation"),
+            (MBartForConditionalGeneration, "text2text-generation"),
+            (MvpForConditionalGeneration, "text2text-generation"),
+            (BertForMaskedLM, "fill-mask"),
+        ]
+        for model_class, expected_task in cases:
+            with self.subTest(model_class=model_class.__name__):
+                self.assertEqual(TasksManager.infer_task_from_model(model_class), expected_task)
+
+        # onnx_export_from_model infers the task from the model instance when no task is given.
+
+        tiny_bart = BartForConditionalGeneration(
+            BartConfig(
+                vocab_size=32,
+                d_model=8,
+                encoder_layers=1,
+                decoder_layers=1,
+                encoder_attention_heads=2,
+                decoder_attention_heads=2,
+                encoder_ffn_dim=8,
+                decoder_ffn_dim=8,
+            )
+        )
+        self.assertEqual(TasksManager.infer_task_from_model(tiny_bart), "text2text-generation")
 
     def test_library_detection(self):
         self.assertEqual(
