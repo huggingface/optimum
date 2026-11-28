@@ -46,15 +46,105 @@ if is_accelerate_available():
     )
     from accelerate.hooks import remove_hook_from_module
 
+# The bridge is optional for GPTQModel releases that predate this API.
+_gptqmodel_load_post_init = None
+_gptqmodel_load_prepare_model = None
+
 if is_gptqmodel_available():
     from gptqmodel import BACKEND, QuantizeConfig
     from gptqmodel.quantization import FORMAT, GPTQ, METHOD
     from gptqmodel.utils.importer import hf_select_quant_linear_v2
-    from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
+    from gptqmodel.utils.model import (
+        hf_convert_gptq_v1_to_v2_format,
+        hf_convert_gptq_v2_to_v1_format,
+    )
     from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init
     from gptqmodel.version import __version__ as gptqmodel_version
 
+    try:
+        from gptqmodel.utils.model import hf_gptqmodel_post_init_for_load as _gptqmodel_load_post_init
+        from gptqmodel.utils.model import hf_gptqmodel_prepare_model_for_load as _gptqmodel_load_prepare_model
+    except ImportError:
+        # GPTQModel releases that predate the bridge keep the legacy Optimum path.
+        _gptqmodel_load_post_init = None
+        _gptqmodel_load_prepare_model = None
+
 logger = getLogger(__name__)
+
+# Paths a checkpoint directory is scanned for when GPTQModel's own quantizer
+# provenance has to be resolved before the load delegate is consulted.
+_GPTQMODEL_MANIFEST_FILENAMES = ("quantize_config.json", "quant_config.json", "config.json")
+
+
+def _get_checkpoint_dir(model: nn.Module, checkpoint_files: Optional[Any]) -> Optional[str]:
+    """Resolve the directory holding the serialized quantization manifest."""
+
+    candidates: List[str] = []
+    if checkpoint_files is not None:
+        if isinstance(checkpoint_files, (str, os.PathLike)):
+            checkpoint_files = [checkpoint_files]
+        elif isinstance(checkpoint_files, dict):
+            checkpoint_files = list(checkpoint_files.values())
+        files = [os.fspath(path) for path in checkpoint_files if isinstance(path, (str, os.PathLike))]
+        if len(files) > 1:
+            try:
+                common = os.path.commonpath([os.path.abspath(path) for path in files])
+            except ValueError:
+                common = None
+            if common is not None:
+                candidates.append(common if os.path.isdir(common) else os.path.dirname(common))
+        candidates.extend(path if os.path.isdir(path) else os.path.dirname(path) for path in files)
+
+    config = getattr(model, "config", None)
+    for attribute in ("_name_or_path", "name_or_path"):
+        model_path = getattr(config, attribute, None)
+        if isinstance(model_path, (str, os.PathLike)) and os.path.isdir(os.fspath(model_path)):
+            candidates.append(os.fspath(model_path))
+
+    for candidate in dict.fromkeys(candidates):
+        if any(os.path.isfile(os.path.join(candidate, name)) for name in _GPTQMODEL_MANIFEST_FILENAMES):
+            return candidate
+    return None
+
+
+def _is_native_gptqmodel_checkpoint(model: nn.Module, checkpoint_files: Optional[Any]) -> bool:
+    """Return whether the checkpoint declares GPTQModel itself as its quantizer.
+
+    Optimum's own saved checkpoints also record a ``gptqmodel:<version>`` entry because
+    Optimum delegates the quantization math to GPTQModel (see ``GPTQQuantizer.to_dict``).
+    Delegating those to GPTQModel would change the kernel and configuration Optimum
+    established, so only checkpoints that name GPTQModel without naming Optimum are
+    treated as native.
+    """
+
+    checkpoint_dir = _get_checkpoint_dir(model, checkpoint_files)
+    if checkpoint_dir is None:
+        return False
+
+    for filename in _GPTQMODEL_MANIFEST_FILENAMES:
+        manifest_path = os.path.join(checkpoint_dir, filename)
+        if not os.path.isfile(manifest_path):
+            continue
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as manifest_file:
+                manifest = json.load(manifest_file)
+        except (OSError, TypeError, ValueError):
+            continue
+        if not isinstance(manifest, dict):
+            continue
+        quantize_config = manifest.get("quantization_config", manifest)
+        if not isinstance(quantize_config, dict):
+            continue
+        meta = quantize_config.get("meta")
+        quantizers = meta.get("quantizer") if isinstance(meta, dict) else None
+        if isinstance(quantizers, str):
+            quantizers = [quantizers]
+        if not isinstance(quantizers, (list, tuple)):
+            continue
+        normalized = {str(quantizer).lower().replace("-", "").strip() for quantizer in quantizers}
+        if any(entry.startswith("gptqmodel") for entry in normalized):
+            return not any(entry.startswith("optimum") for entry in normalized)
+    return False
 
 
 def has_device_more_than_cpu():
@@ -254,6 +344,20 @@ class GPTQQuantizer(object):
                 Model to be converted
 
         """
+        # Preserve native GPTQModel module manifests and per-module settings.
+        if _gptqmodel_load_prepare_model is not None:
+            if _is_native_gptqmodel_checkpoint(model, kwargs.get("checkpoint_files")):
+                context = _gptqmodel_load_prepare_model(
+                    model,
+                    checkpoint_files=kwargs.get("checkpoint_files"),
+                    device_map=kwargs.get("device_map"),
+                    backend=self.backend,
+                    dtype=kwargs.get("dtype"),
+                )
+                if context is not None:
+                    model._gptqmodel_load_context = context
+                    return model
+
         if self.block_name_to_quantize is None:
             self.block_name_to_quantize = get_block_name_with_pattern(model)
         block_name = self.block_name_to_quantize
@@ -281,6 +385,10 @@ class GPTQQuantizer(object):
                 The input model
         """
 
+        if self.block_name_to_quantize is None:
+            # A native GPTQModel checkpoint was converted by the load delegate, which
+            # does not populate the Optimum block name. Mirror ``convert_model``.
+            self.block_name_to_quantize = get_block_name_with_pattern(model)
         block_class_name = recurse_getattr(model, self.block_name_to_quantize)[0].__class__.__name__
         no_split_module_classes = [block_class_name]
         return no_split_module_classes
@@ -613,6 +721,14 @@ class GPTQQuantizer(object):
                 The input model
         """
 
+        # Kernel post-init must run after checkpoint tensors reach their devices.
+        context = getattr(model, "_gptqmodel_load_context", None)
+        if context is not None:
+            try:
+                return _gptqmodel_load_post_init(model, context=context)
+            finally:
+                del model._gptqmodel_load_context
+
         class StoreAttr(object):
             pass
 
@@ -701,6 +817,20 @@ class GPTQQuantizer(object):
             json.dump(self.to_dict(), f, indent=2)
 
 
+def _collect_checkpoint_files(save_folder: str, state_dict_name: Optional[str]) -> List[str]:
+    """List the checkpoint weight files under ``save_folder`` for the load delegate."""
+
+    if state_dict_name is not None:
+        return [os.path.join(save_folder, state_dict_name)]
+    if not os.path.isdir(save_folder):
+        return []
+    return [
+        os.path.join(save_folder, filename)
+        for filename in sorted(os.listdir(save_folder))
+        if filename.endswith(".safetensors") or filename.endswith(".index.json")
+    ]
+
+
 def load_quantized_model(
     model: nn.Module,
     save_folder: str,
@@ -782,7 +912,11 @@ def load_quantized_model(
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.backend = backend
 
-    model = quantizer.convert_model(model, device_map=device_map)
+    model = quantizer.convert_model(
+        model,
+        device_map=device_map,
+        checkpoint_files=_collect_checkpoint_files(save_folder, state_dict_name),
+    )
 
     if no_split_module_classes is None:
         no_split_module_classes = quantizer.get_no_split_module_classes(model)
