@@ -51,7 +51,10 @@ def prepare_dataset(
         input_ids = example["input_ids"]
         attention_mask = example["attention_mask"]
         new_examples.append(
-            {"input_ids": torch.LongTensor(input_ids), "attention_mask": torch.LongTensor(attention_mask)}
+            {
+                "input_ids": torch.atleast_2d(torch.LongTensor(input_ids)),
+                "attention_mask": torch.atleast_2d(torch.LongTensor(attention_mask)),
+            }
         )
     if batch_size > 1 and pad_token_id is None:
         raise ValueError(
